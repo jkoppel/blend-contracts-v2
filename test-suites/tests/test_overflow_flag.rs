@@ -74,7 +74,7 @@ fn test_auction_underflow_panics() {
     let liq_pct = 100;
     let auction_data_2 = pool_fixture
         .pool
-        .new_liquidation_auction(&samwise, &liq_pct);
+        .new_auction(&0, &samwise, &Vec::<Address>::new(&fixture.env), &liq_pct);
 
     let usdc_bid_amount = auction_data_2
         .bid
