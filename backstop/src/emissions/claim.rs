@@ -102,7 +102,7 @@ mod tests {
         let block_timestamp = 1500000000 + 12345;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -263,7 +263,7 @@ mod tests {
         let block_timestamp = 1500000000 + 12345;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -414,7 +414,7 @@ mod tests {
             let block_timestamp_1 = 1500000000 + 12345 + 12345;
             e.ledger().set(LedgerInfo {
                 timestamp: block_timestamp_1,
-                protocol_version: 20,
+                protocol_version: 21,
                 sequence_number: 0,
                 network_id: Default::default(),
                 base_reserve: 10,
@@ -486,7 +486,7 @@ mod tests {
         let block_timestamp = 1500000000 + 12345;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,

@@ -108,7 +108,7 @@ mod tests {
         });
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 10000,
             network_id: Default::default(),
@@ -168,7 +168,7 @@ mod tests {
         });
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 10000,
             network_id: Default::default(),
@@ -205,7 +205,7 @@ mod tests {
             execute_queue_withdrawal(&e, &samwise, &pool_address, 25_0000000);
 
             e.ledger().set(LedgerInfo {
-                protocol_version: 20,
+                protocol_version: 21,
                 sequence_number: 100,
                 timestamp: 10000,
                 network_id: Default::default(),
@@ -219,7 +219,7 @@ mod tests {
         });
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 20000,
             network_id: Default::default(),
@@ -272,7 +272,7 @@ mod tests {
             execute_queue_withdrawal(&e, &samwise, &pool_address, 25_0000000);
 
             e.ledger().set(LedgerInfo {
-                protocol_version: 20,
+                protocol_version: 21,
                 sequence_number: 100,
                 timestamp: 10000,
                 network_id: Default::default(),
@@ -286,7 +286,7 @@ mod tests {
         });
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 20000,
             network_id: Default::default(),
@@ -318,7 +318,7 @@ mod tests {
         mock_pool_factory_client.set_pool(&pool_address);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 10000,
             network_id: Default::default(),
@@ -336,7 +336,7 @@ mod tests {
         });
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 10000 + 21 * 24 * 60 * 60 + 1,
             network_id: Default::default(),
@@ -385,7 +385,7 @@ mod tests {
         mock_pool_factory_client.set_pool(&pool_address);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 10000,
             network_id: Default::default(),
@@ -403,7 +403,7 @@ mod tests {
         });
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 10000 + 21 * 24 * 60 * 60 + 1,
             network_id: Default::default(),
@@ -438,7 +438,7 @@ mod tests {
         mock_pool_factory_client.set_pool(&pool_address);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 10000,
             network_id: Default::default(),
@@ -457,7 +457,7 @@ mod tests {
         });
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 200,
             timestamp: 10000 + 21 * 24 * 60 * 60 + 1,
             network_id: Default::default(),

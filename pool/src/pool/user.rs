@@ -348,7 +348,7 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 1,
             timestamp: 10001000,
             network_id: Default::default(),
@@ -440,7 +440,7 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 1,
             timestamp: 10001000,
             network_id: Default::default(),
@@ -587,7 +587,7 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 1,
             timestamp: 10001000,
             network_id: Default::default(),
@@ -678,7 +678,7 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 1,
             timestamp: 10001000,
             network_id: Default::default(),
@@ -827,7 +827,7 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 1,
             timestamp: 10001000,
             network_id: Default::default(),
@@ -918,7 +918,7 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         e.ledger().set(LedgerInfo {
-            protocol_version: 20,
+            protocol_version: 21,
             sequence_number: 1,
             timestamp: 10001000,
             network_id: Default::default(),

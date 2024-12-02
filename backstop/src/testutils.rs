@@ -95,7 +95,7 @@ pub(crate) fn create_emitter<'a>(
     let prev_timestamp = e.ledger().timestamp();
     e.ledger().set(LedgerInfo {
         timestamp: emitter_last_distro,
-        protocol_version: 20,
+        protocol_version: 21,
         sequence_number: 0,
         network_id: Default::default(),
         base_reserve: 10,
@@ -110,7 +110,7 @@ pub(crate) fn create_emitter<'a>(
     client.initialize(&blnd_token, &backstop, &backstop_token);
     e.ledger().set(LedgerInfo {
         timestamp: prev_timestamp,
-        protocol_version: 20,
+        protocol_version: 21,
         sequence_number: 0,
         network_id: Default::default(),
         base_reserve: 10,
