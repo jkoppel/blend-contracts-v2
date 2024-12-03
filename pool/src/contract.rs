@@ -1,10 +1,7 @@
 use crate::{
-    auctions::{self, AuctionData},
-    emissions::{self, ReserveEmissionMetadata},
-    pool::{self, Positions, Request},
-    storage::{self, ReserveConfig},
+    auctions::{self, AuctionData}, emissions::{self, ReserveEmissionMetadata}, pool::{self, Positions, Reserve, Request}, storage::{self, ReserveConfig}, PoolConfig, PoolError, ReserveEmissionsData, UserEmissionData
 };
-use soroban_sdk::{contract, contractclient, contractimpl, Address, Env, String, Symbol, Vec};
+use soroban_sdk::{contract, contractclient, contractimpl, panic_with_error, Address, Env, String, Symbol, Vec};
 
 /// ### Pool
 ///
@@ -87,6 +84,18 @@ pub trait Pool {
     /// or is already setup
     /// or has invalid metadata
     fn set_reserve(e: Env, asset: Address) -> u32;
+    
+    /// Fetch the pool configuration
+    fn get_config(e: Env) -> PoolConfig;
+
+    /// Fetch the admin address of the pool
+    fn get_admin(e: Env) -> Address;
+
+    /// Fetch information about a reserve
+    /// 
+    /// ### Arguments
+    /// * `asset` - The address of the reserve asset
+    fn get_reserve(e: Env, asset: Address) -> Reserve;
 
     /// Fetch the positions for an address
     ///
@@ -191,17 +200,33 @@ pub trait Pool {
     /// * `to` - The Address to send the claimed tokens to
     fn claim(e: Env, from: Address, reserve_token_ids: Vec<u32>, to: Address) -> i128;
 
+    /// Get the emissions data for a reserve
+    /// 
+    /// ### Arguments
+    /// * `reserve_token_id` - The reserve token id. This is a unique identifier for the type of position in a pool. For 
+    ///                        dTokens, a reserve token id (reserve_index * 2). For bTokens, a reserve token id (reserve_index * 2) + 1.
+    fn get_reserve_emissions(e: Env, reserve_token_id: u32) -> ReserveEmissionsData;
+
+    /// Get the emissions data for a user
+    /// 
+    /// ### Arguments
+    /// * `user` - The address of the user
+    /// * `reserve_token_id` - The reserve token id. This is a unique identifier for the type of position in a pool. For 
+    ///                        dTokens, a reserve token id (reserve_index * 2). For bTokens, a reserve token id (reserve_index * 2) + 1.
+    fn get_user_emissions(e: Env, user: Address, reserve_token_id: u32) -> UserEmissionData;
+
     /***** Auction / Liquidation Functions *****/
 
-    /// Creates a new user liquidation auction
-    ///
+    /// Create a new auction. Auctions are used to process liquidations, bad debt, and interest.
+    /// 
     /// ### Arguments
-    /// * `user` - The user getting liquidated through the auction
-    /// * `percent_liquidated` - The percent of the user's position being liquidated as a percentage (15 => 15%)
-    ///
-    /// ### Panics
-    /// If the user liquidation auction was unable to be created
-    fn new_liquidation_auction(e: Env, user: Address, percent_liquidated: u64) -> AuctionData;
+    /// * `auction_type` - The type of auction, 0 for liquidation auction, 1 for bad debt auction, and 2 for interest auction
+    /// * `user` - The Address involved in the auction. This is generally the source of the assets being auctioned.
+    ///            For bad debt and interest auctions, this is expected to be the backstop address.
+    /// * `assets` - The assets included in the auction
+    /// * `percent` - The percent of the assets to be auctioned off as a percentage (15 => 15%). For bad debt and interest auctions.
+    ///               this is expected to be 100.
+    fn new_auction(e: Env, auction_type: u32, user: Address, assets: Vec<Address>, percent: u32) -> AuctionData;
 
     /// Fetch an auction from the ledger. Returns a quote based on the current block.
     ///
@@ -212,22 +237,6 @@ pub trait Pool {
     /// ### Panics
     /// If the auction does not exist
     fn get_auction(e: Env, auction_type: u32, user: Address) -> AuctionData;
-
-    /// Creates a new bad debt auction
-    ///
-    ///
-    /// ### Panics
-    /// If the auction was unable to be created
-    fn new_bad_debt_auction(e: Env) -> AuctionData;
-
-    /// Creates a new interest auction
-    ///
-    /// ### Arguments
-    /// * `assets` - The assets interest is being auctioned off for
-    ///
-    /// ### Panics
-    /// If the auction was unable to be created
-    fn new_interest_auction(e: Env, assets: Vec<Address>) -> AuctionData;
 }
 
 #[contractimpl]
@@ -315,6 +324,20 @@ impl Pool for PoolContract {
         index
     }
 
+
+    fn get_config(e: Env) -> PoolConfig {
+        storage::get_pool_config(&e)
+    }
+
+    fn get_admin(e: Env) -> Address {
+        storage::get_admin(&e)
+    }
+
+    fn get_reserve(e: Env, asset: Address) -> Reserve {
+        let pool_config = storage::get_pool_config(&e);
+        Reserve::load(&e, &pool_config, &asset)
+    }
+
     fn get_positions(e: Env, address: Address) -> Positions {
         storage::get_user_positions(&e, &address)
     }
@@ -389,15 +412,35 @@ impl Pool for PoolContract {
         amount_claimed
     }
 
+    fn get_reserve_emissions(e: Env, reserve_token_index: u32) -> ReserveEmissionsData {
+        storage::get_res_emis_data(&e, &reserve_token_index).unwrap_or(ReserveEmissionsData {
+            index: 0,
+            last_time: 0,
+        })
+    }
+
+    fn get_user_emissions(e: Env, user: Address, reserve_token_index: u32) -> UserEmissionData {
+        storage::get_user_emissions(&e, &user, &reserve_token_index).unwrap_or(UserEmissionData { index:0, accrued: 0 })
+    }
+
     /***** Auction / Liquidation Functions *****/
 
-    fn new_liquidation_auction(e: Env, user: Address, percent_liquidated: u64) -> AuctionData {
-        let auction_data = auctions::create_liquidation(&e, &user, percent_liquidated);
+    // TODO: Support specifying assets for all auction types
+    // TODO: Validate arguments
+    fn new_auction(e: Env, auction_type: u32, user: Address, assets: Vec<Address>, percent: u32) -> AuctionData {
+        storage::extend_instance(&e);
+        let auction_data = match auction_type {
+            0 => auctions::create_liquidation(&e, &user, percent as u64),
+            1 => auctions::create_bad_debt_auction(&e),
+            2 => auctions::create_interest_auction(&e, &assets),
+            _ => panic_with_error!(&e, PoolError::BadRequest),
+        };
 
         e.events().publish(
-            (Symbol::new(&e, "new_liquidation_auction"), user),
+            (Symbol::new(&e, "new_auction"), auction_type, user),
             auction_data.clone(),
         );
+
         auction_data
     }
 
@@ -405,27 +448,4 @@ impl Pool for PoolContract {
         storage::get_auction(&e, &auction_type, &user)
     }
 
-    fn new_bad_debt_auction(e: Env) -> AuctionData {
-        storage::extend_instance(&e);
-        let auction_data = auctions::create_bad_debt_auction(&e);
-
-        e.events().publish(
-            (Symbol::new(&e, "new_auction"), 1 as u32),
-            auction_data.clone(),
-        );
-
-        auction_data
-    }
-
-    fn new_interest_auction(e: Env, assets: Vec<Address>) -> AuctionData {
-        storage::extend_instance(&e);
-        let auction_data = auctions::create_interest_auction(&e, &assets);
-
-        e.events().publish(
-            (Symbol::new(&e, "new_auction"), 2 as u32),
-            auction_data.clone(),
-        );
-
-        auction_data
-    }
 }
