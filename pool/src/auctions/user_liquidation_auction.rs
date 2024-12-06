@@ -52,7 +52,8 @@ pub fn create_user_liq_auction_data(
         percent_liquidated
     };
 
-    let percent_liquidated_i128_scaled = i128(percent_liquidated_to_check) * position_data.scalar / 100; // scale to decimal form with scalar decimals
+    let percent_liquidated_i128_scaled =
+        i128(percent_liquidated_to_check) * position_data.scalar / 100; // scale to decimal form with scalar decimals
 
     // ensure liquidation size is fair and the collateral is large enough to allow for the auction to price the liquidation
     let avg_cf = position_data
@@ -121,7 +122,8 @@ pub fn create_user_liq_auction_data(
     if percent_liquidated > 95 {
         // If the user has enough collateral to repay the debt, validate that the
         // post-95%-liq health factor does not exceed the minimum threshold of 1.03
-        if est_withdrawn_collateral < position_data.collateral_raw && new_data.is_hf_over(1_0310000) {
+        if est_withdrawn_collateral < position_data.collateral_raw && new_data.is_hf_over(1_0310000)
+        {
             panic_with_error!(e, PoolError::InvalidLiqTooLarge)
         };
 
@@ -578,8 +580,16 @@ mod tests {
         let liq_pct = 96;
         // true liquidation percent between 99-100%
         let positions: Positions = Positions {
-            collateral: map![&e, (reserve_config_1.index, 75_500_0000), (reserve_config_0.index, 50_000_0000)],
-            liabilities: map![&e, (reserve_config_1.index, 50_000_0000), (reserve_config_0.index, 50_000_0000)],
+            collateral: map![
+                &e,
+                (reserve_config_1.index, 75_500_0000),
+                (reserve_config_0.index, 50_000_0000)
+            ],
+            liabilities: map![
+                &e,
+                (reserve_config_1.index, 50_000_0000),
+                (reserve_config_0.index, 50_000_0000)
+            ],
             supply: map![&e],
         };
         let pool_config = PoolConfig {
@@ -708,7 +718,7 @@ mod tests {
             create_user_liq_auction_data(&e, &samwise, liq_pct);
         });
     }
-    
+
     #[test]
     #[should_panic(expected = "Error(Contract, #1213)")]
     fn test_create_user_liquidation_auction_too_large() {
@@ -1399,5 +1409,4 @@ mod tests {
             );
         });
     }
-
 }

@@ -98,12 +98,12 @@ impl User {
 
     /// Default on liabilities from the position expressed in debtTokens. Accrues emissions
     /// against the balance if necessary and updates the reserve's b_rate and d_supply.
-    /// 
+    ///
     /// This should only be called if the liabilities are being defaulted on. The liability will
     /// be forgiven and suppliers will lose funds.
     pub fn default_liabilities(&mut self, e: &Env, reserve: &mut Reserve, amount: i128) {
         self.remove_liabilities(e, reserve, amount);
-        // determine amount of funds in underlying that have defaulted 
+        // determine amount of funds in underlying that have defaulted
         // and deduct them from the b_rate
         let default_amount = reserve.to_asset_from_d_token(amount);
         let b_rate_loss = default_amount.fixed_div_floor(&e, &reserve.b_supply, &SCALAR_9);
@@ -567,7 +567,10 @@ mod tests {
 
             assert_eq!(user.get_liabilities(0), 0);
             assert_eq!(reserve_0.d_supply, d_supply - 20_0000000);
-            assert_eq!(reserve_0.total_supply(), total_supply - underlying_default_amount);
+            assert_eq!(
+                reserve_0.total_supply(),
+                total_supply - underlying_default_amount
+            );
             assert_eq!(reserve_0.b_rate, 1_210_000_000);
             assert_eq!(reserve_0.b_supply, 750_0000000);
         });

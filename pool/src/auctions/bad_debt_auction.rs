@@ -1376,7 +1376,6 @@ mod tests {
         });
     }
 
-
     #[test]
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_fill_bad_debt_auction_with_backstop() {
