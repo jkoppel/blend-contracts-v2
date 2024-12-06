@@ -1,6 +1,7 @@
+use soroban_fixed_point_math::SorobanFixedPoint;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map};
 
-use crate::{emissions, storage, validator::require_nonnegative, PoolError};
+use crate::{constants::SCALAR_9, emissions, storage, validator::require_nonnegative, PoolError};
 
 use super::{Pool, Reserve};
 
@@ -93,6 +94,23 @@ impl User {
             self.positions.liabilities.set(reserve.index, new_balance);
         }
         reserve.d_supply -= amount;
+    }
+
+    /// Default on liabilities from the position expressed in debtTokens. Accrues emissions
+    /// against the balance if necessary and updates the reserve's b_rate and d_supply.
+    /// 
+    /// This should only be called if the liabilities are being defaulted on. The liability will
+    /// be forgiven and suppliers will lose funds.
+    pub fn default_liabilities(&mut self, e: &Env, reserve: &mut Reserve, amount: i128) {
+        self.remove_liabilities(e, reserve, amount);
+        // determine amount of funds in underlying that have defaulted 
+        // and deduct them from the b_rate
+        let default_amount = reserve.to_asset_from_d_token(amount);
+        let b_rate_loss = default_amount.fixed_div_floor(&e, &reserve.b_supply, &SCALAR_9);
+        reserve.b_rate -= b_rate_loss;
+        if reserve.b_rate < 0 {
+            reserve.b_rate = 0;
+        }
     }
 
     /// Get the collateralized blendToken position for the reserve at the given index
@@ -517,6 +535,74 @@ mod tests {
             assert_eq!(user.get_liabilities(0), 123);
 
             user.remove_liabilities(&e, &mut reserve_0, 124);
+        });
+    }
+
+    #[test]
+    fn test_default_liabilities_reduces_b_rate() {
+        let e = Env::default();
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let mut reserve_0 = testutils::default_reserve(&e);
+        reserve_0.d_rate = 1_500_000_000;
+        reserve_0.d_supply = 500_0000000;
+        reserve_0.b_rate = 1_250_000_000;
+        reserve_0.b_supply = 750_0000000;
+
+        let mut user = User {
+            address: samwise.clone(),
+            positions: Positions::env_default(&e),
+        };
+        e.as_contract(&pool, || {
+            assert_eq!(user.get_liabilities(0), 0);
+
+            user.add_liabilities(&e, &mut reserve_0, 20_0000000);
+            assert_eq!(user.get_liabilities(0), 20_0000000);
+
+            let d_supply = reserve_0.d_supply;
+            let total_supply = reserve_0.total_supply();
+            let underlying_default_amount = reserve_0.to_asset_from_d_token(20_0000000);
+            user.default_liabilities(&e, &mut reserve_0, 20_0000000);
+
+            assert_eq!(user.get_liabilities(0), 0);
+            assert_eq!(reserve_0.d_supply, d_supply - 20_0000000);
+            assert_eq!(reserve_0.total_supply(), total_supply - underlying_default_amount);
+            assert_eq!(reserve_0.b_rate, 1_210_000_000);
+            assert_eq!(reserve_0.b_supply, 750_0000000);
+        });
+    }
+
+    #[test]
+    fn test_default_liabilities_reduces_b_rate_to_zero() {
+        let e = Env::default();
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let mut reserve_0 = testutils::default_reserve(&e);
+        reserve_0.d_rate = 1_500_000_000;
+        reserve_0.d_supply = 500_0000000;
+        reserve_0.b_rate = 0_100_000_000;
+        reserve_0.b_supply = 750_0000000;
+
+        let mut user = User {
+            address: samwise.clone(),
+            positions: Positions::env_default(&e),
+        };
+        e.as_contract(&pool, || {
+            assert_eq!(user.get_liabilities(0), 0);
+
+            user.add_liabilities(&e, &mut reserve_0, 100_0000000);
+            assert_eq!(user.get_liabilities(0), 100_0000000);
+
+            let d_supply = reserve_0.d_supply;
+            user.default_liabilities(&e, &mut reserve_0, 100_0000000);
+
+            assert_eq!(user.get_liabilities(0), 0);
+            assert_eq!(reserve_0.d_supply, d_supply - 100_0000000);
+            assert_eq!(reserve_0.total_supply(), 0);
+            assert_eq!(reserve_0.b_rate, 0);
+            assert_eq!(reserve_0.b_supply, 750_0000000);
         });
     }
 
