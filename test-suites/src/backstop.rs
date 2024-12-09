@@ -8,9 +8,9 @@ use backstop::{BackstopClient, BackstopContract};
 pub fn create_backstop<'a>(e: &Env, wasm: bool) -> (Address, BackstopClient<'a>) {
     let contract_id = Address::generate(e);
     if wasm {
-        e.register_contract_wasm(&contract_id, backstop_contract_wasm::WASM);
+        e.register_at(&contract_id, backstop_contract_wasm::WASM, ());
     } else {
-        e.register_contract(&contract_id, BackstopContract {});
+        e.register_at(&contract_id, BackstopContract {}, ());
     }
     (contract_id.clone(), BackstopClient::new(e, &contract_id))
 }

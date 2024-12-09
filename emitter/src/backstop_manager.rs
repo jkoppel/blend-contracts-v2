@@ -108,7 +108,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 50,
             network_id: Default::default(),
             base_reserve: 10,
@@ -122,7 +122,9 @@ mod tests {
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
         let new_backstop_token = Address::generate(&e);
 
@@ -159,7 +161,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 50,
             network_id: Default::default(),
             base_reserve: 10,
@@ -173,7 +175,9 @@ mod tests {
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
         let new_backstop_token = Address::generate(&e);
 
@@ -199,7 +203,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 50,
             network_id: Default::default(),
             base_reserve: 10,
@@ -213,7 +217,9 @@ mod tests {
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
         let new_backstop_token = Address::generate(&e);
 
@@ -247,7 +253,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 50,
             network_id: Default::default(),
             base_reserve: 10,
@@ -261,7 +267,9 @@ mod tests {
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
         let new_backstop_token = Address::generate(&e);
 
@@ -301,7 +309,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 50,
             network_id: Default::default(),
             base_reserve: 10,
@@ -315,7 +323,9 @@ mod tests {
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
         let new_backstop_token = Address::generate(&e);
 
@@ -348,7 +358,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 50,
             network_id: Default::default(),
             base_reserve: 10,
@@ -362,7 +372,9 @@ mod tests {
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
 
         backstop_token_client.mint(&backstop, &(1_000_000 * SCALAR_7));
@@ -388,7 +400,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 500,
             network_id: Default::default(),
             base_reserve: 10,
@@ -400,13 +412,17 @@ mod tests {
         let bombadil = Address::generate(&e);
         let emitter = create_emitter(&e);
 
-        let blnd_token = e.register_stellar_asset_contract(emitter.clone());
+        let blnd_token = e
+            .register_stellar_asset_contract_v2(emitter.clone())
+            .address();
         let blnd_token_client = MockTokenClient::new(&e, &blnd_token);
 
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
         let new_backstop_token = Address::generate(&e);
 
@@ -453,7 +469,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 500,
             network_id: Default::default(),
             base_reserve: 10,
@@ -465,11 +481,15 @@ mod tests {
         let bombadil = Address::generate(&e);
         let emitter = create_emitter(&e);
 
-        let blnd_token = e.register_stellar_asset_contract(emitter.clone());
+        let blnd_token = e
+            .register_stellar_asset_contract_v2(emitter.clone())
+            .address();
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
         let new_backstop_token = Address::generate(&e);
 
@@ -503,7 +523,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 500,
             network_id: Default::default(),
             base_reserve: 10,
@@ -515,11 +535,15 @@ mod tests {
         let bombadil = Address::generate(&e);
         let emitter = create_emitter(&e);
 
-        let blnd_token = e.register_stellar_asset_contract(emitter.clone());
+        let blnd_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
 
         backstop_token_client.mint(&backstop, &(1_000_000 * SCALAR_7));
@@ -545,7 +569,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 500,
             network_id: Default::default(),
             base_reserve: 10,
@@ -557,11 +581,15 @@ mod tests {
         let bombadil = Address::generate(&e);
         let emitter = create_emitter(&e);
 
-        let blnd_token = e.register_stellar_asset_contract(emitter.clone());
+        let blnd_token = e
+            .register_stellar_asset_contract_v2(emitter.clone())
+            .address();
         let backstop = Address::generate(&e);
         let new_backstop = Address::generate(&e);
 
-        let backstop_token = e.register_stellar_asset_contract(bombadil.clone());
+        let backstop_token = e
+            .register_stellar_asset_contract_v2(bombadil.clone())
+            .address();
         let backstop_token_client = MockTokenClient::new(&e, &backstop_token);
         let new_backstop_token = Address::generate(&e);
 

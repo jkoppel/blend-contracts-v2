@@ -22,7 +22,7 @@ sep-40-oracle = { workspace = true }
 sep-41-token = { workspace = true}
 
 
-[dev_dependencies]
+[dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 backstop = { path = "../backstop", features = ["testutils"] }
 sep-40-oracle = { workspace = true, features = ["testutils"] }

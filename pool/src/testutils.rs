@@ -16,7 +16,7 @@ use backstop::{BackstopClient, BackstopContract};
 use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient};
 
 pub(crate) fn create_pool(e: &Env) -> Address {
-    e.register_contract(None, PoolContract {})
+    e.register(PoolContract {}, ())
 }
 
 //************************************************
@@ -30,7 +30,7 @@ pub(crate) fn create_token_contract<'a>(
     admin: &Address,
 ) -> (Address, MockTokenClient<'a>) {
     let contract_address = Address::generate(e);
-    e.register_contract_wasm(&contract_address, MockTokenWASM);
+    e.register_at(&contract_address, MockTokenWASM, ());
     let client = MockTokenClient::new(e, &contract_address);
     client.initialize(admin, &7, &"unit".into_val(e), &"test".into_val(e));
     (contract_address, client)
@@ -52,7 +52,7 @@ pub(crate) fn create_blnd_token<'a>(
 //***** Oracle ******
 
 pub(crate) fn create_mock_oracle(e: &Env) -> (Address, MockPriceOracleClient) {
-    let contract_address = e.register_contract_wasm(None, MockPriceOracleWASM);
+    let contract_address = e.register(MockPriceOracleWASM, ());
     (
         contract_address.clone(),
         MockPriceOracleClient::new(e, &contract_address),
@@ -62,7 +62,7 @@ pub(crate) fn create_mock_oracle(e: &Env) -> (Address, MockPriceOracleClient) {
 //***** Pool Factory ******
 
 pub(crate) fn create_mock_pool_factory(e: &Env) -> (Address, MockPoolFactoryClient) {
-    let contract_address = e.register_contract(None, MockPoolFactory {});
+    let contract_address = e.register(MockPoolFactory {}, ());
     (
         contract_address.clone(),
         MockPoolFactoryClient::new(e, &contract_address),
@@ -77,7 +77,7 @@ pub(crate) fn create_emitter<'a>(
     backstop_token: &Address,
     blnd_token: &Address,
 ) -> (Address, EmitterClient<'a>) {
-    let contract_address = e.register_contract(None, EmitterContract {});
+    let contract_address = e.register(EmitterContract {}, ());
     let client = EmitterClient::new(e, &contract_address);
     client.initialize(blnd_token, backstop_id, backstop_token);
     (contract_address.clone(), client)
@@ -90,7 +90,7 @@ mod comet {
 }
 
 pub(crate) fn create_backstop(e: &Env) -> (Address, BackstopClient) {
-    let contract_address = e.register_contract(None, BackstopContract {});
+    let contract_address = e.register(BackstopContract {}, ());
     (
         contract_address.clone(),
         BackstopClient::new(e, &contract_address),
@@ -136,7 +136,7 @@ pub(crate) fn create_comet_lp_pool<'a>(
     usdc_token: &Address,
 ) -> (Address, comet::Client<'a>) {
     let contract_address = Address::generate(e);
-    e.register_contract_wasm(&contract_address, comet::WASM);
+    e.register_at(&contract_address, comet::WASM, ());
     let client = comet::Client::new(e, &contract_address);
 
     let blnd_client = MockTokenClient::new(e, blnd_token);

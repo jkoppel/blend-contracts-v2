@@ -87,7 +87,7 @@ impl MockPoolFactoryTrait for MockPoolFactory {
         init_args.push_back(pool_init_meta.backstop.to_val());
         init_args.push_back(pool_init_meta.blnd_id.to_val());
 
-        let pool_address = e.register_contract(None, PoolContract {});
+        let pool_address = e.register(PoolContract {}, ());
         e.invoke_contract::<Val>(&pool_address, &Symbol::new(&e, "initialize"), init_args);
 
         storage::set_deployed(&e, &pool_address);

@@ -62,7 +62,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 50,
             network_id: Default::default(),
             base_reserve: 10,
@@ -74,7 +74,9 @@ mod tests {
         let emitter = create_emitter(&e);
         let backstop = Address::generate(&e);
 
-        let blnd_id = e.register_stellar_asset_contract(emitter.clone());
+        let blnd_id = e
+            .register_stellar_asset_contract_v2(emitter.clone())
+            .address();
         let blnd_client = MockTokenClient::new(&e, &blnd_id);
 
         e.as_contract(&emitter, || {
@@ -96,7 +98,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 5000000,
             network_id: Default::default(),
             base_reserve: 10,
@@ -110,7 +112,9 @@ mod tests {
         let emitter = create_emitter(&e);
         let backstop = Address::generate(&e);
 
-        let blnd_id = e.register_stellar_asset_contract(emitter.clone());
+        let blnd_id = e
+            .register_stellar_asset_contract_v2(emitter.clone())
+            .address();
         let blnd_client = MockTokenClient::new(&e, &blnd_id);
         let drop_list = vec![
             &e,
@@ -138,7 +142,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 5000000,
             network_id: Default::default(),
             base_reserve: 10,
@@ -152,7 +156,9 @@ mod tests {
         let emitter = create_emitter(&e);
         let backstop = Address::generate(&e);
 
-        let blnd_id = e.register_stellar_asset_contract(emitter.clone());
+        let blnd_id = e
+            .register_stellar_asset_contract_v2(emitter.clone())
+            .address();
         let drop_list = vec![
             &e,
             (frodo.clone(), 20_000_000 * SCALAR_7),
@@ -178,7 +184,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 5000000,
             network_id: Default::default(),
             base_reserve: 10,
@@ -192,7 +198,9 @@ mod tests {
         let emitter = create_emitter(&e);
         let backstop = Address::generate(&e);
 
-        let blnd_id = e.register_stellar_asset_contract(emitter.clone());
+        let blnd_id = e
+            .register_stellar_asset_contract_v2(emitter.clone())
+            .address();
         let drop_list = vec![
             &e,
             (frodo.clone(), 20_000_000 * SCALAR_7),

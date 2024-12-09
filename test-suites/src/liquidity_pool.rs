@@ -23,7 +23,7 @@ pub(crate) fn create_lp_pool<'a>(
     token_2: &Address,
 ) -> (Address, LPClient<'a>) {
     let contract_address = Address::generate(e);
-    e.register_contract_wasm(&contract_address, LP_WASM);
+    e.register_at(&contract_address, LP_WASM, ());
     let client = LPClient::new(e, &contract_address);
 
     let token_1_client = MockTokenClient::new(e, token_1);

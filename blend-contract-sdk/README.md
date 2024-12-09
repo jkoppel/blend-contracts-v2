@@ -41,11 +41,11 @@ use blend_contract_sdk::{pool, testutils::{default_reserve_config, BlendFixture}
 
 let env = Env::default();
 let deployer = Address::generate(&env);
-let blnd = env.register_stellar_asset_contract(deployer.clone());
-let usdc = env.register_stellar_asset_contract(deployer.clone());
+let blnd = env.register_stellar_asset_contract_v2(deployer.clone()).address();
+let usdc = env.register_stellar_asset_contract_v2(deployer.clone()).address();
 let blend = BlendFixture::deploy(&env, &deployer, &blnd, &usdc);
 
-let token = env.register_stellar_asset_contract(deployer.clone());
+let token = env.register_stellar_asset_contract_v2(deployer.clone()).address();
 let pool = blend.pool_factory.mock_all_auths().deploy(
     &deployer,
     &symbol_short!("test"),

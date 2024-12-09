@@ -159,7 +159,7 @@ mod tests {
         e.mock_all_auths();
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 20100,
             network_id: Default::default(),
             base_reserve: 10,
@@ -198,7 +198,7 @@ mod tests {
         e.mock_all_auths();
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 20100,
             network_id: Default::default(),
             base_reserve: 10,
@@ -294,7 +294,7 @@ mod tests {
         e.mock_all_auths();
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 20100,
             network_id: Default::default(),
             base_reserve: 10,
@@ -364,7 +364,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 20100,
             network_id: Default::default(),
             base_reserve: 10,
@@ -419,7 +419,7 @@ mod tests {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 20100,
             network_id: Default::default(),
             base_reserve: 10,
@@ -470,7 +470,7 @@ mod tests {
 
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 20100,
             network_id: Default::default(),
             base_reserve: 10,

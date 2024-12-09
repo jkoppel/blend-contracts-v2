@@ -101,7 +101,7 @@ impl PoolFactory for PoolFactoryContract {
         let pool_address = e
             .deployer()
             .with_current_contract(new_salt)
-            .deploy(pool_init_meta.pool_hash);
+            .deploy_v2(pool_init_meta.pool_hash, ());
         e.invoke_contract::<Val>(&pool_address, &Symbol::new(&e, "initialize"), init_args);
 
         storage::set_deployed(&e, &pool_address);

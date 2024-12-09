@@ -183,7 +183,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -242,7 +242,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -283,7 +283,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 12345;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -337,7 +337,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 12345;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -391,7 +391,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -454,7 +454,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -514,7 +514,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -560,7 +560,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -616,7 +616,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,
@@ -668,7 +668,7 @@ mod tests {
         let block_timestamp = BACKSTOP_EPOCH + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
-            protocol_version: 21,
+            protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
             base_reserve: 10,

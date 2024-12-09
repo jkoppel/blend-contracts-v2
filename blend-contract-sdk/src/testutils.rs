@@ -52,10 +52,10 @@ impl<'a> BlendFixture<'a> {
         usdc: &Address,
     ) -> BlendFixture<'a> {
         env.budget().reset_unlimited();
-        let backstop = env.register_contract_wasm(None, backstop::WASM);
-        let emitter = env.register_contract_wasm(None, emitter::WASM);
-        let comet = env.register_contract_wasm(None, comet::WASM);
-        let pool_factory = env.register_contract_wasm(None, pool_factory::WASM);
+        let backstop = env.register(backstop::WASM, ());
+        let emitter = env.register(emitter::WASM, ());
+        let comet = env.register(comet::WASM, ());
+        let pool_factory = env.register(pool_factory::WASM, ());
         let blnd_client = StellarAssetClient::new(env, &blnd);
         let usdc_client = StellarAssetClient::new(env, &usdc);
         blnd_client
@@ -133,13 +133,19 @@ mod tests {
     fn test_deploy() {
         let env = Env::default();
         let deployer = Address::generate(&env);
-        let blnd = env.register_stellar_asset_contract(deployer.clone());
-        let usdc = env.register_stellar_asset_contract(deployer.clone());
+        let blnd = env
+            .register_stellar_asset_contract_v2(deployer.clone())
+            .address();
+        let usdc = env
+            .register_stellar_asset_contract_v2(deployer.clone())
+            .address();
         let blend = BlendFixture::deploy(&env, &deployer, &blnd, &usdc);
         assert_eq!(blend.backstop_token.balance(&deployer), 200_000_0000000);
 
         // deploy a pool, verify adding reserves, and backstop reward zone
-        let token = env.register_stellar_asset_contract(deployer.clone());
+        let token = env
+            .register_stellar_asset_contract_v2(deployer.clone())
+            .address();
         let pool = blend.pool_factory.mock_all_auths().deploy(
             &deployer,
             &String::from_str(&env, "test"),

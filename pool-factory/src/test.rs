@@ -12,7 +12,7 @@ mod pool {
 }
 
 fn create_pool_factory(e: &Env) -> (Address, PoolFactoryClient) {
-    let contract_id = e.register_contract(None, PoolFactoryContract {});
+    let contract_id = e.register(PoolFactoryContract {}, ());
     (contract_id.clone(), PoolFactoryClient::new(e, &contract_id))
 }
 
