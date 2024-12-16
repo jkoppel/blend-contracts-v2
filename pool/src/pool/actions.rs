@@ -92,6 +92,7 @@ impl Actions {
 /// * pool - The pool
 /// * from - The sender of the requests
 /// * requests - The requests to be processed
+/// * use_allowance - A bool indicating if the transfer_from method should be used
 ///
 /// ### Returns
 /// A tuple of (actions, positions, check_health) where:
@@ -106,6 +107,7 @@ pub fn build_actions_from_request(
     pool: &mut Pool,
     from: &Address,
     requests: Vec<Request>,
+    use_allowance: bool,
 ) -> (Actions, User, bool) {
     let mut actions = Actions::new(e);
     let mut from_state = User::load(e, from);
@@ -210,22 +212,27 @@ pub fn build_actions_from_request(
                 let mut reserve = pool.load_reserve(e, &request.address, true);
                 let cur_d_tokens = from_state.get_liabilities(reserve.index);
                 let d_tokens_burnt = reserve.to_d_token_down(request.amount);
-                actions.add_for_spender_transfer(&reserve.asset, request.amount);
                 if d_tokens_burnt > cur_d_tokens {
-                    let amount_to_refund =
-                        request.amount - reserve.to_asset_from_d_token(cur_d_tokens);
-                    require_nonnegative(e, &amount_to_refund);
+                    let cur_underlying_borrowed = reserve.to_asset_from_d_token(cur_d_tokens);
+                    if use_allowance {
+                        actions.add_for_spender_transfer(&reserve.asset, cur_underlying_borrowed);
+                    } else {
+                        let amount_to_refund = request.amount - cur_underlying_borrowed;
+                        require_nonnegative(e, &amount_to_refund);
+                        actions.add_for_spender_transfer(&reserve.asset, request.amount);
+                        actions.add_for_pool_transfer(&reserve.asset, amount_to_refund);
+                    }
                     from_state.remove_liabilities(e, &mut reserve, cur_d_tokens);
-                    actions.add_for_pool_transfer(&reserve.asset, amount_to_refund);
                     e.events().publish(
                         (
                             Symbol::new(e, "repay"),
                             request.address.clone().clone(),
                             from.clone(),
                         ),
-                        (request.amount - amount_to_refund, cur_d_tokens),
+                        (cur_underlying_borrowed, cur_d_tokens),
                     );
                 } else {
+                    actions.add_for_spender_transfer(&reserve.asset, request.amount);
                     from_state.remove_liabilities(e, &mut reserve, d_tokens_burnt);
                     e.events().publish(
                         (
@@ -381,7 +388,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(health_check, false);
 
@@ -457,7 +464,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(health_check, false);
 
@@ -530,7 +537,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(health_check, false);
 
@@ -595,7 +602,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(health_check, false);
 
@@ -673,7 +680,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(health_check, true);
 
@@ -746,7 +753,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(health_check, true);
 
@@ -810,7 +817,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
             assert_eq!(health_check, true);
 
             let spender_transfer = actions.spender_transfer;
@@ -881,7 +888,81 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
+
+            assert_eq!(health_check, false);
+
+            let spender_transfer = actions.spender_transfer;
+            let pool_transfer = actions.pool_transfer;
+            assert_eq!(spender_transfer.len(), 1);
+            assert_eq!(
+                spender_transfer.get_unchecked(underlying.clone()),
+                10_1234567
+            );
+            assert_eq!(pool_transfer.len(), 0);
+
+            let positions = user.positions.clone();
+            assert_eq!(positions.liabilities.len(), 1);
+            assert_eq!(positions.collateral.len(), 0);
+            assert_eq!(positions.supply.len(), 0);
+            let d_tokens_repaid = 10_1234451;
+            assert_eq!(user.get_liabilities(0), 20_0000000 - d_tokens_repaid);
+
+            let reserve = pool.load_reserve(&e, &underlying, false);
+            assert_eq!(reserve.d_supply, reserve_data.d_supply - d_tokens_repaid);
+        });
+    }
+
+    #[test]
+    fn test_build_actions_from_request_use_allowance_repay() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 2,
+        };
+        let user_positions = Positions {
+            liabilities: map![&e, (0, 20_0000000)],
+            collateral: map![&e],
+            supply: map![&e],
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_user_positions(&e, &samwise, &user_positions);
+
+            let mut pool = Pool::load(&e);
+
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::Repay as u32,
+                    address: underlying.clone(),
+                    amount: 10_1234567,
+                },
+            ];
+            let (actions, user, health_check) =
+                build_actions_from_request(&e, &mut pool, &samwise, requests, true);
 
             assert_eq!(health_check, false);
 
@@ -955,7 +1036,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests.clone(), false);
 
             assert_eq!(health_check, false);
 
@@ -979,6 +1060,78 @@ mod tests {
         });
     }
 
+    #[test]
+    fn test_build_actions_from_request_use_allowance_repay_over_balance() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 2,
+        };
+        let user_positions = Positions {
+            liabilities: map![&e, (0, 20_0000000)],
+            collateral: map![&e],
+            supply: map![&e],
+        };
+
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_user_positions(&e, &samwise, &user_positions);
+
+            let mut pool = Pool::load(&e);
+
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::Repay as u32,
+                    address: underlying.clone(),
+                    amount: 21_0000000,
+                },
+            ];
+            let (actions, user, health_check) =
+                build_actions_from_request(&e, &mut pool, &samwise, requests, true);
+
+            assert_eq!(health_check, false);
+
+            let spender_transfer = actions.spender_transfer;
+            let pool_transfer = actions.pool_transfer;
+            assert_eq!(spender_transfer.len(), 1);
+            assert_eq!(
+                spender_transfer.get_unchecked(underlying.clone()),
+                20_0000229
+            );
+            assert_eq!(pool_transfer.len(), 0);
+
+            let positions = user.positions.clone();
+            assert_eq!(positions.liabilities.len(), 0);
+            assert_eq!(positions.collateral.len(), 0);
+            assert_eq!(positions.supply.len(), 0);
+
+            let reserve = pool.load_reserve(&e, &underlying, false);
+            assert_eq!(reserve.d_supply, reserve_data.d_supply - 20_0000000);
+        });
+    }
     #[test]
     fn test_aggregating_actions() {
         let e = Env::default();
@@ -1056,7 +1209,7 @@ mod tests {
                 },
             ];
             let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(health_check, true);
 
@@ -1196,7 +1349,7 @@ mod tests {
                 },
             ];
             let (actions, _, health_check) =
-                build_actions_from_request(&e, &mut pool, &frodo, requests);
+                build_actions_from_request(&e, &mut pool, &frodo, requests, false);
 
             assert_eq!(health_check, true);
             let exp_new_auction = AuctionData {
@@ -1328,7 +1481,7 @@ mod tests {
                 },
             ];
             let (actions, _, health_check) =
-                build_actions_from_request(&e, &mut pool, &frodo, requests);
+                build_actions_from_request(&e, &mut pool, &frodo, requests, false);
 
             assert_eq!(health_check, true);
             assert_eq!(
@@ -1446,6 +1599,12 @@ mod tests {
             block: 51,
         };
 
+        backstop_token_client.approve(
+            &samwise,
+            &backstop_address,
+            &100_0000000,
+            &e.ledger().sequence(),
+        );
         e.as_contract(&pool_address, || {
             e.mock_all_auths_allowing_non_root_auth();
             storage::set_pool_config(&e, &pool_config);
@@ -1469,7 +1628,7 @@ mod tests {
             ];
             let pre_fill_backstop_token_balance = backstop_token_client.balance(&backstop_address);
             let (actions, _, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(backstop_token_client.balance(&samwise), 25_0000000);
             assert_eq!(
@@ -1554,7 +1713,7 @@ mod tests {
                 },
             ];
             let (actions, _, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+                build_actions_from_request(&e, &mut pool, &samwise, requests, false);
 
             assert_eq!(health_check, true);
             assert_eq!(
@@ -1623,7 +1782,7 @@ mod tests {
                 },
             ];
 
-            let (_, user, _) = build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let (_, user, _) = build_actions_from_request(&e, &mut pool, &samwise, requests, false);
             assert_eq!(user.positions.effective_count(), 3)
         });
     }
@@ -1680,7 +1839,7 @@ mod tests {
                 },
             ];
 
-            build_actions_from_request(&e, &mut pool, &samwise, requests);
+            build_actions_from_request(&e, &mut pool, &samwise, requests, false);
         });
     }
 }

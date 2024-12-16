@@ -293,6 +293,12 @@ fn test_liquidations() {
     let frodo_stable_balance = fixture.tokens[TokenIndex::STABLE].balance(&frodo);
     let frodo_xlm_balance = fixture.tokens[TokenIndex::XLM].balance(&frodo);
     let frodo_weth_balance = fixture.tokens[TokenIndex::WETH].balance(&frodo);
+    fixture.lp.approve(
+        &frodo,
+        &fixture.backstop.address,
+        &lp_donate_bid_amount,
+        &fixture.env.ledger().sequence(),
+    );
     let frodo_positions_post_fill =
         pool_fixture
             .pool

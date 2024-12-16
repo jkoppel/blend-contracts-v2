@@ -130,6 +130,26 @@ pub trait Pool {
         requests: Vec<Request>,
     ) -> Positions;
 
+    /// Submit a set of requests to the pool where 'from' takes on the position, 'spender' sends any
+    /// required tokens to the pool USING transfer_from and 'to' receives any tokens sent from the pool.
+    ///
+    /// Returns the new positions for 'from'
+    ///
+    /// ### Arguments
+    /// * `from` - The address of the user whose positions are being modified
+    /// * `spender` - The address of the user who is sending tokens to the pool
+    /// * `to` - The address of the user who is receiving tokens from the pool
+    /// * `requests` - A vec of requests to be processed
+    ///
+    /// ### Panics
+    /// If the request is not able to be completed for cases like insufficient funds, insufficient allowance, or invalid health factor
+    fn submit_with_allowance(
+        e: Env,
+        from: Address,
+        spender: Address,
+        to: Address,
+        requests: Vec<Request>,
+    ) -> Positions;
     /// Manage bad debt. Debt is considered "bad" if there is no longer has any collateral posted.
     ///
     /// To manage a user's bad debt, all collateralized reserves for the user must be liquidated
@@ -366,7 +386,23 @@ impl Pool for PoolContract {
             from.require_auth();
         }
 
-        pool::execute_submit(&e, &from, &spender, &to, requests)
+        pool::execute_submit(&e, &from, &spender, &to, requests, false)
+    }
+
+    fn submit_with_allowance(
+        e: Env,
+        from: Address,
+        spender: Address,
+        to: Address,
+        requests: Vec<Request>,
+    ) -> Positions {
+        storage::extend_instance(&e);
+        spender.require_auth();
+        if from != spender {
+            from.require_auth();
+        }
+
+        pool::execute_submit(&e, &from, &spender, &to, requests, true)
     }
 
     fn bad_debt(e: Env, user: Address) {
