@@ -1,12 +1,13 @@
 use crate::{
     auctions::{self, AuctionData},
     emissions::{self, ReserveEmissionMetadata},
+    events::PoolEvents,
     pool::{self, Positions, Request, Reserve},
     storage::{self, ReserveConfig},
     PoolConfig, PoolError, ReserveEmissionsData, UserEmissionData,
 };
 use soroban_sdk::{
-    contract, contractclient, contractimpl, panic_with_error, Address, Env, String, Symbol, Vec,
+    contract, contractclient, contractimpl, panic_with_error, Address, Env, String, Vec,
 };
 
 /// ### Pool
@@ -287,8 +288,7 @@ impl Pool for PoolContract {
 
         storage::set_admin(&e, &new_admin);
 
-        e.events()
-            .publish((Symbol::new(&e, "set_admin"), admin), new_admin);
+        PoolEvents::set_admin(&e, admin, new_admin);
     }
 
     fn update_pool(e: Env, backstop_take_rate: u32, max_positions: u32) {
@@ -298,10 +298,7 @@ impl Pool for PoolContract {
 
         pool::execute_update_pool(&e, backstop_take_rate, max_positions);
 
-        e.events().publish(
-            (Symbol::new(&e, "update_pool"), admin),
-            (backstop_take_rate, max_positions),
-        );
+        PoolEvents::update_pool(&e, admin, backstop_take_rate, max_positions);
     }
 
     fn queue_set_reserve(e: Env, asset: Address, metadata: ReserveConfig) {
@@ -311,10 +308,7 @@ impl Pool for PoolContract {
 
         pool::execute_queue_set_reserve(&e, &asset, &metadata);
 
-        e.events().publish(
-            (Symbol::new(&e, "queue_set_reserve"), admin),
-            (asset, metadata),
-        );
+        PoolEvents::queue_set_reserve(&e, admin, asset, metadata);
     }
 
     fn cancel_set_reserve(e: Env, asset: Address) {
@@ -324,15 +318,13 @@ impl Pool for PoolContract {
 
         pool::execute_cancel_queued_set_reserve(&e, &asset);
 
-        e.events()
-            .publish((Symbol::new(&e, "cancel_set_reserve"), admin), asset);
+        PoolEvents::cancel_set_reserve(&e, admin, asset);
     }
 
     fn set_reserve(e: Env, asset: Address) -> u32 {
         let index = pool::execute_set_reserve(&e, &asset);
 
-        e.events()
-            .publish((Symbol::new(&e, "set_reserve"),), (asset, index));
+        PoolEvents::set_reserve(&e, asset, index);
         index
     }
 
@@ -377,8 +369,7 @@ impl Pool for PoolContract {
         storage::extend_instance(&e);
         let new_status = pool::execute_update_pool_status(&e);
 
-        e.events()
-            .publish((Symbol::new(&e, "set_status"),), new_status);
+        PoolEvents::set_status(&e, new_status);
         new_status
     }
 
@@ -387,19 +378,18 @@ impl Pool for PoolContract {
         let admin = storage::get_admin(&e);
         admin.require_auth();
         pool::execute_set_pool_status(&e, pool_status);
-        e.events()
-            .publish((Symbol::new(&e, "set_status"), admin), pool_status);
+
+        PoolEvents::set_status_admin(&e, admin, pool_status);
     }
 
     /********* Emission Functions **********/
 
     fn gulp_emissions(e: Env) -> i128 {
         storage::extend_instance(&e);
-        let next_expiration = emissions::gulp_emissions(&e);
+        let emissions = emissions::gulp_emissions(&e);
 
-        e.events()
-            .publish((Symbol::new(&e, "update_emissions"),), next_expiration);
-        next_expiration
+        PoolEvents::gulp_emissions(&e, emissions);
+        emissions
     }
 
     fn set_emissions_config(e: Env, res_emission_metadata: Vec<ReserveEmissionMetadata>) {
@@ -415,10 +405,7 @@ impl Pool for PoolContract {
 
         let amount_claimed = emissions::execute_claim(&e, &from, &reserve_token_ids, &to);
 
-        e.events().publish(
-            (Symbol::new(&e, "claim"), from),
-            (reserve_token_ids, amount_claimed),
-        );
+        PoolEvents::claim(&e, from, reserve_token_ids, amount_claimed);
 
         amount_claimed
     }
@@ -456,10 +443,7 @@ impl Pool for PoolContract {
             _ => panic_with_error!(&e, PoolError::BadRequest),
         };
 
-        e.events().publish(
-            (Symbol::new(&e, "new_auction"), auction_type, user),
-            auction_data.clone(),
-        );
+        PoolEvents::new_auction(&e, user, auction_type, auction_data.clone());
 
         auction_data
     }
