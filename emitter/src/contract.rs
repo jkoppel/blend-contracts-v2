@@ -1,7 +1,5 @@
-use crate::{backstop_manager, emitter, errors::EmitterError, storage};
-use soroban_sdk::{
-    contract, contractclient, contractimpl, panic_with_error, Address, Env, Symbol, Vec,
-};
+use crate::{backstop_manager, emitter, errors::EmitterError, events::EmitterEvents, storage};
+use soroban_sdk::{contract, contractclient, contractimpl, panic_with_error, Address, Env, Vec};
 
 /// ### Emitter
 ///
@@ -94,10 +92,7 @@ impl Emitter for EmitterContract {
 
         let distribution_amount = emitter::execute_distribute(&e, &backstop_address);
 
-        e.events().publish(
-            (Symbol::new(&e, "distribute"),),
-            (backstop_address, distribution_amount),
-        );
+        EmitterEvents::distribute(&e, backstop_address, distribution_amount);
         distribution_amount
     }
 
@@ -114,7 +109,7 @@ impl Emitter for EmitterContract {
         let swap =
             backstop_manager::execute_queue_swap_backstop(&e, &new_backstop, &new_backstop_token);
 
-        e.events().publish((Symbol::new(&e, "q_swap"),), swap);
+        EmitterEvents::q_swap(&e, swap);
     }
 
     fn get_queued_swap(e: Env) -> Option<backstop_manager::Swap> {
@@ -125,20 +120,20 @@ impl Emitter for EmitterContract {
         storage::extend_instance(&e);
         let swap = backstop_manager::execute_cancel_swap_backstop(&e);
 
-        e.events().publish((Symbol::new(&e, "del_swap"),), swap);
+        EmitterEvents::del_swap(&e, swap);
     }
 
     fn swap_backstop(e: Env) {
         storage::extend_instance(&e);
         let swap = backstop_manager::execute_swap_backstop(&e);
 
-        e.events().publish((Symbol::new(&e, "swap"),), swap);
+        EmitterEvents::swap(&e, swap);
     }
 
     fn drop(e: Env, list: Vec<(Address, i128)>) {
         storage::extend_instance(&e);
         emitter::execute_drop(&e, &list);
 
-        e.events().publish((Symbol::new(&e, "drop"),), list);
+        EmitterEvents::drop(&e, list);
     }
 }

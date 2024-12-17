@@ -1,4 +1,5 @@
 #![no_std]
+
 #[cfg(any(test, feature = "testutils"))]
 extern crate std;
 
@@ -11,6 +12,7 @@ mod contract;
 mod dependencies;
 mod emissions;
 mod errors;
+mod events;
 mod pool;
 mod storage;
 mod testutils;

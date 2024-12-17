@@ -4,6 +4,7 @@
 extern crate std;
 
 mod errors;
+mod events;
 mod pool_factory;
 mod storage;
 mod test;

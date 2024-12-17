@@ -149,7 +149,7 @@ pub fn fill(
     user: &Address,
     filler_state: &mut User,
     percent_filled: u64,
-) {
+) -> AuctionData {
     if user.clone() == filler_state.address {
         panic_with_error!(e, PoolError::InvalidLiquidation);
     }
@@ -172,6 +172,8 @@ pub fn fill(
     } else {
         storage::del_auction(e, &auction_type, user);
     }
+
+    to_fill_auction
 }
 
 /// Scale the auction based on the percent being filled and the amount of blocks that have passed
