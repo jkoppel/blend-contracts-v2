@@ -744,6 +744,13 @@ mod tests {
             ],
             block: 51,
         };
+
+        backstop_token_client.approve(
+            &samwise,
+            &backstop_address,
+            &75_0000000,
+            &e.ledger().sequence(),
+        );
         e.as_contract(&pool_address, || {
             e.mock_all_auths_allowing_non_root_auth();
             storage::set_auction(

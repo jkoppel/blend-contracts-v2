@@ -139,6 +139,12 @@ fn test_backstop() {
     // @dev: setup jumps 1 hour and 1 minute
     fixture.jump(60 * 60 * 24 * 7 - 60 * 60);
     let amount = 2_000 * SCALAR_7;
+    fixture.lp.approve(
+        &frodo,
+        &fixture.backstop.address,
+        &amount,
+        &fixture.env.ledger().sequence(),
+    );
     fixture.backstop.donate(&frodo, &pool.address, &amount);
     frodo_bstop_token_balance -= amount;
     bstop_bstop_token_balance += amount;
@@ -157,19 +163,7 @@ fn test_backstop() {
                         amount.into_val(&fixture.env)
                     ]
                 )),
-                sub_invocations: std::vec![AuthorizedInvocation {
-                    function: AuthorizedFunction::Contract((
-                        bstop_token.address.clone(),
-                        Symbol::new(&fixture.env, "transfer"),
-                        vec![
-                            &fixture.env,
-                            frodo.to_val(),
-                            fixture.backstop.address.to_val(),
-                            amount.into_val(&fixture.env)
-                        ]
-                    )),
-                    sub_invocations: std::vec![]
-                }]
+                sub_invocations: std::vec![]
             }
         )
     );

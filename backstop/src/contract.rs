@@ -157,7 +157,7 @@ pub trait Backstop {
     /// * `amount` - The amount of BLND to add
     ///
     /// ### Errors
-    /// If the `pool_address` is not valid, or if the pool does not
+    /// If the `pool_address` is not valid, backstop does not have sufficient allowance from `from`, or if the pool does not
     /// authorize the call
     fn donate(e: Env, from: Address, pool_address: Address, amount: i128);
 

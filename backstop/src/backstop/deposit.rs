@@ -65,6 +65,12 @@ mod tests {
         mock_pool_factory_client.set_pool(&pool_0_id);
         mock_pool_factory_client.set_pool(&pool_1_id);
 
+        backstop_token_client.approve(
+            &frodo,
+            &backstop_address,
+            &25_0000000,
+            &e.ledger().sequence(),
+        );
         // initialize pool 0 with funds + some profit
         e.as_contract(&backstop_address, || {
             execute_deposit(&e, &frodo, &pool_0_id, 25_0000000);
@@ -234,6 +240,12 @@ mod tests {
         mock_pool_factory_client.set_pool(&pool_0_id);
         mock_pool_factory_client.set_pool(&pool_1_id);
 
+        backstop_token_client.approve(
+            &frodo,
+            &backstop_address,
+            &(10_000_000 * SCALAR_7),
+            &e.ledger().sequence(),
+        );
         // initialize pool 0 with funds + some profit
         e.as_contract(&backstop_address, || {
             execute_deposit(&e, &frodo, &pool_0_id, SCALAR_7);

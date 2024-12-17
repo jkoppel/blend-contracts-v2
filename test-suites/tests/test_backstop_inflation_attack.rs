@@ -58,6 +58,12 @@ fn test_backstop_inflation_attack() {
     // 2b. Attacker tries to donate a large amount to the backstop before the victim can perform a deposit
     //    #! NOTE - Contract will stop a random address from donating. This can ONLY come from the pool.
     //              However, authorizations are mocked during intergation tests, so this will succeed.
+    fixture.lp.approve(
+        &sauron,
+        &fixture.backstop.address,
+        &inflation_amount,
+        &fixture.env.ledger().sequence(),
+    );
     fixture
         .backstop
         .donate(&sauron, &pool_address, &inflation_amount);

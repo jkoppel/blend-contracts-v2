@@ -50,7 +50,16 @@ fn test_pool_user() {
             amount,
         },
     ];
-    let result = pool_fixture.pool.submit(&sam, &sam, &sam, &requests);
+    weth.approve(
+        &sam,
+        &pool_fixture.pool.address,
+        &amount,
+        &fixture.env.ledger().sequence(),
+    );
+    assert_eq!(weth.allowance(&sam, &pool_fixture.pool.address), amount);
+    let result = pool_fixture
+        .pool
+        .submit_with_allowance(&sam, &sam, &sam, &requests);
     assert_eq!(
         fixture.env.auths()[0],
         (
@@ -58,7 +67,7 @@ fn test_pool_user() {
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
                     pool_fixture.pool.address.clone(),
-                    Symbol::new(&fixture.env, "submit"),
+                    Symbol::new(&fixture.env, "submit_with_allowance"),
                     vec![
                         &fixture.env,
                         sam.to_val(),
@@ -67,19 +76,7 @@ fn test_pool_user() {
                         requests.to_val()
                     ]
                 )),
-                sub_invocations: std::vec![AuthorizedInvocation {
-                    function: AuthorizedFunction::Contract((
-                        weth.address.clone(),
-                        Symbol::new(&fixture.env, "transfer"),
-                        vec![
-                            &fixture.env,
-                            sam.to_val(),
-                            pool_fixture.pool.address.to_val(),
-                            amount.into_val(&fixture.env)
-                        ]
-                    )),
-                    sub_invocations: std::vec![]
-                }]
+                sub_invocations: std::vec![]
             }
         )
     );
@@ -88,6 +85,7 @@ fn test_pool_user() {
     sam_weth_balance -= amount;
     assert_eq!(weth.balance(&sam), sam_weth_balance);
     assert_eq!(weth.balance(&pool_fixture.pool.address), pool_weth_balance);
+    assert_eq!(weth.allowance(&sam, &pool_fixture.pool.address), 0);
     sam_weth_btoken_balance += amount
         .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
         .unwrap();

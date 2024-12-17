@@ -328,6 +328,12 @@ mod tests {
             max_entry_ttl: 3110400,
         });
 
+        backstop_token_client.approve(
+            &samwise,
+            &backstop_address,
+            &50_0000000,
+            &e.ledger().sequence(),
+        );
         // setup pool with queue for withdrawal and allow the backstop to incur a profit
         e.as_contract(&backstop_address, || {
             execute_deposit(&e, &samwise, &pool_address, 100_0000000);
@@ -395,6 +401,12 @@ mod tests {
             max_entry_ttl: 3110400,
         });
 
+        backstop_token_client.approve(
+            &samwise,
+            &backstop_address,
+            &50_0000000,
+            &e.ledger().sequence(),
+        );
         // setup pool with queue for withdrawal and allow the backstop to incur a profit
         e.as_contract(&backstop_address, || {
             execute_deposit(&e, &samwise, &pool_address, 100_0000000);
