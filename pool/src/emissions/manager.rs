@@ -2,12 +2,13 @@ use crate::{
     constants::SCALAR_7,
     dependencies::BackstopClient,
     errors::PoolError,
+    events::PoolEvents,
     storage::{self, ReserveEmissionsConfig, ReserveEmissionsData},
 };
 use cast::{i128, u64};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
-    contracttype, map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Map, Symbol, Vec,
+    contracttype, map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Map, Vec,
 };
 
 use super::distributor;
@@ -134,10 +135,7 @@ fn update_reserve_emission_config(
     let new_reserve_emis_config = ReserveEmissionsConfig { expiration, eps };
     storage::set_res_emis_config(e, &res_token_id, &new_reserve_emis_config);
 
-    e.events().publish(
-        (Symbol::new(e, "reserve_emission_update"),),
-        (res_token_id, eps, expiration),
-    )
+    PoolEvents::reserve_emission_update(e, res_token_id, eps, expiration);
 }
 
 #[cfg(test)]

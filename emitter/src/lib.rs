@@ -8,6 +8,7 @@ mod constants;
 mod contract;
 mod emitter;
 mod errors;
+mod events;
 mod storage;
 mod testutils;
 

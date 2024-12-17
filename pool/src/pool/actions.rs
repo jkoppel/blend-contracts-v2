@@ -1,6 +1,7 @@
 use soroban_sdk::Map;
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, Symbol, Vec};
+use soroban_sdk::{contracttype, panic_with_error, Address, Env, Vec};
 
+use crate::events::PoolEvents;
 use crate::{auctions, errors::PoolError, validator::require_nonnegative};
 
 use super::pool::Pool;
@@ -124,13 +125,12 @@ pub fn build_actions_from_request(
                 from_state.add_supply(e, &mut reserve, b_tokens_minted);
                 actions.add_for_spender_transfer(&reserve.asset, request.amount);
                 pool.cache_reserve(reserve);
-                e.events().publish(
-                    (
-                        Symbol::new(e, "supply"),
-                        request.address.clone(),
-                        from.clone(),
-                    ),
-                    (request.amount, b_tokens_minted),
+                PoolEvents::supply(
+                    e,
+                    request.address.clone(),
+                    from.clone(),
+                    request.amount,
+                    b_tokens_minted,
                 );
             }
             RequestType::Withdraw => {
@@ -145,13 +145,12 @@ pub fn build_actions_from_request(
                 from_state.remove_supply(e, &mut reserve, to_burn);
                 actions.add_for_pool_transfer(&reserve.asset, tokens_out);
                 pool.cache_reserve(reserve);
-                e.events().publish(
-                    (
-                        Symbol::new(e, "withdraw"),
-                        request.address.clone(),
-                        from.clone(),
-                    ),
-                    (tokens_out, to_burn),
+                PoolEvents::withdraw(
+                    e,
+                    request.address.clone(),
+                    from.clone(),
+                    request.amount,
+                    to_burn,
                 );
             }
             RequestType::SupplyCollateral => {
@@ -160,13 +159,12 @@ pub fn build_actions_from_request(
                 from_state.add_collateral(e, &mut reserve, b_tokens_minted);
                 actions.add_for_spender_transfer(&reserve.asset, request.amount);
                 pool.cache_reserve(reserve);
-                e.events().publish(
-                    (
-                        Symbol::new(e, "supply_collateral"),
-                        request.address.clone(),
-                        from.clone(),
-                    ),
-                    (request.amount, b_tokens_minted),
+                PoolEvents::supply_collateral(
+                    e,
+                    request.address.clone(),
+                    from.clone(),
+                    request.amount,
+                    b_tokens_minted,
                 );
             }
             RequestType::WithdrawCollateral => {
@@ -182,13 +180,12 @@ pub fn build_actions_from_request(
                 actions.add_for_pool_transfer(&reserve.asset, tokens_out);
                 check_health = true;
                 pool.cache_reserve(reserve);
-                e.events().publish(
-                    (
-                        Symbol::new(e, "withdraw_collateral"),
-                        request.address.clone(),
-                        from.clone(),
-                    ),
-                    (tokens_out, to_burn),
+                PoolEvents::withdraw_collateral(
+                    e,
+                    request.address.clone(),
+                    from.clone(),
+                    tokens_out,
+                    to_burn,
                 );
             }
             RequestType::Borrow => {
@@ -199,13 +196,12 @@ pub fn build_actions_from_request(
                 actions.add_for_pool_transfer(&reserve.asset, request.amount);
                 check_health = true;
                 pool.cache_reserve(reserve);
-                e.events().publish(
-                    (
-                        Symbol::new(e, "borrow"),
-                        request.address.clone(),
-                        from.clone(),
-                    ),
-                    (request.amount, d_tokens_minted),
+                PoolEvents::borrow(
+                    e,
+                    request.address.clone(),
+                    from.clone(),
+                    request.amount,
+                    d_tokens_minted,
                 );
             }
             RequestType::Repay => {
@@ -223,30 +219,28 @@ pub fn build_actions_from_request(
                         actions.add_for_pool_transfer(&reserve.asset, amount_to_refund);
                     }
                     from_state.remove_liabilities(e, &mut reserve, cur_d_tokens);
-                    e.events().publish(
-                        (
-                            Symbol::new(e, "repay"),
-                            request.address.clone().clone(),
-                            from.clone(),
-                        ),
-                        (cur_underlying_borrowed, cur_d_tokens),
+                    PoolEvents::repay(
+                        e,
+                        request.address.clone(),
+                        from.clone(),
+                        cur_underlying_borrowed,
+                        cur_d_tokens,
                     );
                 } else {
                     actions.add_for_spender_transfer(&reserve.asset, request.amount);
                     from_state.remove_liabilities(e, &mut reserve, d_tokens_burnt);
-                    e.events().publish(
-                        (
-                            Symbol::new(e, "repay"),
-                            request.address.clone().clone(),
-                            from.clone(),
-                        ),
-                        (request.amount, d_tokens_burnt),
+                    PoolEvents::repay(
+                        e,
+                        request.address.clone(),
+                        from.clone(),
+                        request.amount,
+                        d_tokens_burnt,
                     );
                 }
                 pool.cache_reserve(reserve);
             }
             RequestType::FillUserLiquidationAuction => {
-                auctions::fill(
+                let filled_auction = auctions::fill(
                     e,
                     pool,
                     0,
@@ -256,18 +250,18 @@ pub fn build_actions_from_request(
                 );
                 check_health = true;
 
-                e.events().publish(
-                    (
-                        Symbol::new(e, "fill_auction"),
-                        request.address.clone().clone(),
-                        0_u32,
-                    ),
-                    (from.clone(), request.amount),
+                PoolEvents::fill_auction(
+                    e,
+                    request.address.clone(),
+                    0u32,
+                    from.clone(),
+                    request.amount,
+                    filled_auction,
                 );
             }
             RequestType::FillBadDebtAuction => {
                 // Note: will fail if input address is not the backstop since there cannot be a bad debt auction for a different address in storage
-                auctions::fill(
+                let filled_auction = auctions::fill(
                     e,
                     pool,
                     1,
@@ -277,18 +271,18 @@ pub fn build_actions_from_request(
                 );
                 check_health = true;
 
-                e.events().publish(
-                    (
-                        Symbol::new(e, "fill_auction"),
-                        request.address.clone().clone(),
-                        1_u32,
-                    ),
-                    (from.clone(), request.amount),
+                PoolEvents::fill_auction(
+                    e,
+                    request.address.clone(),
+                    1u32,
+                    from.clone(),
+                    request.amount,
+                    filled_auction,
                 );
             }
             RequestType::FillInterestAuction => {
                 // Note: will fail if input address is not the backstop since there cannot be an interest auction for a different address in storage
-                auctions::fill(
+                let filled_auction = auctions::fill(
                     e,
                     pool,
                     2,
@@ -296,23 +290,20 @@ pub fn build_actions_from_request(
                     &mut from_state,
                     request.amount as u64,
                 );
-                e.events().publish(
-                    (
-                        Symbol::new(e, "fill_auction"),
-                        request.address.clone().clone(),
-                        2_u32,
-                    ),
-                    (from.clone(), request.amount),
+                PoolEvents::fill_auction(
+                    e,
+                    request.address.clone(),
+                    2u32,
+                    from.clone(),
+                    request.amount,
+                    filled_auction,
                 );
             }
             RequestType::DeleteLiquidationAuction => {
                 // Note: request object is ignored besides type
                 auctions::delete_liquidation(e, &from);
                 check_health = true;
-                e.events().publish(
-                    (Symbol::new(&e, "delete_liquidation_auction"), from.clone()),
-                    (),
-                );
+                PoolEvents::delete_liquidation_auction(e, from.clone());
             }
         }
     }

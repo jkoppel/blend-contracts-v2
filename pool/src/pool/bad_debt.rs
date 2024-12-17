@@ -1,7 +1,8 @@
-use soroban_sdk::{panic_with_error, Address, Env, Symbol};
+use soroban_sdk::{panic_with_error, Address, Env};
 
 use crate::{
     errors::PoolError,
+    events::PoolEvents,
     storage::{self},
 };
 
@@ -40,10 +41,7 @@ pub fn transfer_bad_debt_to_backstop(e: &Env, user: &Address) {
         new_user_state.remove_liabilities(e, &mut reserve, liability_balance);
         pool.cache_reserve(reserve);
 
-        e.events().publish(
-            (Symbol::new(e, "bad_debt"), user),
-            (asset, liability_balance),
-        );
+        PoolEvents::bad_debt(e, user.clone(), asset, liability_balance);
     }
 
     pool.store_cached_reserves(e);

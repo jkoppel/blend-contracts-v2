@@ -1,16 +1,49 @@
 #![cfg(test)]
 use cast::i128;
-use pool::{PoolDataKey, Positions, Request, RequestType, ReserveConfig, ReserveData};
+use pool::{AuctionData, PoolDataKey, Positions, Request, RequestType, ReserveConfig, ReserveData};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as AddressTestTrait, Events},
-    vec, Address, Error, IntoVal, Symbol, Val, Vec,
+    vec, Address, Env, Error, FromVal, IntoVal, Symbol, TryFromVal, Val, Vec,
 };
 use test_suites::{
     assertions::assert_approx_eq_abs,
     create_fixture_with_data,
     test_fixture::{TokenIndex, SCALAR_7},
 };
+
+fn assert_fill_auction_event_no_data(
+    env: &Env,
+    event: (Address, Vec<Val>, Val),
+    pool_address: &Address,
+    auction_user: &Address,
+    auction_type: u32,
+    filler: &Address,
+    fill_pct: i128,
+) {
+    let (event_pool_address, topics, data) = event;
+    assert_eq!(event_pool_address, pool_address.clone());
+
+    assert_eq!(topics.len(), 3);
+    assert_eq!(
+        Symbol::from_val(env, &topics.get_unchecked(0)),
+        Symbol::new(env, "fill_auction")
+    );
+    assert_eq!(
+        Address::from_val(env, &topics.get_unchecked(1)),
+        auction_user.clone()
+    );
+    assert_eq!(u32::from_val(env, &topics.get_unchecked(2)), auction_type);
+
+    let event_data = Vec::<Val>::from_val(env, &data);
+    assert_eq!(event_data.len(), 3);
+    assert_eq!(
+        Address::from_val(env, &event_data.get_unchecked(0)),
+        filler.clone()
+    );
+    assert_eq!(i128::from_val(env, &event_data.get_unchecked(1)), fill_pct);
+    assert!(AuctionData::try_from_val(env, &event_data.get_unchecked(2)).is_ok());
+}
 
 #[test]
 fn test_liquidations() {
@@ -191,8 +224,8 @@ fn test_liquidations() {
                 pool_fixture.pool.address.clone(),
                 (
                     Symbol::new(&fixture.env, "new_auction"),
-                    2 as u32,
-                    fixture.backstop.address.clone()
+                    fixture.backstop.address.clone(),
+                    2 as u32
                 )
                     .into_val(&fixture.env),
                 auction_data.into_val(&fixture.env)
@@ -248,8 +281,8 @@ fn test_liquidations() {
                 pool_fixture.pool.address.clone(),
                 (
                     Symbol::new(&fixture.env, "new_auction"),
-                    0 as u32,
-                    samwise.clone()
+                    samwise.clone(),
+                    0 as u32
                 )
                     .into_val(&fixture.env),
                 auction_data.into_val(&fixture.env)
@@ -351,91 +384,41 @@ fn test_liquidations() {
         10i128.pow(9),
     );
     let events = fixture.env.events().all();
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 16)];
-    let fill_pct_1: i128 = 25;
-    let fill_pct_2: i128 = 100;
-    let fill_pct_3: i128 = 99;
-    let event_data_1: Vec<Val> = vec![
+    assert_fill_auction_event_no_data(
         &fixture.env,
-        frodo.into_val(&fixture.env),
-        fill_pct_1.into_val(&fixture.env),
-    ];
-    let event_data_2: Vec<Val> = vec![
+        events.get_unchecked(events.len() - 16),
+        &pool_fixture.pool.address,
+        &samwise,
+        auct_type_1,
+        &frodo,
+        25,
+    );
+    assert_fill_auction_event_no_data(
         &fixture.env,
-        frodo.into_val(&fixture.env),
-        fill_pct_2.into_val(&fixture.env),
-    ];
-    let event_data_3: Vec<Val> = vec![
+        events.get_unchecked(events.len() - 15),
+        &pool_fixture.pool.address,
+        &samwise,
+        auct_type_1,
+        &frodo,
+        100,
+    );
+    assert_fill_auction_event_no_data(
         &fixture.env,
-        frodo.into_val(&fixture.env),
-        fill_pct_3.into_val(&fixture.env),
-    ];
-    assert_eq!(
-        event,
-        vec![
-            &fixture.env,
-            (
-                pool_fixture.pool.address.clone(),
-                (
-                    Symbol::new(&fixture.env, "fill_auction"),
-                    samwise.clone(),
-                    auct_type_1
-                )
-                    .into_val(&fixture.env),
-                event_data_1.into_val(&fixture.env)
-            )
-        ]
+        events.get_unchecked(events.len() - 9),
+        &pool_fixture.pool.address,
+        &fixture.backstop.address,
+        auct_type_2,
+        &frodo,
+        99,
     );
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 15)];
-    assert_eq!(
-        event,
-        vec![
-            &fixture.env,
-            (
-                pool_fixture.pool.address.clone(),
-                (
-                    Symbol::new(&fixture.env, "fill_auction"),
-                    samwise.clone(),
-                    auct_type_1
-                )
-                    .into_val(&fixture.env),
-                event_data_2.into_val(&fixture.env)
-            )
-        ]
-    );
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 9)];
-    assert_eq!(
-        event,
-        vec![
-            &fixture.env,
-            (
-                pool_fixture.pool.address.clone(),
-                (
-                    Symbol::new(&fixture.env, "fill_auction"),
-                    fixture.backstop.address.clone(),
-                    auct_type_2
-                )
-                    .into_val(&fixture.env),
-                event_data_3.into_val(&fixture.env)
-            )
-        ]
-    );
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 3)];
-    assert_eq!(
-        event,
-        vec![
-            &fixture.env,
-            (
-                pool_fixture.pool.address.clone(),
-                (
-                    Symbol::new(&fixture.env, "fill_auction"),
-                    fixture.backstop.address.clone(),
-                    auct_type_2
-                )
-                    .into_val(&fixture.env),
-                event_data_2.into_val(&fixture.env)
-            )
-        ]
+    assert_fill_auction_event_no_data(
+        &fixture.env,
+        events.get_unchecked(events.len() - 3),
+        &pool_fixture.pool.address,
+        &fixture.backstop.address,
+        auct_type_2,
+        &frodo,
+        100,
     );
 
     //tank eth price
@@ -608,8 +591,8 @@ fn test_liquidations() {
                 pool_fixture.pool.address.clone(),
                 (
                     Symbol::new(&fixture.env, "new_auction"),
-                    auction_type,
-                    fixture.backstop.address.clone()
+                    fixture.backstop.address.clone(),
+                    auction_type
                 )
                     .into_val(&fixture.env),
                 bad_debt_auction_data.into_val(&fixture.env)
@@ -702,28 +685,14 @@ fn test_liquidations() {
     );
     assert_eq!(new_auction.block, bad_debt_auction_data.block);
     let events = fixture.env.events().all();
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 1)];
-    let fill_pct: i128 = 20;
-    let event_data: Vec<Val> = vec![
+    assert_fill_auction_event_no_data(
         &fixture.env,
-        frodo.into_val(&fixture.env),
-        fill_pct.into_val(&fixture.env),
-    ];
-    assert_eq!(
-        event,
-        vec![
-            &fixture.env,
-            (
-                pool_fixture.pool.address.clone(),
-                (
-                    Symbol::new(&fixture.env, "fill_auction"),
-                    fixture.backstop.address.clone(),
-                    auction_type
-                )
-                    .into_val(&fixture.env),
-                event_data.into_val(&fixture.env)
-            )
-        ]
+        events.get_unchecked(events.len() - 1),
+        &pool_fixture.pool.address,
+        &fixture.backstop.address,
+        auction_type,
+        &frodo,
+        20,
     );
     // allow another 50 blocks to pass (150 total)
     fixture.jump_with_sequence(50 * 5);
@@ -765,28 +734,14 @@ fn test_liquidations() {
         SCALAR_7,
     );
     let events = fixture.env.events().all();
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 1)];
-    let fill_pct: i128 = 100;
-    let event_data: Vec<Val> = vec![
+    assert_fill_auction_event_no_data(
         &fixture.env,
-        frodo.into_val(&fixture.env),
-        fill_pct.into_val(&fixture.env),
-    ];
-    assert_eq!(
-        event,
-        vec![
-            &fixture.env,
-            (
-                pool_fixture.pool.address.clone(),
-                (
-                    Symbol::new(&fixture.env, "fill_auction"),
-                    fixture.backstop.address.clone(),
-                    auction_type
-                )
-                    .into_val(&fixture.env),
-                event_data.into_val(&fixture.env)
-            )
-        ]
+        events.get_unchecked(events.len() - 1),
+        &pool_fixture.pool.address,
+        &fixture.backstop.address,
+        auction_type,
+        &frodo,
+        100,
     );
 
     //check that frodo was correctly slashed
@@ -867,8 +822,8 @@ fn test_liquidations() {
                 pool_fixture.pool.address.clone(),
                 (
                     Symbol::new(&fixture.env, "new_auction"),
+                    samwise.clone(),
                     0 as u32,
-                    samwise.clone()
                 )
                     .into_val(&fixture.env),
                 auction_data.into_val(&fixture.env)
@@ -907,13 +862,13 @@ fn test_liquidations() {
             &fixture.env,
             (
                 pool_fixture.pool.address.clone(),
-                (Symbol::new(&fixture.env, "bad_debt"), samwise.clone()).into_val(&fixture.env),
-                vec![
-                    &fixture.env,
-                    fixture.tokens[TokenIndex::STABLE].address.clone().to_val(),
-                    bad_debt.into_val(&fixture.env),
-                ]
-                .into_val(&fixture.env)
+                (
+                    Symbol::new(&fixture.env, "bad_debt"),
+                    samwise.clone(),
+                    fixture.tokens[TokenIndex::STABLE].address.clone()
+                )
+                    .into_val(&fixture.env),
+                bad_debt.into_val(&fixture.env)
             )
         ]
     );
@@ -1004,16 +959,11 @@ fn test_liquidations() {
             (
                 pool_fixture.pool.address.clone(),
                 (
-                    Symbol::new(&fixture.env, "bad_debt"),
-                    fixture.backstop.address.clone()
+                    Symbol::new(&fixture.env, "defaulted_debt"),
+                    fixture.tokens[TokenIndex::STABLE].address.clone()
                 )
                     .into_val(&fixture.env),
-                vec![
-                    &fixture.env,
-                    fixture.tokens[TokenIndex::STABLE].address.clone().to_val(),
-                    bad_debt.into_val(&fixture.env),
-                ]
-                .into_val(&fixture.env)
+                bad_debt.into_val(&fixture.env)
             )
         ]
     );
