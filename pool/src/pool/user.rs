@@ -256,7 +256,7 @@ impl User {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{constants::SCALAR_7, storage, testutils, ReserveEmissionsData, UserEmissionData};
+    use crate::{constants::SCALAR_7, storage, testutils, ReserveEmissionData, UserEmissionData};
     use soroban_fixed_point_math::FixedPoint;
     use soroban_sdk::{
         map,
@@ -376,7 +376,7 @@ mod tests {
         let mut reserve_0 = testutils::default_reserve(&e);
         let starting_d_supply_0 = reserve_0.d_supply;
 
-        let emis_res_data = ReserveEmissionsData {
+        let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
             eps: 0_1000000,
             index: 1000,
@@ -465,7 +465,7 @@ mod tests {
         let mut reserve_0 = testutils::default_reserve(&e);
         let starting_d_supply_0 = reserve_0.d_supply;
 
-        let emis_res_data = ReserveEmissionsData {
+        let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
             eps: 0_1000000,
             index: 1000,
@@ -680,7 +680,7 @@ mod tests {
         let mut reserve_0 = testutils::default_reserve(&e);
         let starting_b_token_supply = reserve_0.b_supply;
 
-        let emis_res_data = ReserveEmissionsData {
+        let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
             eps: 0_1000000,
             index: 1000,
@@ -768,7 +768,7 @@ mod tests {
         let mut reserve_0 = testutils::default_reserve(&e);
         let starting_b_token_supply = reserve_0.b_supply;
 
-        let emis_res_data = ReserveEmissionsData {
+        let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
             eps: 0_1000000,
             index: 1000,
@@ -914,7 +914,7 @@ mod tests {
         let mut reserve_0 = testutils::default_reserve(&e);
         let starting_b_token_supply = reserve_0.b_supply;
 
-        let emis_res_data = ReserveEmissionsData {
+        let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
             eps: 0_1000000,
             index: 1000,
@@ -1002,7 +1002,7 @@ mod tests {
         let mut reserve_0 = testutils::default_reserve(&e);
         let starting_b_token_supply = reserve_0.b_supply;
 
-        let emis_res_data = ReserveEmissionsData {
+        let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
             eps: 0_1000000,
             index: 1000,

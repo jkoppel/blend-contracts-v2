@@ -23,5 +23,5 @@ pub use errors::PoolError;
 pub use pool::{Positions, Request, RequestType};
 pub use storage::{
     AuctionKey, PoolConfig, PoolDataKey, PoolEmissionConfig, ReserveConfig, ReserveData,
-    ReserveEmissionsData, UserEmissionData, UserReserveKey,
+    ReserveEmissionData, UserEmissionData, UserReserveKey,
 };

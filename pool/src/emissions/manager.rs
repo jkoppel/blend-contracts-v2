@@ -2,7 +2,7 @@ use crate::{
     constants::SCALAR_7,
     dependencies::BackstopClient,
     errors::PoolError,
-    storage::{self, ReserveEmissionsData},
+    storage::{self, ReserveEmissionData},
 };
 use cast::{i128, u64};
 use soroban_fixed_point_math::FixedPoint;
@@ -133,7 +133,7 @@ fn update_reserve_emission_config(
         storage::set_res_emis_data(
             e,
             &res_token_id,
-            &ReserveEmissionsData {
+            &ReserveEmissionData {
                 expiration,
                 eps,
                 index: 0,
@@ -235,7 +235,7 @@ mod tests {
         testutils::create_reserve(&e, &pool, &underlying_2, &reserve_config, &reserve_data);
 
         // setup reserve_0 liability to have emissions remaining
-        let old_r_0_l_data = ReserveEmissionsData {
+        let old_r_0_l_data = ReserveEmissionData {
             eps: 0_1500000,
             expiration: 1500000200,
             index: 99999,
@@ -245,7 +245,7 @@ mod tests {
         // setup reserve_1 liability to have no emissions
 
         // steup reserve_1 supply to have emissions expired
-        let old_r_1_s_data = ReserveEmissionsData {
+        let old_r_1_s_data = ReserveEmissionData {
             eps: 0_3500000,
             expiration: 1499990000,
             index: 11111,
@@ -325,7 +325,7 @@ mod tests {
         testutils::create_reserve(&e, &pool, &underlying_2, &reserve_config, &reserve_data);
 
         // setup reserve_0 liability to have emissions remaining
-        let old_r_0_l_data = ReserveEmissionsData {
+        let old_r_0_l_data = ReserveEmissionData {
             eps: 0_1500000,
             expiration: 1500000200,
             index: 99999,
@@ -335,7 +335,7 @@ mod tests {
         // setup reserve_1 liability to have no emissions
 
         // steup reserve_1 supply to have emissions expired
-        let old_r_1_s_data = ReserveEmissionsData {
+        let old_r_1_s_data = ReserveEmissionData {
             eps: 0_3500000,
             expiration: 1499990000,
             index: 11111,
