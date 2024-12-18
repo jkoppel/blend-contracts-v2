@@ -81,11 +81,11 @@ fn do_gulp_emissions(e: &Env, new_emissions: i128) {
         let new_reserve_emissions = i128(res_eps_share)
             .fixed_mul_floor(new_emissions, SCALAR_7)
             .unwrap_optimized();
-        update_reserve_emission_config(e, &res_asset_address, res_token_id, new_reserve_emissions);
+        update_reserve_emission_eps(e, &res_asset_address, res_token_id, new_reserve_emissions);
     }
 }
 
-fn update_reserve_emission_config(
+fn update_reserve_emission_eps(
     e: &Env,
     asset: &Address,
     res_token_id: u32,
