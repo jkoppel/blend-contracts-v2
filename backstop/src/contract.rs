@@ -3,11 +3,10 @@ use crate::{
     dependencies::EmitterClient,
     emissions,
     errors::BackstopError,
+    events::BackstopEvents,
     storage,
 };
-use soroban_sdk::{
-    contract, contractclient, contractimpl, panic_with_error, Address, Env, Symbol, Vec,
-};
+use soroban_sdk::{contract, contractclient, contractimpl, panic_with_error, Address, Env, Vec};
 
 /// ### Backstop
 ///
@@ -158,7 +157,7 @@ pub trait Backstop {
     /// * `amount` - The amount of BLND to add
     ///
     /// ### Errors
-    /// If the `pool_address` is not valid, or if the pool does not
+    /// If the `pool_address` is not valid, backstop does not have sufficient allowance from `from`, or if the pool does not
     /// authorize the call
     fn donate(e: Env, from: Address, pool_address: Address, amount: i128);
 
@@ -218,10 +217,7 @@ impl Backstop for BackstopContract {
 
         let to_mint = backstop::execute_deposit(&e, &from, &pool_address, amount);
 
-        e.events().publish(
-            (Symbol::new(&e, "deposit"), pool_address, from),
-            (amount, to_mint),
-        );
+        BackstopEvents::deposit(&e, pool_address, from, amount, to_mint);
         to_mint
     }
 
@@ -231,10 +227,7 @@ impl Backstop for BackstopContract {
 
         let to_queue = backstop::execute_queue_withdrawal(&e, &from, &pool_address, amount);
 
-        e.events().publish(
-            (Symbol::new(&e, "queue_withdrawal"), pool_address, from),
-            (amount, to_queue.exp),
-        );
+        BackstopEvents::queue_withdrawal(&e, pool_address, from, amount, to_queue.exp);
         to_queue
     }
 
@@ -244,10 +237,7 @@ impl Backstop for BackstopContract {
 
         backstop::execute_dequeue_withdrawal(&e, &from, &pool_address, amount);
 
-        e.events().publish(
-            (Symbol::new(&e, "dequeue_withdrawal"), pool_address, from),
-            amount,
-        );
+        BackstopEvents::dequeue_withdrawal(&e, pool_address, from, amount);
     }
 
     fn withdraw(e: Env, from: Address, pool_address: Address, amount: i128) -> i128 {
@@ -256,10 +246,7 @@ impl Backstop for BackstopContract {
 
         let to_withdraw = backstop::execute_withdraw(&e, &from, &pool_address, amount);
 
-        e.events().publish(
-            (Symbol::new(&e, "withdraw"), pool_address, from),
-            (amount, to_withdraw),
-        );
+        BackstopEvents::withdraw(&e, pool_address, from, amount, to_withdraw);
         to_withdraw
     }
 
@@ -281,16 +268,14 @@ impl Backstop for BackstopContract {
         storage::extend_instance(&e);
         let new_tokens_emitted = emissions::gulp_emissions(&e);
 
-        e.events()
-            .publish((Symbol::new(&e, "gulp_emissions"),), new_tokens_emitted);
+        BackstopEvents::gulp_emissions(&e, new_tokens_emitted);
     }
 
     fn add_reward(e: Env, to_add: Address, to_remove: Address) {
         storage::extend_instance(&e);
         emissions::add_to_reward_zone(&e, to_add.clone(), to_remove.clone());
 
-        e.events()
-            .publish((Symbol::new(&e, "rw_zone"),), (to_add, to_remove));
+        BackstopEvents::rw_zone(&e, to_add, to_remove);
     }
 
     fn gulp_pool_emissions(e: Env, pool_address: Address) -> i128 {
@@ -305,7 +290,7 @@ impl Backstop for BackstopContract {
 
         let amount = emissions::execute_claim(&e, &from, &pool_addresses, &to);
 
-        e.events().publish((Symbol::new(&e, "claim"), from), amount);
+        BackstopEvents::claim(&e, from, amount);
         amount
     }
 
@@ -321,8 +306,7 @@ impl Backstop for BackstopContract {
 
         backstop::execute_draw(&e, &pool_address, amount, &to);
 
-        e.events()
-            .publish((Symbol::new(&e, "draw"), pool_address), (to, amount));
+        BackstopEvents::draw(&e, pool_address, to, amount);
     }
 
     fn donate(e: Env, from: Address, pool_address: Address, amount: i128) {
@@ -331,8 +315,8 @@ impl Backstop for BackstopContract {
         pool_address.require_auth();
 
         backstop::execute_donate(&e, &from, &pool_address, amount);
-        e.events()
-            .publish((Symbol::new(&e, "donate"), pool_address, from), amount);
+
+        BackstopEvents::donate(&e, pool_address, from, amount);
     }
 
     fn update_tkn_val(e: Env) -> (i128, i128) {

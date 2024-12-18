@@ -34,7 +34,12 @@ pub fn execute_donate(e: &Env, from: &Address, pool_address: &Address, amount: i
     require_is_from_pool_factory(e, pool_address, pool_balance.shares);
 
     let backstop_token = TokenClient::new(e, &storage::get_backstop_token(e));
-    backstop_token.transfer(from, &e.current_contract_address(), &amount);
+    backstop_token.transfer_from(
+        &e.current_contract_address(),
+        from,
+        &e.current_contract_address(),
+        &amount,
+    );
 
     pool_balance.deposit(amount, 0);
     storage::set_pool_balance(e, pool_address, &pool_balance);
@@ -102,6 +107,7 @@ mod tests {
             execute_deposit(&e, &frodo, &pool_0_id, 25_0000000);
         });
 
+        backstop_token_client.approve(&samwise, &backstop_id, &30_0000000, &e.ledger().sequence());
         e.as_contract(&backstop_id, || {
             execute_donate(&e, &samwise, &pool_0_id, 30_0000000);
 

@@ -2,12 +2,13 @@ use crate::{
     constants::SCALAR_7,
     dependencies::BackstopClient,
     errors::PoolError,
+    events::PoolEvents,
     storage::{self, ReserveEmissionData},
 };
 use cast::{i128, u64};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
-    contracttype, map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Map, Symbol, Vec,
+    contracttype, map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Map, Vec,
 };
 
 use super::distributor;
@@ -123,10 +124,7 @@ fn update_reserve_emission_config(
         emission_data.expiration = expiration;
         emission_data.eps = eps;
         storage::set_res_emis_data(e, &res_token_id, &emission_data);
-        e.events().publish(
-            (Symbol::new(e, "reserve_emission_update"),),
-            (res_token_id, eps, expiration),
-        )
+        PoolEvents::reserve_emission_update(e, res_token_id, eps, expiration);
     } else {
         // no config or data exists yet - first time this reserve token will get emission
         let eps = u64(tokens_left_to_emit / (7 * 24 * 60 * 60)).unwrap_optimized();
@@ -140,10 +138,7 @@ fn update_reserve_emission_config(
                 last_time: e.ledger().timestamp(),
             },
         );
-        e.events().publish(
-            (Symbol::new(e, "reserve_emission_update"),),
-            (res_token_id, eps, expiration),
-        )
+        PoolEvents::reserve_emission_update(e, res_token_id, eps, expiration);
     }
 }
 

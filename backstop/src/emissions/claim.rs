@@ -1,4 +1,4 @@
-use crate::{dependencies::CometClient, errors::BackstopError, storage};
+use crate::{dependencies::CometClient, errors::BackstopError, events::BackstopEvents, storage};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
@@ -67,10 +67,8 @@ pub fn execute_claim(e: &Env, from: &Address, pool_addresses: &Vec<Address>, to:
 
             storage::set_pool_balance(e, &pool_id, &pool_balance);
             storage::set_user_balance(e, &pool_id, to, &user_balance);
-            e.events().publish(
-                (Symbol::new(&e, "deposit"), pool_id, to),
-                (deposit_amount, to_mint),
-            );
+
+            BackstopEvents::deposit(e, pool_id, to.clone(), deposit_amount, to_mint);
         }
     }
 

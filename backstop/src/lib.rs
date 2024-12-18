@@ -9,6 +9,7 @@ mod contract;
 mod dependencies;
 mod emissions;
 mod errors;
+mod events;
 mod storage;
 mod testutils;
 

@@ -2,12 +2,13 @@ use crate::{
     constants::SCALAR_7,
     dependencies::BackstopClient,
     errors::PoolError,
+    events::PoolEvents,
     pool::{calc_pool_backstop_threshold, Pool, User},
     storage,
 };
 use cast::i128;
 use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Symbol};
+use soroban_sdk::{map, panic_with_error, unwrap::UnwrapOptimized, Address, Env};
 
 use super::{AuctionData, AuctionType};
 
@@ -107,10 +108,7 @@ pub fn fill_bad_debt_auction(
                 backstop_state.default_liabilities(e, &mut reserve, liability_balance);
                 pool.cache_reserve(reserve);
 
-                e.events().publish(
-                    (Symbol::new(e, "bad_debt"), backstop_address.clone()),
-                    (res_asset_address, liability_balance),
-                );
+                PoolEvents::defaulted_debt(e, res_asset_address, liability_balance);
             }
         }
     }

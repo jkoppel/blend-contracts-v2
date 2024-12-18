@@ -1,5 +1,6 @@
 use crate::{
     errors::PoolFactoryError,
+    events::PoolFactoryEvents,
     storage::{self, PoolInitMeta},
 };
 use soroban_sdk::{
@@ -106,8 +107,7 @@ impl PoolFactory for PoolFactoryContract {
 
         storage::set_deployed(&e, &pool_address);
 
-        e.events()
-            .publish((Symbol::new(&e, "deploy"),), pool_address.clone());
+        PoolFactoryEvents::deploy(&e, pool_address.clone());
         pool_address
     }
 
