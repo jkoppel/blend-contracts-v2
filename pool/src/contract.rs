@@ -425,6 +425,8 @@ impl Pool for PoolContract {
 
     fn get_reserve_emissions(e: Env, reserve_token_index: u32) -> ReserveEmissionsData {
         storage::get_res_emis_data(&e, &reserve_token_index).unwrap_or(ReserveEmissionsData {
+            expiration: 0,
+            eps: 0,
             index: 0,
             last_time: 0,
         })
