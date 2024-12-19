@@ -158,6 +158,9 @@ pub fn build_actions_from_request(
                 let b_tokens_minted = reserve.to_b_token_down(request.amount);
                 from_state.add_collateral(e, &mut reserve, b_tokens_minted);
                 actions.add_for_spender_transfer(&reserve.asset, request.amount);
+                if reserve.to_asset_from_b_token(reserve.b_supply) > reserve.collateral_cap {
+                    panic_with_error!(e, PoolError::ExceededCollateralCap);
+                }
                 pool.cache_reserve(reserve);
                 PoolEvents::supply_collateral(
                     e,
