@@ -1836,4 +1836,43 @@ mod tests {
             build_actions_from_request(&e, &mut pool, &samwise, requests, false);
         });
     }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1220)")]
+    fn test_exceed_collateral_cap() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config, reserve_data) = testutils::default_reserve_meta();
+        reserve_config.collateral_cap = 10_0000000; // Set low collateral cap
+        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
+
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 1,
+        };
+
+        let requests = vec![
+            &e,
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: underlying.clone(),
+                amount: 20_0000000, // Try to supply more than cap
+            },
+        ];
+
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            let mut pool = Pool::load(&e);
+
+            build_actions_from_request(&e, &mut pool, &samwise, requests, false);
+        });
+    }
 }
