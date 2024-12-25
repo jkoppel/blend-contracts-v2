@@ -4,11 +4,9 @@ use crate::{
     events::PoolEvents,
     pool::{self, Positions, Request, Reserve},
     storage::{self, ReserveConfig},
-    PoolConfig, PoolError, ReserveEmissionsData, UserEmissionData,
+    PoolConfig, ReserveEmissionsData, UserEmissionData,
 };
-use soroban_sdk::{
-    contract, contractclient, contractimpl, panic_with_error, Address, Env, String, Vec,
-};
+use soroban_sdk::{contract, contractclient, contractimpl, Address, Env, String, Vec};
 
 /// ### Pool
 ///
@@ -250,14 +248,16 @@ pub trait Pool {
     /// * `auction_type` - The type of auction, 0 for liquidation auction, 1 for bad debt auction, and 2 for interest auction
     /// * `user` - The Address involved in the auction. This is generally the source of the assets being auctioned.
     ///            For bad debt and interest auctions, this is expected to be the backstop address.
-    /// * `assets` - The assets included in the auction
+    /// * `bid` - The set of assets to include in the auction bid, or what the filler spends when filling the auction.
+    /// * `lot` - The set of assets to include in the auction lot, or what the filler receives when filling the auction.
     /// * `percent` - The percent of the assets to be auctioned off as a percentage (15 => 15%). For bad debt and interest auctions.
     ///               this is expected to be 100.
     fn new_auction(
         e: Env,
         auction_type: u32,
         user: Address,
-        assets: Vec<Address>,
+        bid: Vec<Address>,
+        lot: Vec<Address>,
         percent: u32,
     ) -> AuctionData;
 
@@ -462,25 +462,19 @@ impl Pool for PoolContract {
 
     /***** Auction / Liquidation Functions *****/
 
-    // TODO: Support specifying assets for all auction types
-    // TODO: Validate arguments
     fn new_auction(
         e: Env,
         auction_type: u32,
         user: Address,
-        assets: Vec<Address>,
+        bid: Vec<Address>,
+        lot: Vec<Address>,
         percent: u32,
     ) -> AuctionData {
         storage::extend_instance(&e);
-        let auction_data = match auction_type {
-            0 => auctions::create_liquidation(&e, &user, percent as u64),
-            1 => auctions::create_bad_debt_auction(&e),
-            2 => auctions::create_interest_auction(&e, &assets),
-            _ => panic_with_error!(&e, PoolError::BadRequest),
-        };
 
-        PoolEvents::new_auction(&e, user, auction_type, auction_data.clone());
+        let auction_data = auctions::create_auction(&e, auction_type, &user, &bid, &lot, percent);
 
+        PoolEvents::new_auction(&e, auction_type, user, percent, auction_data.clone());
         auction_data
     }
 

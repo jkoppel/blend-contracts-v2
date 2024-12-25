@@ -72,10 +72,19 @@ fn test_auction_underflow_panics() {
 
     // liquidate user
     let liq_pct = 100;
-    let auction_data_2 =
-        pool_fixture
-            .pool
-            .new_auction(&0, &samwise, &Vec::<Address>::new(&fixture.env), &liq_pct);
+    let auction_data_2 = pool_fixture.pool.new_auction(
+        &0,
+        &samwise,
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::STABLE].address.clone(),
+        ],
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::XLM].address.clone(),
+        ],
+        &liq_pct,
+    );
 
     let usdc_bid_amount = auction_data_2
         .bid

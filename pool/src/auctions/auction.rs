@@ -38,80 +38,82 @@ impl AuctionType {
 #[derive(Clone)]
 #[contracttype]
 pub struct AuctionData {
+    /// A map of the assets being bid on and the amount being bid. These are tokens spent
+    /// by the filler of the auction.
+    ///
+    /// The bid is different based on each auction type:
+    /// - UserLiquidation: dTokens
+    /// - BadDebtAuction: dTokens
+    /// - InterestAuction: Underlying assets (backstop token)
     pub bid: Map<Address, i128>,
+    /// A map of the assets being auctioned off and the amount being auctioned. These are tokens
+    /// received by the filler of the auction.
+    ///
+    /// The lot is different based on each auction type:
+    /// - UserLiquidation: bTokens
+    /// - BadDebtAuction: Underlying assets (backstop token)
+    /// - InterestAuction: Underlying assets
     pub lot: Map<Address, i128>,
+    /// The block the auction begins on. This is used to determine how the auction
+    /// should be scaled based on the number of blocks that have passed since the auction began.
     pub block: u32,
 }
 
-/// Create a bad debt auction. Stores the resulting auction to the ledger to begin on the next block
+/// Create an new auction. Stores the resulting auction to the ledger to begin on the next block.
 ///
-/// Returns the AuctionData object created.
-///
-/// ### Panics
-/// If the auction is unable to be created
-pub fn create_bad_debt_auction(e: &Env) -> AuctionData {
-    let backstop = storage::get_backstop(e);
-    let auction_data = create_bad_debt_auction_data(e, &backstop);
-
-    storage::set_auction(
-        e,
-        &(AuctionType::BadDebtAuction as u32),
-        &backstop,
-        &auction_data,
-    );
-
-    auction_data
-}
-
-/// Create an interest auction. Stores the resulting auction to the ledger to begin on the next block
-///
-/// Returns the AuctionData object created.
+/// Returns the AuctionData object created
 ///
 /// ### Arguments
-/// * `assets` - The assets interest is being auctioned off from
+/// * `auction_type` - The type of auction being created
+/// * `user` - The user involved in the auction
+/// * `bid` - The assets being bid on
+/// * `lot` - The assets being auctioned off
+/// * `percent` - The percentage of the user's positions being liquidated
 ///
 /// ### Panics
-/// If the auction is unable to be created
-pub fn create_interest_auction(e: &Env, assets: &Vec<Address>) -> AuctionData {
-    let backstop = storage::get_backstop(e);
-    let auction_data = create_interest_auction_data(e, &backstop, assets);
-
-    storage::set_auction(
-        e,
-        &(AuctionType::InterestAuction as u32),
-        &backstop,
-        &auction_data,
-    );
-
-    auction_data
-}
-
-/// Create a liquidation auction. Stores the resulting auction to the ledger to begin on the next block
-///
-/// Returns the AuctionData object created.
-///
-/// ### Arguments
-/// * `user` - The user being liquidated
-/// * `liq_data` - The liquidation metadata
-///
-/// ### Panics
-/// If the auction is unable to be created
-pub fn create_liquidation(e: &Env, user: &Address, percent_liquidated: u64) -> AuctionData {
-    let user_clone = user.clone();
-    if user_clone == e.current_contract_address() || user_clone == storage::get_backstop(e) {
-        panic_with_error!(e, PoolError::InvalidLiquidation);
+/// * If the max positions are exceeded
+/// * If the user and percent are invalid for the auction type
+/// * If the auction is unable to be created
+pub fn create_auction(
+    e: &Env,
+    auction_type: u32,
+    user: &Address,
+    bid: &Vec<Address>,
+    lot: &Vec<Address>,
+    percent: u32,
+) -> AuctionData {
+    match AuctionType::from_u32(e, auction_type) {
+        AuctionType::UserLiquidation => {
+            let auction_data = create_user_liq_auction_data(e, user, bid, lot, percent);
+            storage::set_auction(
+                e,
+                &(AuctionType::UserLiquidation as u32),
+                user,
+                &auction_data,
+            );
+            auction_data
+        }
+        AuctionType::BadDebtAuction => {
+            let auction_data = create_bad_debt_auction_data(e, user, bid, lot, percent);
+            storage::set_auction(
+                e,
+                &(AuctionType::BadDebtAuction as u32),
+                &user,
+                &auction_data,
+            );
+            auction_data
+        }
+        AuctionType::InterestAuction => {
+            let auction_data = create_interest_auction_data(e, user, bid, lot, percent);
+            storage::set_auction(
+                e,
+                &(AuctionType::InterestAuction as u32),
+                &user,
+                &auction_data,
+            );
+            auction_data
+        }
     }
-
-    let auction_data = create_user_liq_auction_data(e, user, percent_liquidated);
-
-    storage::set_auction(
-        e,
-        &(AuctionType::UserLiquidation as u32),
-        user,
-        &auction_data,
-    );
-
-    auction_data
 }
 
 /// Delete a liquidation auction if the user being liquidated
@@ -383,9 +385,9 @@ mod tests {
             &Asset::Other(Symbol::new(&e, "USD1")),
             &vec![
                 &e,
-                Asset::Stellar(underlying_0),
-                Asset::Stellar(underlying_1),
-                Asset::Stellar(underlying_2),
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+                Asset::Stellar(underlying_2.clone()),
                 Asset::Stellar(usdc),
                 Asset::Stellar(blnd),
             ],
@@ -421,7 +423,14 @@ mod tests {
             storage::set_pool_config(&e, &pool_config);
             storage::set_user_positions(&e, &backstop_address, &positions);
 
-            create_bad_debt_auction(&e);
+            create_auction(
+                &e,
+                1,
+                &backstop_address,
+                &vec![&e, underlying_0, underlying_1],
+                &vec![&e, lp_token],
+                100,
+            );
             assert!(storage::has_auction(&e, &1, &backstop_address));
         });
     }
@@ -530,7 +539,14 @@ mod tests {
         e.as_contract(&pool_address, || {
             storage::set_pool_config(&e, &pool_config);
 
-            create_interest_auction(&e, &vec![&e, underlying_0, underlying_1]);
+            create_auction(
+                &e,
+                2,
+                &backstop_address,
+                &vec![&e, backstop_token_id],
+                &vec![&e, underlying_0, underlying_1],
+                100,
+            );
             assert!(storage::has_auction(&e, &2, &backstop_address));
         });
     }
@@ -607,9 +623,9 @@ mod tests {
             &Asset::Other(Symbol::new(&e, "USD")),
             &vec![
                 &e,
-                Asset::Stellar(underlying_0),
-                Asset::Stellar(underlying_1),
-                Asset::Stellar(underlying_2),
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+                Asset::Stellar(underlying_2.clone()),
             ],
             &7,
             &300,
@@ -638,7 +654,14 @@ mod tests {
             storage::set_pool_config(&e, &pool_config);
 
             e.budget().reset_unlimited();
-            create_liquidation(&e, &samwise, liq_pct);
+            create_auction(
+                &e,
+                0,
+                &samwise,
+                &vec![&e, underlying_2],
+                &vec![&e, underlying_0, underlying_1],
+                liq_pct,
+            );
             assert!(storage::has_auction(&e, &0, &samwise));
         });
     }
@@ -713,9 +736,9 @@ mod tests {
             &Asset::Other(Symbol::new(&e, "USD")),
             &vec![
                 &e,
-                Asset::Stellar(underlying_0),
-                Asset::Stellar(underlying_1),
-                Asset::Stellar(underlying_2),
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+                Asset::Stellar(underlying_2.clone()),
             ],
             &7,
             &300,
@@ -743,7 +766,14 @@ mod tests {
             storage::set_user_positions(&e, &pool_address, &positions);
             storage::set_pool_config(&e, &pool_config);
 
-            create_liquidation(&e, &pool_address, liq_pct);
+            create_auction(
+                &e,
+                0,
+                &pool_address,
+                &vec![&e, underlying_2],
+                &vec![&e, underlying_0, underlying_1],
+                liq_pct,
+            );
         });
     }
 
@@ -818,9 +848,9 @@ mod tests {
             &Asset::Other(Symbol::new(&e, "USD")),
             &vec![
                 &e,
-                Asset::Stellar(underlying_0),
-                Asset::Stellar(underlying_1),
-                Asset::Stellar(underlying_2),
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+                Asset::Stellar(underlying_2.clone()),
             ],
             &7,
             &300,
@@ -848,7 +878,14 @@ mod tests {
             storage::set_user_positions(&e, &backstop, &positions);
             storage::set_pool_config(&e, &pool_config);
 
-            create_liquidation(&e, &backstop, liq_pct);
+            create_auction(
+                &e,
+                0,
+                &backstop,
+                &vec![&e, underlying_2],
+                &vec![&e, underlying_0, underlying_1],
+                liq_pct,
+            );
         });
     }
 
