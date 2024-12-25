@@ -414,7 +414,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #1231)")]
+    #[should_panic(expected = "Error(Contract, #1221)")]
     fn test_create_user_liquidation_invalid_bid_empty() {
         let e = Env::default();
 
@@ -512,7 +512,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #1231)")]
+    #[should_panic(expected = "Error(Contract, #1221)")]
     fn test_create_user_liquidation_invalid_bid_no_position() {
         let e = Env::default();
 
@@ -610,7 +610,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #1230)")]
+    #[should_panic(expected = "Error(Contract, #1222)")]
     fn test_create_user_liquidation_invalid_lot_empty() {
         let e = Env::default();
 
@@ -708,7 +708,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #1230)")]
+    #[should_panic(expected = "Error(Contract, #1222)")]
     fn test_create_user_liquidation_invalid_lot_no_position() {
         let e = Env::default();
 
