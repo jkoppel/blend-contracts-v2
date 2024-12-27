@@ -17,8 +17,7 @@ pub fn create_user_liq_auction_data(
     lot: &Vec<Address>,
     percent: u32,
 ) -> AuctionData {
-    let user_clone = user.clone();
-    if user_clone == e.current_contract_address() || user_clone == storage::get_backstop(e) {
+    if user == &e.current_contract_address() || user == &storage::get_backstop(e) {
         panic_with_error!(e, PoolError::InvalidLiquidation);
     }
     if storage::has_auction(e, &(AuctionType::UserLiquidation as u32), user) {
@@ -54,38 +53,39 @@ pub fn create_user_liq_auction_data(
     }
 
     // build position data from included assets
-    let mut positions_incl = Positions::env_default(e);
+    let mut positions_auctioned = Positions::env_default(e);
     for bid_asset in bid {
-        // these will be cached if the bid is not invalid
+        // these will be cached if the bid is valid
         let reserve = pool.load_reserve(e, &bid_asset, false);
         match user_state.positions.liabilities.get(reserve.index) {
             Some(amount) => {
-                positions_incl.liabilities.set(reserve.index, amount);
+                positions_auctioned.liabilities.set(reserve.index, amount);
             }
             None => {
                 panic_with_error!(e, PoolError::InvalidBid);
             }
         }
     }
-    if positions_incl.liabilities.len() == 0 {
+    if positions_auctioned.liabilities.len() == 0 {
         panic_with_error!(e, PoolError::InvalidBid);
     }
     for lot_asset in lot {
-        // these will be cached if the lot is not invalid
+        // these will be cached if the lot is valid
         let reserve = pool.load_reserve(e, &lot_asset, false);
         match user_state.positions.collateral.get(reserve.index) {
             Some(amount) => {
-                positions_incl.collateral.set(reserve.index, amount);
+                positions_auctioned.collateral.set(reserve.index, amount);
             }
             None => {
                 panic_with_error!(e, PoolError::InvalidLot);
             }
         }
     }
-    if positions_incl.collateral.len() == 0 {
+    if positions_auctioned.collateral.len() == 0 {
         panic_with_error!(e, PoolError::InvalidLot);
     }
-    let position_data_inc = PositionData::calculate_from_positions(e, &mut pool, &positions_incl);
+    let position_data_inc =
+        PositionData::calculate_from_positions(e, &mut pool, &positions_auctioned);
     let is_all_collateral = position_data_inc.collateral_raw == position_data.collateral_raw;
     let is_all_positions =
         is_all_collateral && position_data_inc.liability_raw == position_data.liability_raw;
@@ -140,7 +140,7 @@ pub fn create_user_liq_auction_data(
         }
     }
 
-    for (asset, amount) in positions_incl.collateral.iter() {
+    for (asset, amount) in positions_auctioned.collateral.iter() {
         let res_asset_address = reserve_list.get_unchecked(asset);
         let b_tokens_removed = amount
             .fixed_mul_ceil(est_withdrawn_collateral_pct, position_data.scalar)
@@ -151,7 +151,7 @@ pub fn create_user_liq_auction_data(
         full_liquidation_quote.lot.set(res_asset_address, amount);
     }
 
-    for (asset, amount) in positions_incl.liabilities.iter() {
+    for (asset, amount) in positions_auctioned.liabilities.iter() {
         let res_asset_address = reserve_list.get_unchecked(asset);
         let d_tokens_removed = amount
             .fixed_mul_ceil(percent_liquidated_i128_scaled, position_data.scalar)
@@ -171,11 +171,12 @@ pub fn create_user_liq_auction_data(
     let new_data = PositionData::calculate_from_positions(e, &mut pool, &user_state.positions);
 
     if is_full_liquidation {
-        // A full user liquidation was requested.
-        // If the user has enough collateral to repay the debt, validate that the
-        // post-95%-liq health factor does not exceed the minimum threshold of 1.03.
-        // This prevents rounding edge cases where the correct liquidation percent is between 99 and 100.
-        if est_withdrawn_collateral < position_data.collateral_raw && new_data.is_hf_over(1_0310000)
+        // A full user liquidation was requested, validate that a full liquidation is not too large.
+        // If the user has enough collateral to create the liquidation auction, validate that the
+        // 95% liquidation is not too large. That is, if a user can be liquidated to 95%, they can
+        // be liquidated fully. This helps prevent edge cases due to liquidation percentages
+        // being harder to calculate between as it approaches 100.
+        if est_withdrawn_collateral < position_data.collateral_raw && new_data.is_hf_over(1_1500000)
         {
             panic_with_error!(e, PoolError::InvalidLiqTooLarge)
         };
@@ -1346,6 +1347,157 @@ mod tests {
     }
 
     #[test]
+    fn test_create_user_liquidation_auction_95_safe_can_liq_fully() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.ledger().set(LedgerInfo {
+            timestamp: 12345,
+            protocol_version: 22,
+            sequence_number: 50,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        e.budget().reset_unlimited();
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+
+        let pool_address = create_pool(&e);
+        let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
+        let backstop_address = Address::generate(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
+        reserve_data_0.last_time = 12345;
+        reserve_data_0.b_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_150_000_000;
+        reserve_config_0.c_factor = 0_8500000;
+        reserve_config_0.l_factor = 0_9000000;
+        reserve_config_0.index = 0;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_0,
+            &reserve_config_0,
+            &reserve_data_0,
+        );
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
+        reserve_data_1.last_time = 12345;
+        reserve_data_1.b_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_300_000_000;
+        reserve_config_1.c_factor = 0_8000000;
+        reserve_config_1.l_factor = 0_7500000;
+        reserve_config_1.index = 1;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_1,
+            &reserve_config_1,
+            &reserve_data_1,
+        );
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 2_0000000, 4_0000000]);
+
+        // 95% liquidation results in a hf of 1.147
+        let positions: Positions = Positions {
+            collateral: map![
+                &e,
+                (reserve_config_0.index, 100_0000000),
+                (reserve_config_1.index, 100_0000000)
+            ],
+            liabilities: map![
+                &e,
+                (reserve_config_0.index, 82_7500000),
+                (reserve_config_1.index, 75_0000000)
+            ],
+            supply: map![&e],
+        };
+        let pool_config = PoolConfig {
+            oracle: oracle_address,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 4,
+        };
+        e.as_contract(&pool_address, || {
+            storage::set_user_positions(&e, &samwise, &positions);
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_backstop(&e, &backstop_address);
+
+            // validate 95% liquidation is valid
+            let result_95 = create_user_liq_auction_data(
+                &e,
+                &samwise,
+                &vec![&e, underlying_0.clone(), underlying_1.clone()],
+                &vec![&e, underlying_0.clone(), underlying_1.clone()],
+                95,
+            );
+            assert_eq!(result_95.block, 51);
+            assert_eq!(
+                result_95.bid.get_unchecked(underlying_0.clone()),
+                78_6125000
+            );
+            assert_eq!(
+                result_95.bid.get_unchecked(underlying_1.clone()),
+                71_2500000
+            );
+            assert_eq!(result_95.bid.len(), 2);
+            assert_eq!(
+                result_95.lot.get_unchecked(underlying_0.clone()),
+                92_6529600
+            );
+            assert_eq!(
+                result_95.lot.get_unchecked(underlying_1.clone()),
+                92_6529600
+            );
+            assert_eq!(result_95.lot.len(), 2);
+
+            // validate if 95% is valid, a full liquidation can be completed
+            let result_100 = create_user_liq_auction_data(
+                &e,
+                &samwise,
+                &vec![&e, underlying_0.clone(), underlying_1.clone()],
+                &vec![&e, underlying_0.clone(), underlying_1.clone()],
+                100,
+            );
+            assert_eq!(result_100.block, 51);
+            assert_eq!(
+                result_100.bid.get_unchecked(underlying_0.clone()),
+                82_7500000
+            );
+            assert_eq!(
+                result_100.bid.get_unchecked(underlying_1.clone()),
+                75_0000000
+            );
+            assert_eq!(result_100.bid.len(), 2);
+            assert_eq!(
+                result_100.lot.get_unchecked(underlying_0.clone()),
+                100_0000000
+            );
+            assert_eq!(
+                result_100.lot.get_unchecked(underlying_1.clone()),
+                100_0000000
+            );
+            assert_eq!(result_100.lot.len(), 2);
+        });
+    }
+
+    #[test]
     #[should_panic(expected = "Error(Contract, #1213)")]
     fn test_create_user_liquidation_auction_bad_full_liq() {
         let e = Env::default();
@@ -1906,6 +2058,114 @@ mod tests {
             assert_eq!(result.bid.get_unchecked(underlying_1.clone()), 15_0000000);
             assert_eq!(result.bid.len(), 1);
             assert_eq!(result.lot.get_unchecked(underlying_0.clone()), 41_8806900);
+            assert_eq!(result.lot.len(), 1);
+        });
+    }
+
+    #[test]
+    fn test_create_user_liquidation_partial_0_cf_lot() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.budget().reset_unlimited();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 12345,
+            protocol_version: 22,
+            sequence_number: 50,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+
+        let pool_address = create_pool(&e);
+        let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
+        let backstop_address = Address::generate(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
+        reserve_data_0.last_time = 12345;
+        reserve_data_0.b_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_150_000_000;
+        reserve_config_0.c_factor = 0_8500000;
+        reserve_config_0.l_factor = 0_9000000;
+        reserve_config_0.index = 0;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_0,
+            &reserve_config_0,
+            &reserve_data_0,
+        );
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
+        reserve_data_1.last_time = 12345;
+        reserve_data_1.b_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_300_000_000;
+        reserve_config_1.c_factor = 0;
+        reserve_config_1.l_factor = 0_7500000;
+        reserve_config_1.index = 1;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_1,
+            &reserve_config_1,
+            &reserve_data_1,
+        );
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 2_0000000, 4_0000000]);
+
+        // validate a liquidation of only 0 CF assets is valid
+        // -> asset 1 has 0 CF
+        let liq_pct = 15;
+        let positions: Positions = Positions {
+            collateral: map![
+                &e,
+                (reserve_config_0.index, 100_0000000),
+                (reserve_config_1.index, 100_0000000),
+            ],
+            liabilities: map![&e, (reserve_config_0.index, 80_0000000),],
+            supply: map![&e],
+        };
+        let pool_config = PoolConfig {
+            oracle: oracle_address,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 4,
+        };
+        e.as_contract(&pool_address, || {
+            storage::set_user_positions(&e, &samwise, &positions);
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_backstop(&e, &backstop_address);
+
+            let result = create_user_liq_auction_data(
+                &e,
+                &samwise,
+                &vec![&e, underlying_0.clone()],
+                &vec![&e, underlying_1.clone()],
+                liq_pct,
+            );
+
+            assert_eq!(result.block, 51);
+            assert_eq!(result.bid.get_unchecked(underlying_0.clone()), 12_0000000);
+            assert_eq!(result.bid.len(), 1);
+            assert_eq!(result.lot.get_unchecked(underlying_1.clone()), 8_6250000);
             assert_eq!(result.lot.len(), 1);
         });
     }

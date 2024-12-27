@@ -16,7 +16,7 @@ pub fn create_interest_auction_data(
     percent: u32,
 ) -> AuctionData {
     let backstop = storage::get_backstop(e);
-    if user.clone() != backstop {
+    if user != &backstop {
         panic_with_error!(e, PoolError::BadRequest);
     }
     if percent != 100 {
