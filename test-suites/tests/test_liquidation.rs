@@ -371,30 +371,6 @@ fn test_liquidations() {
         8_000 * 10i128.pow(6) + 559_285757,
         100000,
     );
-    assert_approx_eq_abs(
-        fixture.tokens[TokenIndex::STABLE].balance(&frodo),
-        frodo_stable_balance - usdc_bid_amount
-            + stable_interest_lot_amount
-                .fixed_div_floor(2 * 10i128.pow(6), 10i128.pow(6))
-                .unwrap(),
-        10i128.pow(6),
-    );
-    assert_approx_eq_abs(
-        fixture.tokens[TokenIndex::XLM].balance(&frodo),
-        frodo_xlm_balance
-            + xlm_interest_lot_amount
-                .fixed_div_floor(2 * SCALAR_7, SCALAR_7)
-                .unwrap(),
-        SCALAR_7,
-    );
-    assert_approx_eq_abs(
-        fixture.tokens[TokenIndex::WETH].balance(&frodo),
-        frodo_weth_balance
-            + weth_interest_lot_amount
-                .fixed_div_floor(2 * 10i128.pow(9), 10i128.pow(9))
-                .unwrap(),
-        10i128.pow(9),
-    );
     let events = fixture.env.events().all();
     assert_fill_auction_event_no_data(
         &fixture.env,
@@ -431,6 +407,30 @@ fn test_liquidations() {
         auct_type_2,
         &frodo,
         100,
+    );
+    assert_approx_eq_abs(
+        fixture.tokens[TokenIndex::STABLE].balance(&frodo),
+        frodo_stable_balance - usdc_bid_amount
+            + stable_interest_lot_amount
+                .fixed_div_floor(2 * 10i128.pow(6), 10i128.pow(6))
+                .unwrap(),
+        10i128.pow(6),
+    );
+    assert_approx_eq_abs(
+        fixture.tokens[TokenIndex::XLM].balance(&frodo),
+        frodo_xlm_balance
+            + xlm_interest_lot_amount
+                .fixed_div_floor(2 * SCALAR_7, SCALAR_7)
+                .unwrap(),
+        SCALAR_7,
+    );
+    assert_approx_eq_abs(
+        fixture.tokens[TokenIndex::WETH].balance(&frodo),
+        frodo_weth_balance
+            + weth_interest_lot_amount
+                .fixed_div_floor(2 * 10i128.pow(9), 10i128.pow(9))
+                .unwrap(),
+        10i128.pow(9),
     );
 
     //tank eth price
@@ -610,7 +610,6 @@ fn test_liquidations() {
     );
     let events = fixture.env.events().all();
     let event = vec![&fixture.env, events.get_unchecked(events.len() - 1)];
-
     assert_eq!(
         event,
         vec![
@@ -627,6 +626,7 @@ fn test_liquidations() {
             )
         ]
     );
+
     // allow 100 blocks to pass
     fixture.jump_with_sequence(101 * 5);
     // fill bad debt auction
@@ -665,6 +665,16 @@ fn test_liquidations() {
                 .unwrap()
                 .fixed_mul_ceil(20, 100)
                 .unwrap(),
+    );
+    let events = fixture.env.events().all();
+    assert_fill_auction_event_no_data(
+        &fixture.env,
+        events.get_unchecked(events.len() - 1),
+        &pool_fixture.pool.address,
+        &fixture.backstop.address,
+        auction_type,
+        &frodo,
+        20,
     );
     assert_approx_eq_abs(
         fixture.lp.balance(&frodo),
@@ -712,16 +722,7 @@ fn test_liquidations() {
         SCALAR_7,
     );
     assert_eq!(new_auction.block, bad_debt_auction_data.block);
-    let events = fixture.env.events().all();
-    assert_fill_auction_event_no_data(
-        &fixture.env,
-        events.get_unchecked(events.len() - 1),
-        &pool_fixture.pool.address,
-        &fixture.backstop.address,
-        auction_type,
-        &frodo,
-        20,
-    );
+
     // allow another 50 blocks to pass (150 total)
     fixture.jump_with_sequence(50 * 5);
     // fill bad debt auction
@@ -740,7 +741,6 @@ fn test_liquidations() {
         pool_fixture
             .pool
             .submit(&frodo, &frodo, &frodo, &bad_debt_fill_request);
-
     assert_eq!(
         post_bd_fill_frodo_positions.liabilities.get(0).unwrap(),
         new_frodo_positions.liabilities.get(0).unwrap()
@@ -751,16 +751,6 @@ fn test_liquidations() {
         new_frodo_positions.liabilities.get(1).unwrap()
             + samwise_positions_pre_bd.liabilities.get(1).unwrap(),
     );
-    assert_approx_eq_abs(
-        fixture.lp.balance(&frodo),
-        frodo_bstop_pre_fill + 4302_6261190,
-        SCALAR_7,
-    );
-    assert_approx_eq_abs(
-        fixture.lp.balance(&fixture.backstop.address),
-        backstop_bstop_pre_fill - 4302_6261190,
-        SCALAR_7,
-    );
     let events = fixture.env.events().all();
     assert_fill_auction_event_no_data(
         &fixture.env,
@@ -770,6 +760,16 @@ fn test_liquidations() {
         auction_type,
         &frodo,
         100,
+    );
+    assert_approx_eq_abs(
+        fixture.lp.balance(&frodo),
+        frodo_bstop_pre_fill + 4302_6261190,
+        SCALAR_7,
+    );
+    assert_approx_eq_abs(
+        fixture.lp.balance(&fixture.backstop.address),
+        backstop_bstop_pre_fill - 4302_6261190,
+        SCALAR_7,
     );
 
     //check that frodo was correctly slashed
@@ -956,6 +956,23 @@ fn test_liquidations() {
         frodo_positions.liabilities.get(0),
         post_bd_fill_frodo_positions.liabilities.get(0)
     );
+    let events = fixture.env.events().all();
+    let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
+    assert_eq!(
+        event,
+        vec![
+            &fixture.env,
+            (
+                pool_fixture.pool.address.clone(),
+                (
+                    Symbol::new(&fixture.env, "defaulted_debt"),
+                    fixture.tokens[TokenIndex::STABLE].address.clone()
+                )
+                    .into_val(&fixture.env),
+                bad_debt.into_val(&fixture.env)
+            )
+        ]
+    );
     fixture.env.as_contract(&pool_fixture.pool.address, || {
         let key = PoolDataKey::Positions(fixture.backstop.address.clone());
         let positions = fixture
@@ -974,23 +991,6 @@ fn test_liquidations() {
             .unwrap();
         assert_eq!(data.d_supply, d_supply - bad_debt);
     });
-    let events = fixture.env.events().all();
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
-    assert_eq!(
-        event,
-        vec![
-            &fixture.env,
-            (
-                pool_fixture.pool.address.clone(),
-                (
-                    Symbol::new(&fixture.env, "defaulted_debt"),
-                    fixture.tokens[TokenIndex::STABLE].address.clone()
-                )
-                    .into_val(&fixture.env),
-                bad_debt.into_val(&fixture.env)
-            )
-        ]
-    );
 }
 
 #[test]

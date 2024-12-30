@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_gulp_emissions() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: BACKSTOP_EPOCH,
@@ -343,7 +343,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1000)")]
     fn test_gulp_emissions_too_soon() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: BACKSTOP_EPOCH,
@@ -431,7 +431,7 @@ mod tests {
     #[test]
     fn test_gulp_pool_emissions() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: BACKSTOP_EPOCH,
@@ -465,7 +465,7 @@ mod tests {
     #[test]
     fn test_gulp_pool_emissions_has_allowance() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: BACKSTOP_EPOCH,
@@ -502,7 +502,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1000)")]
     fn test_gulp_pool_emissions_no_emissions() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: BACKSTOP_EPOCH,

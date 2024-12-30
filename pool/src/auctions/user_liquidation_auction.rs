@@ -439,7 +439,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -537,7 +537,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -635,7 +635,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -733,7 +733,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -831,7 +831,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -944,7 +944,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -1063,7 +1063,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -1162,7 +1162,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -1252,7 +1252,7 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let bombadil = Address::generate(&e);
         let samwise = Address::generate(&e);
@@ -1360,7 +1360,7 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let bombadil = Address::generate(&e);
         let samwise = Address::generate(&e);
@@ -1523,7 +1523,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -1638,7 +1638,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -1753,7 +1753,7 @@ mod tests {
         let backstop_address = Address::generate(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -1846,7 +1846,7 @@ mod tests {
     fn test_create_user_liquidation_partial() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1956,7 +1956,7 @@ mod tests {
     fn test_create_user_liquidation_partial_100() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -2066,7 +2066,7 @@ mod tests {
     fn test_create_user_liquidation_partial_0_cf_lot() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -2175,7 +2175,7 @@ mod tests {
     fn test_create_user_liquidation_partial_exclude_collateral_when_required_panics() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -2279,7 +2279,7 @@ mod tests {
     fn test_create_user_liquidation_partial_exclude_liabilities_when_required_too_small() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -2402,7 +2402,7 @@ mod tests {
         let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -2576,7 +2576,7 @@ mod tests {
         let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -2711,7 +2711,7 @@ mod tests {
         let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;

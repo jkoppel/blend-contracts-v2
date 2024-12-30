@@ -19,7 +19,7 @@ fn create_pool_factory(e: &Env) -> (Address, PoolFactoryClient) {
 #[test]
 fn test_pool_factory() {
     let e = Env::default();
-    e.budget().reset_unlimited();
+    e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths_allowing_non_root_auth();
     let (pool_factory_address, pool_factory_client) = create_pool_factory(&e);
 
@@ -125,7 +125,7 @@ fn test_pool_factory() {
 #[should_panic(expected = "Error(Contract, #1300)")]
 fn test_pool_factory_invalid_pool_init_args_backstop_rate() {
     let e = Env::default();
-    e.budget().reset_unlimited();
+    e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths_allowing_non_root_auth();
     let (_, pool_factory_client) = create_pool_factory(&e);
 
@@ -163,7 +163,7 @@ fn test_pool_factory_invalid_pool_init_args_backstop_rate() {
 #[should_panic(expected = "Error(Contract, #1300)")]
 fn test_pool_factory_invalid_pool_init_args_max_positions() {
     let e = Env::default();
-    e.budget().reset_unlimited();
+    e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths_allowing_non_root_auth();
     let (_, pool_factory_client) = create_pool_factory(&e);
 
@@ -200,7 +200,7 @@ fn test_pool_factory_invalid_pool_init_args_max_positions() {
 #[test]
 fn test_pool_factory_frontrun_protection() {
     let e = Env::default();
-    e.budget().reset_unlimited();
+    e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths();
 
     let (_, pool_factory_client) = create_pool_factory(&e);
@@ -229,7 +229,6 @@ fn test_pool_factory_frontrun_protection() {
 
     // verify two different users don't get the same pool address with the same
     // salt parameter
-    e.budget().reset_unlimited();
     let deployed_pool_address_sauron = pool_factory_client.deploy(
         &sauron,
         &name2,
@@ -238,7 +237,6 @@ fn test_pool_factory_frontrun_protection() {
         &backstop_rate,
         &max_positions,
     );
-    e.budget().print();
 
     let deployed_pool_address_bombadil = pool_factory_client.deploy(
         &bombadil,

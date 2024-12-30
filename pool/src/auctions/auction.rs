@@ -274,7 +274,7 @@ mod tests {
     fn test_create_bad_debt_auction() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -416,7 +416,7 @@ mod tests {
     fn test_create_interest_auction() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -551,7 +551,7 @@ mod tests {
         let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -630,7 +630,7 @@ mod tests {
             storage::set_user_positions(&e, &samwise, &positions);
             storage::set_pool_config(&e, &pool_config);
 
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             create_auction(
                 &e,
                 0,
@@ -647,7 +647,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1211)")]
     fn test_create_liquidation_for_pool() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths();
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -758,7 +758,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1211)")]
     fn test_create_liquidation_for_backstop() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths();
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -871,7 +871,7 @@ mod tests {
     fn test_create_auction_invalid_type() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1021,7 +1021,7 @@ mod tests {
         let (oracle_address, _) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, reserve_data_0) = testutils::default_reserve_meta();
         reserve_config_0.index = 0;
@@ -1054,7 +1054,7 @@ mod tests {
             &reserve_config_2,
             &reserve_data_2,
         );
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let auction_data = AuctionData {
             bid: map![&e, (underlying_2.clone(), 1_2375000)],
@@ -1095,7 +1095,7 @@ mod tests {
                 min_persistent_entry_ttl: 172800,
                 max_entry_ttl: 9999999,
             });
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             let mut pool = Pool::load(&e);
             let mut frodo_state = User::load(&e, &frodo);
             fill(&e, &mut pool, 0, &samwise, &mut frodo_state, 100);
@@ -1129,7 +1129,7 @@ mod tests {
         let (oracle_address, _) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, reserve_data_0) = testutils::default_reserve_meta();
         reserve_config_0.index = 0;
@@ -1162,7 +1162,7 @@ mod tests {
             &reserve_config_2,
             &reserve_data_2,
         );
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let auction_data = AuctionData {
             bid: map![&e, (underlying_2.clone(), 1_2375000)],
@@ -1203,7 +1203,7 @@ mod tests {
                 min_persistent_entry_ttl: 172800,
                 max_entry_ttl: 9999999,
             });
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             let mut pool = Pool::load(&e);
             let mut frodo_state = User::load(&e, &frodo);
             fill(&e, &mut pool, 0, &samwise, &mut frodo_state, 25);
@@ -1227,7 +1227,7 @@ mod tests {
     #[test]
     fn test_partial_partial_full_fill() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths();
 
         e.ledger().set(LedgerInfo {
@@ -1440,7 +1440,7 @@ mod tests {
         let (oracle_address, _) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, reserve_data_0) = testutils::default_reserve_meta();
         reserve_config_0.index = 0;
@@ -1513,7 +1513,7 @@ mod tests {
                 min_persistent_entry_ttl: 172800,
                 max_entry_ttl: 9999999,
             });
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             let mut pool = Pool::load(&e);
             let mut frodo_state = User::load(&e, &frodo);
             fill(&e, &mut pool, 0, &samwise, &mut frodo_state, 101);
@@ -1560,7 +1560,7 @@ mod tests {
         let (oracle_address, _) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, reserve_data_0) = testutils::default_reserve_meta();
         reserve_config_0.index = 0;
@@ -1595,7 +1595,7 @@ mod tests {
             &reserve_config_2,
             &reserve_data_2,
         );
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let auction_data = AuctionData {
             bid: map![&e, (underlying_2.clone(), 1_2375000)],
             lot: map![
@@ -1635,7 +1635,7 @@ mod tests {
                 min_persistent_entry_ttl: 172800,
                 max_entry_ttl: 9999999,
             });
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             let mut pool = Pool::load(&e);
             let mut frodo_state = User::load(&e, &frodo);
             fill(&e, &mut pool, 0, &samwise, &mut frodo_state, 0);
@@ -1799,7 +1799,7 @@ mod tests {
         let (oracle_address, _) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, reserve_data_0) = testutils::default_reserve_meta();
         reserve_config_0.index = 0;
@@ -1832,7 +1832,7 @@ mod tests {
             &reserve_config_2,
             &reserve_data_2,
         );
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let auction_data = AuctionData {
             bid: map![&e, (underlying_2.clone(), 1_2375000)],
@@ -1873,7 +1873,7 @@ mod tests {
                 min_persistent_entry_ttl: 172800,
                 max_entry_ttl: 9999999,
             });
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
             fill(&e, &mut pool, 0, &samwise, &mut samwise_state, 100);

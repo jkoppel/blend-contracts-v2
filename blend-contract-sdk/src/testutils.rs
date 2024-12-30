@@ -51,7 +51,7 @@ impl<'a> BlendFixture<'a> {
         blnd: &Address,
         usdc: &Address,
     ) -> BlendFixture<'a> {
-        env.budget().reset_unlimited();
+        env.cost_estimate().budget().reset_unlimited();
         let backstop = env.register(backstop::WASM, ());
         let emitter = env.register(emitter::WASM, ());
         let comet = env.register(comet::WASM, ());

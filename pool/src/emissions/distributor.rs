@@ -1253,7 +1253,7 @@ mod tests {
     fn test_execute_claim() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
@@ -1372,7 +1372,7 @@ mod tests {
     fn test_execute_claim_with_already_claimed_reserve() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
@@ -1492,7 +1492,7 @@ mod tests {
     fn test_calc_claim_with_invalid_reserve_panics() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);

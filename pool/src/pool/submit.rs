@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn test_submit() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn test_submit_use_allowance() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {
@@ -289,7 +289,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #9)")]
     fn test_submit_use_allowance_no_allowance() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {
@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn test_submit_no_liabilities_does_not_load_oracle() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {
@@ -523,7 +523,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_submit_from_is_not_self() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {
@@ -583,7 +583,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_submit_spender_is_not_self() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {
@@ -643,7 +643,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_submit_to_is_not_self() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {

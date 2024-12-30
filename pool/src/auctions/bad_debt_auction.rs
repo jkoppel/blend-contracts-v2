@@ -165,7 +165,7 @@ mod tests {
     fn test_create_bad_debt_auction_already_in_progress() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         let pool_address = create_pool(&e);
         let bombadil = Address::generate(&e);
@@ -236,7 +236,7 @@ mod tests {
     fn test_create_bad_debt_auction_user_not_backstop() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         let pool_address = create_pool(&e);
         let bombadil = Address::generate(&e);
@@ -289,7 +289,7 @@ mod tests {
     fn test_create_bad_debt_auction_percent_not_100() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         let pool_address = create_pool(&e);
         let bombadil = Address::generate(&e);
@@ -360,7 +360,7 @@ mod tests {
     fn test_create_bad_debt_auction_invalid_bid() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -462,7 +462,7 @@ mod tests {
     fn test_create_bad_debt_auction_invalid_bid_no_position() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -577,7 +577,7 @@ mod tests {
     fn test_create_bad_debt_auction_invalid_bid_empty() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -679,7 +679,7 @@ mod tests {
     fn test_create_bad_debt_auction_invalid_lot() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -781,7 +781,7 @@ mod tests {
     fn test_create_bad_debt_auction_checks_max_positions() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -920,7 +920,7 @@ mod tests {
     fn test_create_bad_debt_auction() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1060,7 +1060,7 @@ mod tests {
     fn test_create_bad_debt_auction_oracle_14_decimals() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1206,7 +1206,7 @@ mod tests {
     fn test_create_bad_debt_auction_max_balance() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1347,7 +1347,7 @@ mod tests {
     fn test_create_bad_debt_auction_applies_interest() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1488,7 +1488,7 @@ mod tests {
     fn test_create_bad_debt_auction_partial() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1627,7 +1627,7 @@ mod tests {
     fn test_fill_bad_debt_auction() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1772,7 +1772,7 @@ mod tests {
     fn test_fill_bad_debt_auction_leftover_debt_small_backstop_burns() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1938,7 +1938,7 @@ mod tests {
     fn test_fill_bad_debt_auction_leftover_debt_sufficient_balance() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -2114,7 +2114,7 @@ mod tests {
     fn test_fill_bad_debt_auction_empty_bid() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -2260,7 +2260,7 @@ mod tests {
     fn test_fill_bad_debt_auction_with_backstop() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,

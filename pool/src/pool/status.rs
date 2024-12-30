@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn test_set_pool_status_active() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -211,7 +211,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1204)")]
     fn test_set_pool_status_active_blocks_without_backstop_minimum() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -256,7 +256,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1204)")]
     fn test_set_pool_status_active_blocks_with_too_high_q4w() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -300,7 +300,7 @@ mod tests {
     #[test]
     fn test_set_pool_status_on_ice() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -348,7 +348,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1204)")]
     fn test_set_pool_status_admin_on_ice_blocks_with_too_high_q4w() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -393,7 +393,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1204)")]
     fn test_set_pool_status_backstop_on_ice_blocks_with_too_high_q4w() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn test_set_pool_status_frozen() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -484,7 +484,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_set_non_admin_pool_status_panics() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -528,7 +528,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_active() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -576,7 +576,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_admin_set_no_changes() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -624,7 +624,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_on_ice_tokens() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -672,7 +672,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_on_ice_30_q4w() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -721,7 +721,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_on_ice_30_q4w_admin_active() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -770,7 +770,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_on_ice_50_q4w_admin_active() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -819,7 +819,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_frozen() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -867,7 +867,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_frozen_admin_on_ice() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -916,7 +916,7 @@ mod tests {
     #[test]
     fn test_update_pool_status_frozen_75_q4w() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -966,7 +966,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1204)")]
     fn test_update_pool_status_admin_frozen() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -1011,7 +1011,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1204)")]
     fn test_update_pool_status_setup() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         let pool_id = create_pool(&e);
         let oracle_id = Address::generate(&e);
@@ -1055,7 +1055,7 @@ mod tests {
     #[test]
     fn test_admin_update_pool_status_unfreeze() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         let pool_id = create_pool(&e);
@@ -1104,7 +1104,7 @@ mod tests {
     #[test]
     fn test_calc_pool_backstop_threshold() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 300_000_0000000,
@@ -1120,7 +1120,7 @@ mod tests {
     #[test]
     fn test_calc_pool_backstop_threshold_10_percent() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 30_000_0000000,
@@ -1136,7 +1136,7 @@ mod tests {
     #[test]
     fn test_calc_pool_backstop_threshold_too_small() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 5_000_0000000,
@@ -1152,7 +1152,7 @@ mod tests {
     #[test]
     fn test_calc_pool_backstop_threshold_over() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 364_643_0000000,
@@ -1168,7 +1168,7 @@ mod tests {
     #[test]
     fn test_calc_pool_backstop_threshold_saturates() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 50_000_000_0000000,
@@ -1184,7 +1184,7 @@ mod tests {
     #[test]
     fn test_calc_pool_backstop_threshold_10pct() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 20_000_0000000,
@@ -1200,7 +1200,7 @@ mod tests {
     #[test]
     fn test_calc_pool_backstop_threshold_5pct() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 10_000_0000000,

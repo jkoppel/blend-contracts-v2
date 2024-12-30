@@ -80,20 +80,6 @@ fn test_pool_user() {
             }
         )
     );
-    let reserve_data = fixture.read_reserve_data(0, TokenIndex::WETH);
-    pool_weth_balance += amount;
-    sam_weth_balance -= amount;
-    assert_eq!(weth.balance(&sam), sam_weth_balance);
-    assert_eq!(weth.balance(&pool_fixture.pool.address), pool_weth_balance);
-    assert_eq!(weth.allowance(&sam, &pool_fixture.pool.address), 0);
-    sam_weth_btoken_balance += amount
-        .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
-        .unwrap();
-    assert_approx_eq_abs(
-        result.supply.get_unchecked(weth_pool_index),
-        sam_weth_btoken_balance,
-        10,
-    );
     let events = fixture.env.events().all();
     let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
     let event_data: soroban_sdk::Vec<Val> = vec![
@@ -119,6 +105,20 @@ fn test_pool_user() {
                 event_data.into_val(&fixture.env)
             )
         ]
+    );
+    let reserve_data = fixture.read_reserve_data(0, TokenIndex::WETH);
+    pool_weth_balance += amount;
+    sam_weth_balance -= amount;
+    assert_eq!(weth.balance(&sam), sam_weth_balance);
+    assert_eq!(weth.balance(&pool_fixture.pool.address), pool_weth_balance);
+    assert_eq!(weth.allowance(&sam, &pool_fixture.pool.address), 0);
+    sam_weth_btoken_balance += amount
+        .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
+        .unwrap();
+    assert_approx_eq_abs(
+        result.supply.get_unchecked(weth_pool_index),
+        sam_weth_btoken_balance,
+        10,
     );
 
     // Skip 1 day
@@ -155,6 +155,8 @@ fn test_pool_user() {
             }
         )
     );
+    let events = fixture.env.events().all();
+    let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
     let reserve_data = fixture.read_reserve_data(0, TokenIndex::WETH);
     pool_weth_balance -= amount;
     sam_weth_balance += amount;
@@ -170,8 +172,6 @@ fn test_pool_user() {
         10,
     );
     assert_ne!(sam_weth_btoken_balance, 0); // some interest was earned
-    let events = fixture.env.events().all();
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
     let event_data: soroban_sdk::Vec<Val> = vec![
         &fixture.env,
         amount.into_val(&fixture.env),
@@ -237,6 +237,8 @@ fn test_pool_user() {
             }
         )
     );
+    let events = fixture.env.events().all();
+    let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
     let reserve_data = fixture.read_reserve_data(0, TokenIndex::XLM);
     pool_xlm_balance += amount;
     sam_xlm_balance -= amount;
@@ -250,8 +252,6 @@ fn test_pool_user() {
         sam_xlm_btoken_balance,
         10,
     );
-    let events = fixture.env.events().all();
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
     let event_data: soroban_sdk::Vec<Val> = vec![
         &fixture.env,
         amount.into_val(&fixture.env),
@@ -308,6 +308,8 @@ fn test_pool_user() {
             }
         )
     );
+    let events = fixture.env.events().all();
+    let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
     let reserve_data = fixture.read_reserve_data(0, TokenIndex::WETH);
     pool_weth_balance -= amount;
     sam_weth_balance += amount;
@@ -325,8 +327,6 @@ fn test_pool_user() {
         sam_weth_dtoken_balance,
         10,
     );
-    let events = fixture.env.events().all();
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
     let event_data: soroban_sdk::Vec<Val> = vec![
         &fixture.env,
         amount.into_val(&fixture.env),
@@ -408,6 +408,9 @@ fn test_pool_user() {
             }
         )
     );
+    let events = fixture.env.events().all();
+    // @dev: three transfer events follow the pool events, 1 pool event follows
+    let event = vec![&fixture.env, events.get_unchecked(events.len() - 5)];
     let xlm_reserve_data = fixture.read_reserve_data(0, TokenIndex::XLM);
     let est_xlm = sam_xlm_btoken_balance
         .fixed_mul_floor(xlm_reserve_data.b_rate, SCALAR_9)
@@ -421,9 +424,6 @@ fn test_pool_user() {
         10,
     );
     assert_eq!(result.collateral.len(), 0);
-    let events = fixture.env.events().all();
-    // @dev: three transfer events follow the pool events, 1 pool event follows
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 5)];
     let event_data: soroban_sdk::Vec<Val> = vec![
         &fixture.env,
         est_xlm.into_val(&fixture.env),
@@ -508,8 +508,6 @@ fn test_pool_user() {
             }
         )
     );
-    assert_eq!(result, 2940_3113155); // ~ 4.99k / (100k + 4.99k) * 0.12 (xlm eps) * 5d23hr59m in seconds
-    assert_eq!(blnd.balance(&sam), sam_blnd_balance + result);
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -527,6 +525,8 @@ fn test_pool_user() {
             )
         ]
     );
+    assert_eq!(result, 2940_3113155); // ~ 4.99k / (100k + 4.99k) * 0.12 (xlm eps) * 5d23hr59m in seconds
+    assert_eq!(blnd.balance(&sam), sam_blnd_balance + result);
 }
 
 /// Test user exposed functions on the lending pool for basic configuration functionality, auth, and events.
@@ -571,8 +571,6 @@ fn test_pool_config() {
             }
         )
     );
-    let new_pool_config = fixture.read_pool_config(0);
-    assert_eq!(new_pool_config.bstop_rate, 0_0500000);
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -589,6 +587,8 @@ fn test_pool_config() {
             )
         ]
     );
+    let new_pool_config = fixture.read_pool_config(0);
+    assert_eq!(new_pool_config.bstop_rate, 0_0500000);
 
     // Initialize a reserve (admin only)
     let blnd = &fixture.tokens[TokenIndex::BLND];
@@ -616,13 +616,10 @@ fn test_pool_config() {
             }
         )
     );
-    fixture.jump(604800); // 1 week
-    pool_fixture.pool.set_reserve(&blnd.address);
 
-    let new_reserve_config = fixture.read_reserve_config(0, TokenIndex::BLND);
-    assert_eq!(new_reserve_config.l_factor, 0_500_0000);
-    assert_eq!(new_reserve_config.c_factor, 0_200_0000);
-    assert_eq!(new_reserve_config.index, 3); // setup includes 3 assets (0 indexed)
+    fixture.jump(604800); // 1 week
+
+    pool_fixture.pool.set_reserve(&blnd.address);
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     let event_data: soroban_sdk::Vec<Val> = vec![
         &fixture.env,
@@ -640,6 +637,10 @@ fn test_pool_config() {
             )
         ]
     );
+    let new_reserve_config = fixture.read_reserve_config(0, TokenIndex::BLND);
+    assert_eq!(new_reserve_config.l_factor, 0_500_0000);
+    assert_eq!(new_reserve_config.c_factor, 0_200_0000);
+    assert_eq!(new_reserve_config.index, 3); // setup includes 3 assets (0 indexed)
 
     // Update reserve config (admin only)
     reserve_config.c_factor = 0;
@@ -677,10 +678,6 @@ fn test_pool_config() {
             )
         ]
     );
-    let new_reserve_config = fixture.read_reserve_config(0, TokenIndex::BLND);
-    assert_eq!(new_reserve_config.l_factor, 0_500_0000);
-    assert_eq!(new_reserve_config.c_factor, 0);
-    assert_eq!(new_reserve_config.index, 3);
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -693,6 +690,10 @@ fn test_pool_config() {
             )
         ]
     );
+    let new_reserve_config = fixture.read_reserve_config(0, TokenIndex::BLND);
+    assert_eq!(new_reserve_config.l_factor, 0_500_0000);
+    assert_eq!(new_reserve_config.c_factor, 0);
+    assert_eq!(new_reserve_config.index, 3);
 
     // Set admin (admin only)
     let new_admin = Address::generate(&fixture.env);
@@ -758,8 +759,6 @@ fn test_pool_config() {
             }
         )
     );
-    let new_pool_config = fixture.read_pool_config(0);
-    assert_eq!(new_pool_config.status, 2);
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -772,6 +771,9 @@ fn test_pool_config() {
             )
         ]
     );
+    let new_pool_config = fixture.read_pool_config(0);
+    assert_eq!(new_pool_config.status, 2);
+
     //revert to standard status (admin only)
     pool_fixture.pool.set_status(&0);
     assert_eq!(
@@ -788,8 +790,6 @@ fn test_pool_config() {
             }
         )
     );
-    let new_pool_config = fixture.read_pool_config(0);
-    assert_eq!(new_pool_config.status, 0);
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -802,6 +802,8 @@ fn test_pool_config() {
             )
         ]
     );
+    let new_pool_config = fixture.read_pool_config(0);
+    assert_eq!(new_pool_config.status, 0);
 
     // Queue 50% of backstop for withdrawal
     fixture.backstop.queue_withdrawal(
@@ -813,8 +815,6 @@ fn test_pool_config() {
     // Update status (backstop is unhealthy, so this should update to backstop on-ice)
     pool_fixture.pool.update_status();
     assert_eq!(fixture.env.auths().len(), 0);
-    let new_pool_config = fixture.read_pool_config(0);
-    assert_eq!(new_pool_config.status, 3);
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -827,6 +827,8 @@ fn test_pool_config() {
             )
         ]
     );
+    let new_pool_config = fixture.read_pool_config(0);
+    assert_eq!(new_pool_config.status, 3);
 
     // Dequeue 50% of backstop for withdrawal
     fixture.backstop.dequeue_withdrawal(
@@ -838,8 +840,6 @@ fn test_pool_config() {
     // Update status (backstop is healthy, so this should update to active)
     pool_fixture.pool.update_status();
     assert_eq!(fixture.env.auths().len(), 0);
-    let new_pool_config = fixture.read_pool_config(0);
-    assert_eq!(new_pool_config.status, 1);
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -852,6 +852,8 @@ fn test_pool_config() {
             )
         ]
     );
+    let new_pool_config = fixture.read_pool_config(0);
+    assert_eq!(new_pool_config.status, 1);
 
     // Set emissions config (admin only)
     let reserve_emissions: soroban_sdk::Vec<ReserveEmissionMetadata> = soroban_sdk::vec![
