@@ -29,11 +29,11 @@ fn assert_fill_auction_event_no_data(
         Symbol::from_val(env, &topics.get_unchecked(0)),
         Symbol::new(env, "fill_auction")
     );
+    assert_eq!(u32::from_val(env, &topics.get_unchecked(1)), auction_type);
     assert_eq!(
-        Address::from_val(env, &topics.get_unchecked(1)),
+        Address::from_val(env, &topics.get_unchecked(2)),
         auction_user.clone()
     );
-    assert_eq!(u32::from_val(env, &topics.get_unchecked(2)), auction_type);
 
     let event_data = Vec::<Val>::from_val(env, &data);
     assert_eq!(event_data.len(), 3);
@@ -189,6 +189,7 @@ fn test_liquidations() {
     let auction_data = pool_fixture.pool.new_auction(
         &2u32,
         &fixture.backstop.address,
+        &vec![&fixture.env, fixture.lp.address.clone()],
         &vec![
             &fixture.env,
             fixture.tokens[TokenIndex::STABLE].address.clone(),
@@ -224,19 +225,30 @@ fn test_liquidations() {
                 pool_fixture.pool.address.clone(),
                 (
                     Symbol::new(&fixture.env, "new_auction"),
+                    2u32,
                     fixture.backstop.address.clone(),
-                    2 as u32
                 )
                     .into_val(&fixture.env),
-                auction_data.into_val(&fixture.env)
+                (100u32, auction_data.clone()).into_val(&fixture.env) // event_data.into_val(&fixture.env)
             )
         ]
     );
     // Start a liquidation auction
-    let auction_data =
-        pool_fixture
-            .pool
-            .new_auction(&0, &samwise, &Vec::<Address>::new(&fixture.env), &liq_pct);
+    let auction_data = pool_fixture.pool.new_auction(
+        &0,
+        &samwise,
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::STABLE].address.clone(),
+            fixture.tokens[TokenIndex::XLM].address.clone(),
+        ],
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::WETH].address.clone(),
+            fixture.tokens[TokenIndex::XLM].address.clone(),
+        ],
+        &liq_pct,
+    );
     let usdc_bid_amount = auction_data
         .bid
         .get_unchecked(fixture.tokens[TokenIndex::STABLE].address.clone());
@@ -281,11 +293,11 @@ fn test_liquidations() {
                 pool_fixture.pool.address.clone(),
                 (
                     Symbol::new(&fixture.env, "new_auction"),
+                    0 as u32,
                     samwise.clone(),
-                    0 as u32
                 )
                     .into_val(&fixture.env),
-                auction_data.into_val(&fixture.env)
+                (liq_pct, auction_data.clone()).into_val(&fixture.env)
             )
         ]
     );
@@ -436,10 +448,21 @@ fn test_liquidations() {
         .pool
         .submit(&samwise, &samwise, &samwise, &blank_requests);
     let liq_pct = 100;
-    let auction_data_2 =
-        pool_fixture
-            .pool
-            .new_auction(&0, &samwise, &Vec::<Address>::new(&fixture.env), &liq_pct);
+    let auction_data_2 = pool_fixture.pool.new_auction(
+        &0,
+        &samwise,
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::STABLE].address.clone(),
+            fixture.tokens[TokenIndex::XLM].address.clone(),
+        ],
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::WETH].address.clone(),
+            fixture.tokens[TokenIndex::XLM].address.clone(),
+        ],
+        &liq_pct,
+    );
 
     let usdc_bid_amount = auction_data_2
         .bid
@@ -554,7 +577,12 @@ fn test_liquidations() {
     let bad_debt_auction_data = pool_fixture.pool.new_auction(
         &1u32,
         &fixture.backstop.address,
-        &Vec::<Address>::new(&fixture.env),
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::STABLE].address.clone(),
+            fixture.tokens[TokenIndex::XLM].address.clone(),
+        ],
+        &vec![&fixture.env, fixture.lp.address.clone()],
         &100u32,
     );
 
@@ -591,11 +619,11 @@ fn test_liquidations() {
                 pool_fixture.pool.address.clone(),
                 (
                     Symbol::new(&fixture.env, "new_auction"),
+                    auction_type,
                     fixture.backstop.address.clone(),
-                    auction_type
                 )
                     .into_val(&fixture.env),
-                bad_debt_auction_data.into_val(&fixture.env)
+                (100u32, bad_debt_auction_data.clone()).into_val(&fixture.env)
             )
         ]
     );
@@ -795,10 +823,19 @@ fn test_liquidations() {
 
     // Liquidate sam
     let liq_pct: u32 = 100;
-    let auction_data =
-        pool_fixture
-            .pool
-            .new_auction(&0, &samwise, &Vec::<Address>::new(&fixture.env), &liq_pct);
+    let auction_data = pool_fixture.pool.new_auction(
+        &0,
+        &samwise,
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::STABLE].address.clone(),
+        ],
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::WETH].address.clone(),
+        ],
+        &liq_pct,
+    );
     let usdc_bid_amount = auction_data
         .bid
         .get_unchecked(fixture.tokens[TokenIndex::STABLE].address.clone());
@@ -812,24 +849,7 @@ fn test_liquidations() {
             .unwrap(),
         SCALAR_7,
     );
-    let events = fixture.env.events().all();
-    let event = vec![&fixture.env, events.get_unchecked(events.len() - 1)];
-    assert_eq!(
-        event,
-        vec![
-            &fixture.env,
-            (
-                pool_fixture.pool.address.clone(),
-                (
-                    Symbol::new(&fixture.env, "new_auction"),
-                    samwise.clone(),
-                    0 as u32,
-                )
-                    .into_val(&fixture.env),
-                auction_data.into_val(&fixture.env)
-            )
-        ]
-    );
+
     //jump 400 blocks
     fixture.jump_with_sequence(401 * 5);
     //fill liq
@@ -877,7 +897,11 @@ fn test_liquidations() {
     pool_fixture.pool.new_auction(
         &1u32,
         &fixture.backstop.address,
-        &Vec::<Address>::new(&fixture.env),
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::STABLE].address.clone(),
+        ],
+        &vec![&fixture.env, fixture.lp.address.clone()],
         &100u32,
     );
 
@@ -1006,9 +1030,19 @@ fn test_user_restore_position_and_delete_liquidation() {
         0_1200000,    // xlm
         1_0000000,    // stable
     ]);
-    pool_fixture
-        .pool
-        .new_auction(&0, &samwise, &Vec::<Address>::new(&fixture.env), &50);
+    pool_fixture.pool.new_auction(
+        &0,
+        &samwise,
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::XLM].address.clone(),
+        ],
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::STABLE].address.clone(),
+        ],
+        &50,
+    );
     assert!(pool_fixture.pool.try_get_auction(&0, &samwise).is_ok());
 
     // jump 200 blocks

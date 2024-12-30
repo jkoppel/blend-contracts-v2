@@ -255,8 +255,8 @@ pub fn build_actions_from_request(
 
                 PoolEvents::fill_auction(
                     e,
-                    request.address.clone(),
                     0u32,
+                    request.address.clone(),
                     from.clone(),
                     request.amount,
                     filled_auction,
@@ -276,8 +276,8 @@ pub fn build_actions_from_request(
 
                 PoolEvents::fill_auction(
                     e,
-                    request.address.clone(),
                     1u32,
+                    request.address.clone(),
                     from.clone(),
                     request.amount,
                     filled_auction,
@@ -295,8 +295,8 @@ pub fn build_actions_from_request(
                 );
                 PoolEvents::fill_auction(
                     e,
-                    request.address.clone(),
                     2u32,
+                    request.address.clone(),
                     from.clone(),
                     request.amount,
                     filled_auction,

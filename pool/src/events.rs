@@ -277,15 +277,22 @@ impl PoolEvents {
     /// Emitted when a new auction is created
     ///
     /// - topics - `["new_auction", user: Address, auction_type: u32]`
-    /// - data - `auction_data: AuctionData`
+    /// - data - `[percent: u32, auction_data: AuctionData]`
     ///
     /// ### Arguments
-    /// * user - The auction user
     /// * auction_type - The type of auction
+    /// * user - The auction user
+    /// * percent - The percent of assets auctioned off
     /// * auction_data - The auction data
-    pub fn new_auction(e: &Env, user: Address, auction_type: u32, auction_data: AuctionData) {
-        let topics = (Symbol::new(e, "new_auction"), user, auction_type);
-        e.events().publish(topics, auction_data);
+    pub fn new_auction(
+        e: &Env,
+        auction_type: u32,
+        user: Address,
+        percent: u32,
+        auction_data: AuctionData,
+    ) {
+        let topics = (Symbol::new(e, "new_auction"), auction_type, user);
+        e.events().publish(topics, (percent, auction_data));
     }
 
     /// Emitted when an auction is filled
@@ -294,20 +301,20 @@ impl PoolEvents {
     /// - data - `[filler: Address, fill_percent: i128, filled_auction_data: AuctionData]`
     ///
     /// ### Arguments
-    /// * user - The auction user
     /// * auction_type - The type of auction
+    /// * user - The auction user
     /// * filler - The address of the filler
     /// * fill_percent - The percentage of the auction filled
     /// * filled_auction_data - The filled auction data
     pub fn fill_auction(
         e: &Env,
-        user: Address,
         auction_type: u32,
+        user: Address,
         filler: Address,
         fill_percent: i128,
         filled_auction_data: AuctionData,
     ) {
-        let topics = (Symbol::new(e, "fill_auction"), user, auction_type);
+        let topics = (Symbol::new(e, "fill_auction"), auction_type, user);
         e.events()
             .publish(topics, (filler, fill_percent, filled_auction_data));
     }
