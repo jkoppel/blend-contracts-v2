@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn test_set_pool_emissions() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn test_set_pool_emissions_ok_if_under_100() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,

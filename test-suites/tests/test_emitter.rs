@@ -73,7 +73,7 @@ fn test_emitter_no_reward_zone() {
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address)
     );
 
-    fixture.env.budget().reset_unlimited();
+    fixture.env.cost_estimate().budget().reset_unlimited();
     let frodo = &fixture.users[0];
     let pool_fixture = &fixture.pools[0];
     let blnd_token = &fixture.tokens[TokenIndex::BLND];
@@ -184,15 +184,6 @@ fn test_emitter() {
     let result = fixture.emitter.distribute();
     backstop_blnd_balance += result;
     assert_eq!(fixture.env.auths().len(), 0);
-    assert_eq!(result, (6 * 24 * 60 * 60 + 61 * 60) * SCALAR_7); // 1 token per second are emitted
-    assert_eq!(
-        blnd_token.balance(&fixture.emitter.address),
-        emitter_blnd_balance
-    );
-    assert_eq!(
-        blnd_token.balance(&fixture.backstop.address),
-        backstop_blnd_balance
-    );
     let event = svec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -210,6 +201,15 @@ fn test_emitter() {
             )
         ]
     );
+    assert_eq!(result, (6 * 24 * 60 * 60 + 61 * 60) * SCALAR_7); // 1 token per second are emitted
+    assert_eq!(
+        blnd_token.balance(&fixture.emitter.address),
+        emitter_blnd_balance
+    );
+    assert_eq!(
+        blnd_token.balance(&fixture.backstop.address),
+        backstop_blnd_balance
+    );
 
     // Mint enough tokens to a new backstop address to perform a swap, then queue the swap
     let old_backstop_balance = bstop_token.balance(&fixture.backstop.address);
@@ -226,10 +226,6 @@ fn test_emitter() {
         .queue_swap_backstop(&new_backstop, &fixture.lp.address);
     let swap_unlock_time = fixture.env.ledger().timestamp() + 31 * 24 * 60 * 60;
     assert_eq!(fixture.env.auths().len(), 0);
-    assert_eq!(
-        fixture.emitter.get_backstop(),
-        fixture.backstop.address.clone()
-    );
     let event = svec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -247,6 +243,10 @@ fn test_emitter() {
             )
         ]
     );
+    assert_eq!(
+        fixture.emitter.get_backstop(),
+        fixture.backstop.address.clone()
+    );
 
     // Let some time go by
     fixture.jump(5 * 24 * 60 * 60);
@@ -255,10 +255,6 @@ fn test_emitter() {
     fixture.lp.transfer(&new_backstop, &fixture.bombadil, &5);
     fixture.emitter.cancel_swap_backstop();
     assert_eq!(fixture.env.auths().len(), 0);
-    assert_eq!(
-        fixture.emitter.get_backstop(),
-        fixture.backstop.address.clone()
-    );
     let event = svec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -275,6 +271,10 @@ fn test_emitter() {
                 .into_val(&fixture.env)
             )
         ]
+    );
+    assert_eq!(
+        fixture.emitter.get_backstop(),
+        fixture.backstop.address.clone()
     );
 
     // Restart the swap, wait for it to unlock, then swap

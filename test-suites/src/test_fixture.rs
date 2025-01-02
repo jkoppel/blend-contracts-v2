@@ -63,7 +63,7 @@ impl TestFixture<'_> {
     pub fn create<'a>(wasm: bool) -> TestFixture<'a> {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let bombadil = Address::generate(&e);
         let frodo = Address::generate(&e);

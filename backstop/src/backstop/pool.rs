@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn test_require_pool_above_threshold_under() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 300_000_0000000,
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_require_pool_above_threshold_zero() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 5_000_0000000,
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_require_pool_above_threshold_over() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 364_643_0000000,
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn test_require_pool_above_threshold_saturates() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 50_000_000_0000000,

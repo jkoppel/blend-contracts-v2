@@ -215,7 +215,7 @@ mod tests {
     fn test_create_interest_auction_user_not_backstop() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -257,7 +257,7 @@ mod tests {
     fn test_create_interest_auction_percent_not_100() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -298,7 +298,7 @@ mod tests {
     fn test_create_interest_auction_under_threshold() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -412,7 +412,7 @@ mod tests {
     fn test_create_interest_auction_invalid_bid() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -497,7 +497,7 @@ mod tests {
     fn test_create_interest_auction_invalid_lot() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -582,7 +582,7 @@ mod tests {
     fn test_create_interest_auction_invalid_lot_empty() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -667,7 +667,7 @@ mod tests {
     fn test_create_interest_auction_checks_max_positions() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -786,7 +786,7 @@ mod tests {
     fn test_create_interest_auction() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -905,7 +905,7 @@ mod tests {
     fn test_create_interest_auction_14_decimal_oracle() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1030,7 +1030,7 @@ mod tests {
     fn test_create_interest_auction_applies_interest() {
         let e = Env::default();
         e.mock_all_auths();
-        e.budget().reset_unlimited(); // setup exhausts budget
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1156,7 +1156,7 @@ mod tests {
     fn test_fill_interest_auction() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1291,7 +1291,7 @@ mod tests {
     fn test_fill_interest_auction_empty_bid() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -1420,7 +1420,7 @@ mod tests {
     fn test_fill_interest_auction_with_backstop() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,

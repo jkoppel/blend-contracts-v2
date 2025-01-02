@@ -1254,7 +1254,7 @@ mod tests {
         let (oracle_address, _) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
@@ -1390,7 +1390,7 @@ mod tests {
         let (oracle_address, _) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         let (backstop_token_id, backstop_token_client) =
             testutils::create_token_contract(&e, &bombadil);
         let (backstop_address, backstop_client) = testutils::create_backstop(&e);
@@ -1490,7 +1490,7 @@ mod tests {
     #[test]
     fn test_fill_interest_auction() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {
@@ -1650,7 +1650,7 @@ mod tests {
     #[test]
     fn test_delete_liquidation_auction() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         e.ledger().set(LedgerInfo {

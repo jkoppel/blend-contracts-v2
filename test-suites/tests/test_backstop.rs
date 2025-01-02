@@ -106,12 +106,6 @@ fn test_backstop() {
             }
         )
     );
-    assert_eq!(result, amount);
-    assert_eq!(bstop_token.balance(&sam), sam_bstop_token_balance);
-    assert_eq!(
-        bstop_token.balance(&fixture.backstop.address),
-        bstop_bstop_token_balance
-    );
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     let event_body: Vec<Val> = vec![
         &fixture.env,
@@ -133,6 +127,12 @@ fn test_backstop() {
                 event_body.into_val(&fixture.env)
             )
         ]
+    );
+    assert_eq!(result, amount);
+    assert_eq!(bstop_token.balance(&sam), sam_bstop_token_balance);
+    assert_eq!(
+        bstop_token.balance(&fixture.backstop.address),
+        bstop_bstop_token_balance
     );
 
     // Simulate the pool backstop making money and progress 6d23h (6d23hr total emissions for sam)
@@ -186,11 +186,6 @@ fn test_backstop() {
             }
         )
     );
-    assert_eq!(bstop_token.balance(&frodo), frodo_bstop_token_balance);
-    assert_eq!(
-        bstop_token.balance(&fixture.backstop.address),
-        bstop_bstop_token_balance
-    );
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -207,6 +202,11 @@ fn test_backstop() {
                 amount.into_val(&fixture.env)
             )
         ]
+    );
+    assert_eq!(bstop_token.balance(&frodo), frodo_bstop_token_balance);
+    assert_eq!(
+        bstop_token.balance(&fixture.backstop.address),
+        bstop_bstop_token_balance
     );
 
     // Start the next emission cycle
@@ -238,16 +238,6 @@ fn test_backstop() {
             }
         )
     );
-    assert_eq!(result.amount, amount);
-    assert_eq!(
-        result.exp,
-        fixture.env.ledger().timestamp() + 21 * 24 * 60 * 60
-    );
-    assert_eq!(bstop_token.balance(&sam), sam_bstop_token_balance);
-    assert_eq!(
-        bstop_token.balance(&fixture.backstop.address),
-        bstop_bstop_token_balance
-    );
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     let event_body: Vec<Val> = vec![
         &fixture.env,
@@ -269,6 +259,16 @@ fn test_backstop() {
                 event_body.into_val(&fixture.env)
             )
         ]
+    );
+    assert_eq!(result.amount, amount);
+    assert_eq!(
+        result.exp,
+        fixture.env.ledger().timestamp() + 21 * 24 * 60 * 60
+    );
+    assert_eq!(bstop_token.balance(&sam), sam_bstop_token_balance);
+    assert_eq!(
+        bstop_token.balance(&fixture.backstop.address),
+        bstop_bstop_token_balance
     );
 
     // Start the next emission cycle and jump 7 days (13d23hr total emissions for sam)
@@ -300,11 +300,6 @@ fn test_backstop() {
             }
         )
     );
-    assert_eq!(bstop_token.balance(&sam), sam_bstop_token_balance);
-    assert_eq!(
-        bstop_token.balance(&fixture.backstop.address),
-        bstop_bstop_token_balance
-    );
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -321,6 +316,11 @@ fn test_backstop() {
                 amount.into_val(&fixture.env)
             )
         ]
+    );
+    assert_eq!(bstop_token.balance(&sam), sam_bstop_token_balance);
+    assert_eq!(
+        bstop_token.balance(&fixture.backstop.address),
+        bstop_bstop_token_balance
     );
 
     // Start the next emission cycle and jump 7 days (20d23hr total emissions for sam)
@@ -352,11 +352,6 @@ fn test_backstop() {
             }
         )
     );
-    assert_eq!(bstop_token.balance(&frodo), frodo_bstop_token_balance);
-    assert_eq!(
-        bstop_token.balance(&fixture.backstop.address),
-        bstop_bstop_token_balance
-    );
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -369,6 +364,11 @@ fn test_backstop() {
                     .into_val(&fixture.env)
             )
         ]
+    );
+    assert_eq!(bstop_token.balance(&frodo), frodo_bstop_token_balance);
+    assert_eq!(
+        bstop_token.balance(&fixture.backstop.address),
+        bstop_bstop_token_balance
     );
 
     // Jump to the end of the withdrawal period (27d23hr total emissions for sam)
@@ -398,12 +398,6 @@ fn test_backstop() {
             }
         )
     );
-    assert_eq!(result, amount + 100 * SCALAR_7); // sam due 20% of 1k profit. Captures half (100) since withdrawing half his position.
-    assert_eq!(bstop_token.balance(&sam), sam_bstop_token_balance);
-    assert_eq!(
-        bstop_token.balance(&fixture.backstop.address),
-        bstop_bstop_token_balance
-    );
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     let event_body: Vec<Val> = vec![
         &fixture.env,
@@ -425,6 +419,12 @@ fn test_backstop() {
                 event_body.into_val(&fixture.env)
             )
         ]
+    );
+    assert_eq!(result, amount + 100 * SCALAR_7); // sam due 20% of 1k profit. Captures half (100) since withdrawing half his position.
+    assert_eq!(bstop_token.balance(&sam), sam_bstop_token_balance);
+    assert_eq!(
+        bstop_token.balance(&fixture.backstop.address),
+        bstop_bstop_token_balance
     );
 
     // Sam claims emissions earned on the backstop deposit
@@ -452,6 +452,7 @@ fn test_backstop() {
             }
         )
     );
+
     //6d23hr at full
     //7 days at none
     //7 at 6250 + (60 * 60 * 24 * 16 + 1)
@@ -463,17 +464,6 @@ fn test_backstop() {
     let emitted_blnd_2 = ((14 * 24 * 60 * 60 + 1) * SCALAR_7 + 2096022)
         .fixed_mul_floor(emission_share_2, SCALAR_7)
         .unwrap();
-
-    assert_approx_eq_abs(
-        fixture.tokens[TokenIndex::BLND].balance(&fixture.lp.address),
-        comet_blend_balance + emitted_blnd_1 + emitted_blnd_2,
-        SCALAR_7,
-    );
-    assert_approx_eq_abs(
-        fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
-        bstop_blend_balance - emitted_blnd_1 - emitted_blnd_2,
-        SCALAR_7,
-    );
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
     assert_eq!(
         event,
@@ -485,5 +475,16 @@ fn test_backstop() {
                 (emitted_blnd_1 + emitted_blnd_2).into_val(&fixture.env),
             )
         ]
+    );
+
+    assert_approx_eq_abs(
+        fixture.tokens[TokenIndex::BLND].balance(&fixture.lp.address),
+        comet_blend_balance + emitted_blnd_1 + emitted_blnd_2,
+        SCALAR_7,
+    );
+    assert_approx_eq_abs(
+        fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
+        bstop_blend_balance - emitted_blnd_1 - emitted_blnd_2,
+        SCALAR_7,
     );
 }

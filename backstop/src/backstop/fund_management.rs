@@ -87,7 +87,7 @@ mod tests {
     fn test_execute_donate() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_id = create_backstop(&e);
         let pool_0_id = Address::generate(&e);
@@ -122,7 +122,7 @@ mod tests {
     fn test_execute_donate_negative_amount() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_id = create_backstop(&e);
         let pool_0_id = Address::generate(&e);
@@ -152,7 +152,7 @@ mod tests {
     fn test_execute_donate_from_is_to() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_id = create_backstop(&e);
         let pool_0_id = Address::generate(&e);
@@ -182,7 +182,7 @@ mod tests {
     fn test_execute_donate_from_is_self() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_id = create_backstop(&e);
         let pool_0_id = Address::generate(&e);
@@ -212,7 +212,7 @@ mod tests {
     fn test_execute_donate_not_pool() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_id = create_backstop(&e);
         let pool_0_id = Address::generate(&e);
@@ -235,7 +235,7 @@ mod tests {
     fn test_execute_draw() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_address = create_backstop(&e);
         let pool_0_id = Address::generate(&e);
@@ -270,7 +270,7 @@ mod tests {
     fn test_execute_draw_only_can_take_from_pool() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_id = create_backstop(&e);
         let pool_0_id = Address::generate(&e);
@@ -302,7 +302,7 @@ mod tests {
     fn test_execute_draw_negative_amount() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_id = create_backstop(&e);
         let pool_0_id = Address::generate(&e);
@@ -330,7 +330,7 @@ mod tests {
     fn test_execute_update_comet_token_value() {
         let e = Env::default();
         e.mock_all_auths_allowing_non_root_auth();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_id = create_backstop(&e);
         let bombadil = Address::generate(&e);

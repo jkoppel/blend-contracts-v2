@@ -47,7 +47,7 @@ mod tests {
     #[test]
     fn test_execute_deposit() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         let backstop_address = create_backstop(&e);
@@ -222,7 +222,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1005)")]
     fn test_execute_deposit_zero_share_mint() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
 
         let backstop_address = create_backstop(&e);
@@ -261,7 +261,7 @@ mod tests {
     // #[should_panic(expected = "Error(Contract, #1005)")]
     // fn test_execute_deposit_small_initial_mint() {
     //     let e = Env::default();
-    //     e.budget().reset_unlimited();
+    //     e.cost_estimate().budget().reset_unlimited();
     //     e.mock_all_auths_allowing_non_root_auth();
 
     //     let backstop_address = create_backstop(&e);
