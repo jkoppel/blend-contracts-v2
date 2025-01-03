@@ -38,7 +38,7 @@ pub fn execute_submit(
     let mut pool = Pool::load(e);
 
     let (actions, new_from_state, check_health) =
-        build_actions_from_request(e, &mut pool, from, requests, use_allowance);
+        build_actions_from_request(e, &mut pool, from, requests);
 
     // panics if the new positions set does not meet the health factor requirement
     // min is 1.0000100 to prevent rounding errors
