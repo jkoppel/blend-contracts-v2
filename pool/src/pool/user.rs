@@ -378,12 +378,12 @@ mod tests {
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
-            eps: 0_1000000,
-            index: 1000,
+            eps: 0_10000000000000,
+            index: 10000000000,
             last_time: 10000000, // 1000s elapsed
         };
         let emis_user_data = UserEmissionData {
-            index: 900,
+            index: 9000000000,
             accrued: 0,
         };
 
@@ -406,9 +406,9 @@ mod tests {
             assert_eq!(reserve_0.d_supply, starting_d_supply_0 + 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
-            let new_index = 1000
+            let new_index = 10000000000
                 + (1000i128 * 0_1000000)
-                    .fixed_div_floor(starting_d_supply_0, SCALAR_7)
+                    .fixed_div_floor(starting_d_supply_0, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(new_emis_res_data.last_time, 10001000);
             assert_eq!(new_emis_res_data.index, new_index);
@@ -416,7 +416,7 @@ mod tests {
                 storage::get_user_emissions(&e, &samwise, &res_0_d_token_index).unwrap();
             let new_accrual = 0
                 + (new_index - emis_user_data.index)
-                    .fixed_mul_floor(1000, SCALAR_7)
+                    .fixed_mul_floor(1000, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(user_emis_data.accrued, new_accrual);
         });
@@ -467,12 +467,12 @@ mod tests {
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
-            eps: 0_1000000,
-            index: 1000,
+            eps: 0_10000000000000,
+            index: 10000000000,
             last_time: 10000000, // 1000s elapsed
         };
         let emis_user_data = UserEmissionData {
-            index: 900,
+            index: 9000000000,
             accrued: 0,
         };
         let mut user = User {
@@ -493,9 +493,9 @@ mod tests {
             assert_eq!(reserve_0.d_supply, starting_d_supply_0 - 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
-            let new_index = 1000
+            let new_index = 10000000000
                 + (1000i128 * 0_1000000)
-                    .fixed_div_floor(starting_d_supply_0, SCALAR_7)
+                    .fixed_div_floor(starting_d_supply_0, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(new_emis_res_data.last_time, 10001000);
             assert_eq!(new_emis_res_data.index, new_index);
@@ -503,7 +503,7 @@ mod tests {
                 storage::get_user_emissions(&e, &samwise, &res_0_d_token_index).unwrap();
             let new_accrual = 0
                 + (new_index - emis_user_data.index)
-                    .fixed_mul_floor(1000, SCALAR_7)
+                    .fixed_mul_floor(1000, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(user_emis_data.accrued, new_accrual);
         });
@@ -682,12 +682,12 @@ mod tests {
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
-            eps: 0_1000000,
-            index: 1000,
+            eps: 0_10000000000000,
+            index: 10000000000,
             last_time: 10000000, // 1000s elapsed
         };
         let emis_user_data = UserEmissionData {
-            index: 900,
+            index: 9000000000,
             accrued: 0,
         };
 
@@ -709,9 +709,9 @@ mod tests {
             assert_eq!(reserve_0.b_supply, starting_b_token_supply + 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
-            let new_index = 1000
+            let new_index = 10000000000
                 + (1000i128 * 0_1000000)
-                    .fixed_div_floor(starting_b_token_supply, SCALAR_7)
+                    .fixed_div_floor(starting_b_token_supply, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(new_emis_res_data.last_time, 10001000);
             assert_eq!(new_emis_res_data.index, new_index);
@@ -719,7 +719,7 @@ mod tests {
                 storage::get_user_emissions(&e, &samwise, &res_0_d_token_index).unwrap();
             let new_accrual = 0
                 + (new_index - emis_user_data.index)
-                    .fixed_mul_floor(1000, SCALAR_7)
+                    .fixed_mul_floor(1000, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(user_emis_data.accrued, new_accrual);
         });
@@ -770,12 +770,12 @@ mod tests {
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
-            eps: 0_1000000,
-            index: 1000,
+            eps: 0_10000000000000,
+            index: 10000000000,
             last_time: 10000000, // 1000s elapsed
         };
         let emis_user_data = UserEmissionData {
-            index: 900,
+            index: 9000000000,
             accrued: 0,
         };
 
@@ -797,9 +797,9 @@ mod tests {
             assert_eq!(reserve_0.b_supply, starting_b_token_supply - 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
-            let new_index = 1000
+            let new_index = 10000000000
                 + (1000i128 * 0_1000000)
-                    .fixed_div_floor(starting_b_token_supply, SCALAR_7)
+                    .fixed_div_floor(starting_b_token_supply, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(new_emis_res_data.last_time, 10001000);
             assert_eq!(new_emis_res_data.index, new_index);
@@ -807,7 +807,7 @@ mod tests {
                 storage::get_user_emissions(&e, &samwise, &res_0_d_token_index).unwrap();
             let new_accrual = 0
                 + (new_index - emis_user_data.index)
-                    .fixed_mul_floor(1000, SCALAR_7)
+                    .fixed_mul_floor(1000, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(user_emis_data.accrued, new_accrual);
         });
@@ -916,12 +916,12 @@ mod tests {
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
-            eps: 0_1000000,
-            index: 1000,
+            eps: 0_10000000000000,
+            index: 10000000000,
             last_time: 10000000, // 1000s elapsed
         };
         let emis_user_data = UserEmissionData {
-            index: 900,
+            index: 9000000000,
             accrued: 0,
         };
 
@@ -943,9 +943,9 @@ mod tests {
             assert_eq!(reserve_0.b_supply, starting_b_token_supply + 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
-            let new_index = 1000
+            let new_index = 10000000000
                 + (1000i128 * 0_1000000)
-                    .fixed_div_floor(starting_b_token_supply, SCALAR_7)
+                    .fixed_div_floor(starting_b_token_supply, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(new_emis_res_data.last_time, 10001000);
             assert_eq!(new_emis_res_data.index, new_index);
@@ -953,7 +953,7 @@ mod tests {
                 storage::get_user_emissions(&e, &samwise, &res_0_d_token_index).unwrap();
             let new_accrual = 0
                 + (new_index - emis_user_data.index)
-                    .fixed_mul_floor(1000, SCALAR_7)
+                    .fixed_mul_floor(1000, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(user_emis_data.accrued, new_accrual);
         });
@@ -1004,12 +1004,12 @@ mod tests {
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
-            eps: 0_1000000,
-            index: 1000,
+            eps: 0_10000000000000,
+            index: 10000000000,
             last_time: 10000000, // 1000s elapsed
         };
         let emis_user_data = UserEmissionData {
-            index: 900,
+            index: 9000000000,
             accrued: 0,
         };
 
@@ -1031,9 +1031,9 @@ mod tests {
             assert_eq!(reserve_0.b_supply, starting_b_token_supply - 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
-            let new_index = 1000
+            let new_index = 10000000000
                 + (1000i128 * 0_1000000)
-                    .fixed_div_floor(starting_b_token_supply, SCALAR_7)
+                    .fixed_div_floor(starting_b_token_supply, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(new_emis_res_data.last_time, 10001000);
             assert_eq!(new_emis_res_data.index, new_index);
@@ -1041,7 +1041,7 @@ mod tests {
                 storage::get_user_emissions(&e, &samwise, &res_0_d_token_index).unwrap();
             let new_accrual = 0
                 + (new_index - emis_user_data.index)
-                    .fixed_mul_floor(1000, SCALAR_7)
+                    .fixed_mul_floor(1000, SCALAR_7 * SCALAR_7)
                     .unwrap();
             assert_eq!(user_emis_data.accrued, new_accrual);
         });

@@ -70,9 +70,12 @@ pub fn update_emission_data(
 
             let unqueued_shares = pool_balance.shares - pool_balance.q4w;
             require_nonnegative(e, unqueued_shares);
-            let additional_idx = (i128(max_timestamp - emis_data.last_time) * i128(emis_data.eps))
-                .fixed_div_floor(unqueued_shares, SCALAR_7)
-                .unwrap_optimized();
+            // Eps is in 14 decimals and needs to be converted to 7 decimals to match emission token decimals
+            let additional_idx = (i128(max_timestamp - emis_data.last_time)
+                .fixed_mul_floor(i128(emis_data.eps), SCALAR_7))
+            .unwrap_optimized()
+            .fixed_div_floor(unqueued_shares, SCALAR_7 * SCALAR_7)
+            .unwrap_optimized();
             let new_data = BackstopEmissionData {
                 eps: emis_data.eps,
                 expiration: emis_data.expiration,
@@ -106,7 +109,7 @@ fn update_user_emissions(
                 let delta_index = emis_data.index - user_data.index;
                 require_nonnegative(e, delta_index);
                 let to_accrue = (user_balance.shares)
-                    .fixed_mul_floor(delta_index, SCALAR_7)
+                    .fixed_mul_floor(delta_index, SCALAR_7 * SCALAR_7)
                     .unwrap_optimized();
                 accrual += to_accrue;
             }
@@ -121,7 +124,7 @@ fn update_user_emissions(
         // user had tokens before emissions began, they are due any historical emissions
         let to_accrue = user_balance
             .shares
-            .fixed_mul_floor(emis_data.index, SCALAR_7)
+            .fixed_mul_floor(emis_data.index, SCALAR_7 * SCALAR_7)
             .unwrap_optimized();
         return set_user_emissions(e, pool, user, emis_data.index, to_accrue, to_claim);
     }
@@ -177,12 +180,12 @@ mod tests {
 
         let backstop_emissions_data = BackstopEmissionData {
             expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
-            eps: 0_1000000,
-            index: 22222,
+            eps: 0_10000000000000,
+            index: 222220000000,
             last_time: BACKSTOP_EPOCH,
         };
         let user_emissions_data = UserEmissionData {
-            index: 11111,
+            index: 111110000000,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
@@ -206,9 +209,9 @@ mod tests {
             let new_user_data =
                 storage::get_user_emis_data(&e, &pool_1, &samwise).unwrap_optimized();
             assert_eq!(new_backstop_data.last_time, block_timestamp);
-            assert_eq!(new_backstop_data.index, 8248888);
-            assert_eq!(new_user_data.accrued, 7_4139996);
-            assert_eq!(new_user_data.index, 8248888);
+            assert_eq!(new_backstop_data.index, 82488886666666);
+            assert_eq!(new_user_data.accrued, 7_4140001);
+            assert_eq!(new_user_data.index, 82488886666666);
         });
     }
 
@@ -274,8 +277,8 @@ mod tests {
 
         let backstop_emissions_data = BackstopEmissionData {
             expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
-            eps: 0_0420000,
-            index: 22222,
+            eps: 0_04200000000000,
+            index: 222220000000,
             last_time: BACKSTOP_EPOCH,
         };
         e.as_contract(&backstop_id, || {
@@ -299,9 +302,9 @@ mod tests {
             let new_user_data =
                 storage::get_user_emis_data(&e, &pool_1, &samwise).unwrap_optimized();
             assert_eq!(new_backstop_data.last_time, block_timestamp);
-            assert_eq!(new_backstop_data.index, 34588222);
+            assert_eq!(new_backstop_data.index, 345882220000000);
             assert_eq!(new_user_data.accrued, 0);
-            assert_eq!(new_user_data.index, 34588222);
+            assert_eq!(new_user_data.index, 345882220000000);
         });
     }
 
@@ -326,7 +329,7 @@ mod tests {
 
         let backstop_emissions_data = BackstopEmissionData {
             expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
-            eps: 0_0420000,
+            eps: 0_04200000000000,
             index: 0,
             last_time: BACKSTOP_EPOCH,
         };
@@ -351,9 +354,9 @@ mod tests {
             let new_user_data =
                 storage::get_user_emis_data(&e, &pool_1, &samwise).unwrap_optimized();
             assert_eq!(new_backstop_data.last_time, block_timestamp);
-            assert_eq!(new_backstop_data.index, 34566000);
+            assert_eq!(new_backstop_data.index, 345660000000000);
             assert_eq!(new_user_data.accrued, 31_1094000);
-            assert_eq!(new_user_data.index, 34566000);
+            assert_eq!(new_user_data.index, 345660000000000);
         });
     }
 
@@ -378,12 +381,12 @@ mod tests {
 
         let backstop_emissions_data = BackstopEmissionData {
             expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
-            eps: 0_1000000,
-            index: 22222,
+            eps: 0_10000000000000,
+            index: 222220000000,
             last_time: BACKSTOP_EPOCH,
         };
         let user_emissions_data = UserEmissionData {
-            index: 11111,
+            index: 111110000000,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
@@ -412,9 +415,9 @@ mod tests {
             let new_user_data =
                 storage::get_user_emis_data(&e, &pool_1, &samwise).unwrap_optimized();
             assert_eq!(new_backstop_data.last_time, block_timestamp);
-            assert_eq!(new_backstop_data.index, 8503321);
-            assert_eq!(new_user_data.accrued, 38214948);
-            assert_eq!(new_user_data.index, 8503321);
+            assert_eq!(new_backstop_data.index, 85033216563573);
+            assert_eq!(new_user_data.accrued, 38214950);
+            assert_eq!(new_user_data.index, 85033216563573);
         });
     }
 
@@ -439,12 +442,12 @@ mod tests {
 
         let backstop_emissions_data = BackstopEmissionData {
             expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
-            eps: 0_1000000,
-            index: 22222,
+            eps: 0_10000000000000,
+            index: 222220000000,
             last_time: BACKSTOP_EPOCH,
         };
         let user_emissions_data = UserEmissionData {
-            index: 11111,
+            index: 111110000000,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
@@ -468,11 +471,11 @@ mod tests {
             let new_backstop_data = storage::get_backstop_emis_data(&e, &pool_1).unwrap_optimized();
             let new_user_data =
                 storage::get_user_emis_data(&e, &pool_1, &samwise).unwrap_optimized();
-            assert_eq!(result, 7_4139996);
+            assert_eq!(result, 7_4140001);
             assert_eq!(new_backstop_data.last_time, block_timestamp);
-            assert_eq!(new_backstop_data.index, 8248888);
+            assert_eq!(new_backstop_data.index, 82488886666666);
             assert_eq!(new_user_data.accrued, 0);
-            assert_eq!(new_user_data.index, 8248888);
+            assert_eq!(new_user_data.index, 82488886666666);
         });
     }
 
@@ -543,7 +546,7 @@ mod tests {
 
         let backstop_emissions_data = BackstopEmissionData {
             expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
-            eps: 0_1000000,
+            eps: 0_10000000000000,
             index: 22222,
             last_time: BACKSTOP_EPOCH,
         };
@@ -597,7 +600,7 @@ mod tests {
 
         let backstop_emissions_data = BackstopEmissionData {
             expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
-            eps: 0_1000000,
+            eps: 0_10000000000000,
             index: 22222,
             last_time: block_timestamp + 1,
         };
@@ -647,12 +650,12 @@ mod tests {
 
         let backstop_emissions_data = BackstopEmissionData {
             expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
-            eps: 0_1000000,
-            index: 22222,
+            eps: 0_10000000000000,
+            index: 222220000000,
             last_time: BACKSTOP_EPOCH,
         };
         let user_emissions_data = UserEmissionData {
-            index: 34566000 + 1,
+            index: 345660000000000 + 1,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {

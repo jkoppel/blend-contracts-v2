@@ -59,11 +59,11 @@ pub fn set_pool_emissions(e: &Env, res_emission_metadata: Vec<ReserveEmissionMet
 /// Returns the number of new tokens distributed for emissions
 ///
 /// ### Panics
-/// If update has already been run for this emission cycle
+/// If the pool is not in the backstop reward zone
 pub fn gulp_emissions(e: &Env) -> i128 {
     let backstop = storage::get_backstop(e);
     let new_emissions =
-        BackstopClient::new(e, &backstop).gulp_pool_emissions(&e.current_contract_address());
+        BackstopClient::new(e, &backstop).gulp_emissions(&e.current_contract_address());
     do_gulp_emissions(e, new_emissions);
     new_emissions
 }
@@ -116,18 +116,23 @@ fn update_reserve_emission_eps(
         // determine the amount of tokens not emitted from the last config
         if emission_data.expiration > e.ledger().timestamp() {
             let time_since_last_emission = emission_data.expiration - e.ledger().timestamp();
-            let tokens_since_last_emission = i128(emission_data.eps * time_since_last_emission);
+
+            // Eps is scaled by 14 decimals
+            let tokens_since_last_emission = i128(emission_data.eps)
+                .fixed_mul_floor(i128(time_since_last_emission), SCALAR_7)
+                .unwrap_optimized();
             tokens_left_to_emit += tokens_since_last_emission;
         }
 
-        let eps = u64(tokens_left_to_emit / (7 * 24 * 60 * 60)).unwrap_optimized();
+        let eps = u64(tokens_left_to_emit * SCALAR_7 / (7 * 24 * 60 * 60)).unwrap_optimized();
+
         emission_data.expiration = expiration;
         emission_data.eps = eps;
         storage::set_res_emis_data(e, &res_token_id, &emission_data);
         PoolEvents::reserve_emission_update(e, res_token_id, eps, expiration);
     } else {
         // no config or data exists yet - first time this reserve token will get emission
-        let eps = u64(tokens_left_to_emit / (7 * 24 * 60 * 60)).unwrap_optimized();
+        let eps = u64(tokens_left_to_emit * SCALAR_7 / (7 * 24 * 60 * 60)).unwrap_optimized();
         storage::set_res_emis_data(
             e,
             &res_token_id,
@@ -231,9 +236,9 @@ mod tests {
 
         // setup reserve_0 liability to have emissions remaining
         let old_r_0_l_data = ReserveEmissionData {
-            eps: 0_1500000,
+            eps: 0_15000000000000,
             expiration: 1500000200,
-            index: 99999,
+            index: 999990000000,
             last_time: 1499980000,
         };
 
@@ -241,9 +246,9 @@ mod tests {
 
         // steup reserve_1 supply to have emissions expired
         let old_r_1_s_data = ReserveEmissionData {
-            eps: 0_3500000,
+            eps: 0_35000000000000,
             expiration: 1499990000,
-            index: 11111,
+            index: 111110000000,
             last_time: 1499990000,
         };
         e.as_contract(&pool, || {
@@ -261,15 +266,15 @@ mod tests {
             let r_0_l_config = storage::get_res_emis_data(&e, &0).unwrap_optimized();
             let r_0_l_data = storage::get_res_emis_data(&e, &0).unwrap_optimized();
             assert_eq!(r_0_l_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
-            assert_eq!(r_0_l_config.eps, 0_1000496);
-            assert_eq!(r_0_l_data.index, 99999 + 40 * SCALAR_7);
+            assert_eq!(r_0_l_config.eps, 0_10004960317460);
+            assert_eq!(r_0_l_data.index, (99999 + 40 * SCALAR_7) * SCALAR_7);
             assert_eq!(r_0_l_data.last_time, 1500000000);
 
             // verify reserve_1 liability initialized emissions
             let r_1_l_config = storage::get_res_emis_data(&e, &2).unwrap_optimized();
             let r_1_l_data = storage::get_res_emis_data(&e, &2).unwrap_optimized();
             assert_eq!(r_1_l_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
-            assert_eq!(r_1_l_config.eps, 0_2750000);
+            assert_eq!(r_1_l_config.eps, 0_27500000000000);
             assert_eq!(r_1_l_data.index, 0);
             assert_eq!(r_1_l_data.last_time, 1500000000);
 
@@ -277,8 +282,8 @@ mod tests {
             let r_1_s_config = storage::get_res_emis_data(&e, &3).unwrap_optimized();
             let r_1_s_data = storage::get_res_emis_data(&e, &3).unwrap_optimized();
             assert_eq!(r_1_s_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
-            assert_eq!(r_1_s_config.eps, 0_1250000);
-            assert_eq!(r_1_s_data.index, 11111);
+            assert_eq!(r_1_s_config.eps, 0_12500000000000);
+            assert_eq!(r_1_s_data.index, 111110000000);
             assert_eq!(r_1_s_data.last_time, 1500000000);
         });
     }

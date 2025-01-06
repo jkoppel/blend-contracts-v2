@@ -4,6 +4,7 @@ use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{panic_with_error, unwrap::UnwrapOptimized, Address, Env, Vec};
 
 use crate::{
+    constants::SCALAR_7,
     errors::PoolError,
     pool::User,
     storage::{self, ReserveEmissionData, UserEmissionData},
@@ -166,10 +167,11 @@ pub(super) fn update_emission_data(
                 e.ledger().timestamp()
             };
 
-            let additional_idx = (i128(ledger_timestamp - res_emission_data.last_time)
-                * i128(res_emission_data.eps))
-            .fixed_div_floor(supply, supply_scalar)
-            .unwrap_optimized();
+            let additional_idx = i128(ledger_timestamp - res_emission_data.last_time)
+                .fixed_mul_floor(i128(res_emission_data.eps), SCALAR_7)
+                .unwrap_optimized()
+                .fixed_div_floor(supply, supply_scalar * SCALAR_7)
+                .unwrap_optimized();
 
             res_emission_data.index += additional_idx;
             res_emission_data.last_time = ledger_timestamp;
@@ -196,7 +198,10 @@ fn update_user_emissions(
                 let delta_index = res_emis_data.index - user_data.index;
                 require_nonnegative(e, &delta_index);
                 let to_accrue = balance
-                    .fixed_mul_floor(res_emis_data.index - user_data.index, supply_scalar)
+                    .fixed_mul_floor(
+                        res_emis_data.index - user_data.index,
+                        supply_scalar * SCALAR_7,
+                    )
                     .unwrap_optimized();
                 accrual += to_accrue;
             }
@@ -209,7 +214,7 @@ fn update_user_emissions(
     } else {
         // user had tokens before emissions began, they are due any historical emissions
         let to_accrue = balance
-            .fixed_mul_floor(res_emis_data.index, supply_scalar)
+            .fixed_mul_floor(res_emis_data.index, supply_scalar * SCALAR_7)
             .unwrap_optimized();
         return set_user_emissions(e, user, res_token_id, res_emis_data.index, to_accrue, claim);
     }
@@ -274,12 +279,12 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 2345678,
+                eps: 0_01000000000000,
+                index: 23456780000000,
                 last_time: 1500000000,
             };
             let user_emission_data = UserEmissionData {
-                index: 1234567,
+                index: 12345670000000,
                 accrued: 0_1000000,
             };
             let res_token_type = 0;
@@ -374,7 +379,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 2345678,
                 last_time: 1501000000 + 1,
             };
@@ -425,12 +430,12 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 2345678,
+                eps: 0_01000000000000,
+                index: 23456780000000,
                 last_time: 1500000000,
             };
             let user_emission_data = UserEmissionData {
-                index: 1234567,
+                index: 12345670000000,
                 accrued: 0_1000000,
             };
             let res_token_type = 0;
@@ -564,7 +569,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 2345678,
                 last_time: 1600000000,
             };
@@ -613,7 +618,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 2345678,
                 last_time: 1501000000,
             };
@@ -711,7 +716,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 2345678,
                 last_time: 1500000000,
             };
@@ -760,8 +765,8 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000001,
-                eps: 0_0100000,
-                index: 123456789,
+                eps: 0_01000000000000,
+                index: 1234567890000000,
                 last_time: 1500000000,
             };
 
@@ -776,7 +781,7 @@ mod tests {
                     let new_reserve_emission_data =
                         storage::get_res_emis_data(&e, &res_token_index).unwrap_optimized();
                     assert_eq!(new_reserve_emission_data.last_time, 1600000001);
-                    assert_eq!(new_reserve_emission_data.index, 10012_3457789);
+                    assert_eq!(new_reserve_emission_data.index, 10012_34577890000000);
                 }
                 None => assert!(false),
             }
@@ -806,8 +811,8 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 123456789,
+                eps: 0_01000000000000,
+                index: 1234567890000000,
                 last_time: 1500000000,
             };
 
@@ -822,7 +827,7 @@ mod tests {
                     let new_reserve_emission_data =
                         storage::get_res_emis_data(&e, &res_token_index).unwrap_optimized();
                     assert_eq!(new_reserve_emission_data.last_time, 1500000005);
-                    assert_eq!(new_reserve_emission_data.index, 123461788);
+                    assert_eq!(new_reserve_emission_data.index, 1234617889944450);
                 }
                 None => assert!(false),
             }
@@ -855,7 +860,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 123456789,
                 last_time: 1500000000,
             };
@@ -903,8 +908,8 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 123456789,
+                eps: 0_01000000000000,
+                index: 1234567890000000,
                 last_time: 1500000000,
             };
 
@@ -951,7 +956,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 123456789,
                 last_time: 1500000000,
             };
@@ -1006,7 +1011,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 123456789,
                 last_time: 1500000000,
             };
@@ -1060,12 +1065,12 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 123456789,
+                eps: 0_01000000000000,
+                index: 1234567890000000,
                 last_time: 1500000000,
             };
             let user_emission_data = UserEmissionData {
-                index: 56789,
+                index: 567890000000,
                 accrued: 0_1000000,
             };
 
@@ -1115,12 +1120,12 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 123456789,
+                eps: 0_01000000000000,
+                index: 1234567890000000,
                 last_time: 1500000000,
             };
             let user_emission_data = UserEmissionData {
-                index: 56789,
+                index: 567890000000,
                 accrued: 0_1000000,
             };
 
@@ -1171,8 +1176,8 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 123456789,
+                eps: 0_01000000000000,
+                index: 1234567890000000,
                 last_time: 1500000000,
             };
 
@@ -1222,7 +1227,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 123456789,
                 last_time: 1500000000,
             };
@@ -1305,24 +1310,24 @@ mod tests {
 
             let reserve_emission_data_0 = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 2345678,
+                eps: 0_01000000000000,
+                index: 23456780000000,
                 last_time: 1500000000,
             };
             let user_emission_data_0 = UserEmissionData {
-                index: 1234567,
+                index: 12345670000000,
                 accrued: 0_1000000,
             };
             let res_token_index_0 = 0 * 2 + 0; // d_token for reserve 0
 
             let reserve_emission_data_1 = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0150000,
-                index: 1345678,
+                eps: 0_01500000000000,
+                index: 13456780000000,
                 last_time: 1500000000,
             };
             let user_emission_data_1 = UserEmissionData {
-                index: 1234567,
+                index: 12345670000000,
                 accrued: 1_0000000,
             };
             let res_token_index_1 = 1 * 2 + 1; // b_token for reserve 1
@@ -1424,24 +1429,24 @@ mod tests {
 
             let reserve_emission_data_0 = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
-                index: 2345678,
+                eps: 0_01000000000000,
+                index: 23456780000000,
                 last_time: 1500000000,
             };
             let user_emission_data_0 = UserEmissionData {
-                index: 1234567,
+                index: 12345670000000,
                 accrued: 0_1000000,
             };
             let res_token_index_0 = 0 * 2 + 0; // d_token for reserve 0
 
             let reserve_emission_data_1 = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0150000,
-                index: 1345678,
+                eps: 0_01500000000000,
+                index: 13456780000000,
                 last_time: 1501000000,
             };
             let user_emission_data_1 = UserEmissionData {
-                index: 1345678,
+                index: 13456780000000,
                 accrued: 0,
             };
             let res_token_index_1 = 1 * 2 + 1; // b_token for reserve 1
@@ -1545,7 +1550,7 @@ mod tests {
 
             let reserve_emission_data_0 = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0100000,
+                eps: 0_01000000000000,
                 index: 2345678,
                 last_time: 1500000000,
             };
@@ -1557,7 +1562,7 @@ mod tests {
 
             let reserve_emission_data_1 = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_0150000,
+                eps: 0_01500000000000,
                 index: 1345678,
                 last_time: 1500000000,
             };

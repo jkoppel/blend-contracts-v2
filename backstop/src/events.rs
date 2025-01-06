@@ -75,16 +75,35 @@ impl BackstopEvents {
         e.events().publish(topics, (amount, tokens_out));
     }
 
-    /// Emitted when new emissions are gulped
-    ///
-    /// - topics - `["gulp_emissions"]`
+    /// Emitted when new emissions are distributed
+    /// - topics - `["distribute"]`
     /// - data - `[new_tokens_emitted: i128]`
     ///
     /// ### Arguments
     /// * `new_tokens_emitted` - The amount of new tokens emitted
-    pub fn gulp_emissions(e: &Env, new_tokens_emitted: i128) {
-        let topics = (Symbol::new(e, "gulp_emissions"),);
+    pub fn distribute(e: &Env, new_tokens_emitted: i128) {
+        let topics = (Symbol::new(e, "distribute"),);
         e.events().publish(topics, new_tokens_emitted);
+    }
+
+    /// Emitted when new emissions are gulped
+    ///
+    /// - topics - `["gulp_emissions", pool_address: Address]`
+    /// - data - `[new_backstop_emissions: i128, new_pool_emissions: i128]`
+    ///
+    /// ### Arguments
+    /// * `pool_address` - The address of the pool that gulped emissions
+    /// * `new_backstop_emissions` - The amount of new emissions for the backstop
+    /// * `new_pool_emissions` - The amount of new emissions for the pool
+    pub fn gulp_emissions(
+        e: &Env,
+        pool_address: Address,
+        new_backstop_emissions: i128,
+        new_pool_emissions: i128,
+    ) {
+        let topics = (Symbol::new(e, "gulp_emissions"), pool_address);
+        e.events()
+            .publish(topics, (new_backstop_emissions, new_pool_emissions));
     }
 
     /// Emitted when the reward zone is updated
@@ -95,7 +114,7 @@ impl BackstopEvents {
     /// ### Arguments
     /// * `to_add` - The address to add to the reward zone
     /// * `to_remove` - The address to remove from the reward zone
-    pub fn rw_zone(e: &Env, to_add: Address, to_remove: Address) {
+    pub fn rw_zone(e: &Env, to_add: Address, to_remove: Option<Address>) {
         let topics = (Symbol::new(e, "rw_zone"),);
         e.events().publish(topics, (to_add, to_remove));
     }
