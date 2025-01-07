@@ -1,5 +1,3 @@
-use std::println;
-
 use crate::{
     storage::{self, PoolInitMeta},
     PoolFactoryError,
@@ -91,7 +89,6 @@ impl MockPoolFactoryTrait for MockPoolFactory {
 
         let pool_address = Address::generate(&e);
         e.register_at(&pool_address, PoolContract {}, ());
-        println!("{:?}", pool_address);
         e.invoke_contract::<Val>(&pool_address, &Symbol::new(&e, "initialize"), init_args);
 
         storage::set_deployed(&e, &pool_address);

@@ -1,14 +1,12 @@
 //! Methods for distributing backstop emissions to depositors
 
-use std::println;
-
 use cast::i128;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{unwrap::UnwrapOptimized, Address, Env};
 
 use crate::{
     backstop::{PoolBalance, UserBalance},
-    constants::SCALAR_7,
+    constants::{SCALAR_14, SCALAR_7},
     require_nonnegative,
     storage::{self, BackstopEmissionData, UserEmissionData},
 };
@@ -76,7 +74,7 @@ pub fn update_emission_data(
             let additional_idx = (i128(max_timestamp - emis_data.last_time)
                 .fixed_mul_floor(i128(emis_data.eps), SCALAR_7))
             .unwrap_optimized()
-            .fixed_div_floor(unqueued_shares, SCALAR_7 * SCALAR_7)
+            .fixed_div_floor(unqueued_shares, SCALAR_14)
             .unwrap_optimized();
             let new_data = BackstopEmissionData {
                 eps: emis_data.eps,
@@ -84,10 +82,7 @@ pub fn update_emission_data(
                 index: additional_idx + emis_data.index,
                 last_time: e.ledger().timestamp(),
             };
-            println!(
-                "expiration: {} , index: {}, additional_index: {}, unqueued_shares: {}",
-                new_data.expiration, new_data.index, additional_idx, unqueued_shares
-            );
+
             storage::set_backstop_emis_data(e, pool_id, &new_data);
             Some(new_data)
         }
@@ -115,7 +110,7 @@ fn update_user_emissions(
                 let delta_index = emis_data.index - user_data.index;
                 require_nonnegative(e, delta_index);
                 let to_accrue = (user_balance.shares)
-                    .fixed_mul_floor(delta_index, SCALAR_7 * SCALAR_7)
+                    .fixed_mul_floor(delta_index, SCALAR_14)
                     .unwrap_optimized();
                 accrual += to_accrue;
             }
@@ -130,7 +125,7 @@ fn update_user_emissions(
         // user had tokens before emissions began, they are due any historical emissions
         let to_accrue = user_balance
             .shares
-            .fixed_mul_floor(emis_data.index, SCALAR_7 * SCALAR_7)
+            .fixed_mul_floor(emis_data.index, SCALAR_14)
             .unwrap_optimized();
         return set_user_emissions(e, pool, user, emis_data.index, to_accrue, to_claim);
     }

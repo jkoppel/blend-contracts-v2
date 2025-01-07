@@ -1,5 +1,3 @@
-use std::println;
-
 use cast::{i128, u64};
 use sep_41_token::TokenClient;
 use soroban_fixed_point_math::FixedPoint;
@@ -7,7 +5,7 @@ use soroban_sdk::{panic_with_error, unwrap::UnwrapOptimized, Address, Env};
 
 use crate::{
     backstop::{load_pool_backstop_data, require_pool_above_threshold},
-    constants::{BACKSTOP_EPOCH, SCALAR_7},
+    constants::{BACKSTOP_EPOCH, SCALAR_14, SCALAR_7},
     dependencies::EmitterClient,
     errors::BackstopError,
     storage::{self, BackstopEmissionData},
@@ -137,12 +135,8 @@ pub fn distribute(e: &Env) -> i128 {
     }
 
     let additional_index = new_emissions
-        .fixed_div_floor(total_non_queued_tokens, SCALAR_7 * SCALAR_7)
+        .fixed_div_floor(total_non_queued_tokens, SCALAR_14)
         .unwrap_optimized();
-    println!(
-        "additional index: {} \n new emissions: {} \ntotal non queued tokens: {}",
-        additional_index, new_emissions, total_non_queued_tokens
-    );
     let new_index = prev_index + additional_index;
     storage::set_gulp_index(e, &new_index);
 
@@ -163,7 +157,7 @@ pub fn gulp_emissions(e: &Env, pool: &Address) -> (i128, i128) {
             if index < gulp_index {
                 let new_emissions = pool_balance
                     .non_queued_tokens()
-                    .fixed_mul_floor(gulp_index - index, SCALAR_7 * SCALAR_7)
+                    .fixed_mul_floor(gulp_index - index, SCALAR_14)
                     .unwrap_optimized();
                 let new_backstop_emissions = new_emissions
                     .fixed_mul_floor(0_7000000, SCALAR_7)
@@ -218,20 +212,16 @@ pub fn set_backstop_emission_eps(
             let tokens_since_last_emission = i128(emission_data.eps)
                 .fixed_mul_floor(i128(time_since_last_emission), SCALAR_7)
                 .unwrap_optimized();
-            println!("tokens since last emission: {}", tokens_since_last_emission);
             tokens_left_to_emit += tokens_since_last_emission;
         }
         // Scale eps by 14 decimal places to reduce rounding errors
         let eps = u64(tokens_left_to_emit * SCALAR_7 / (7 * 24 * 60 * 60)).unwrap_optimized();
         emission_data.eps = eps;
         emission_data.expiration = expiration;
-        println!("new eps: {}\n new tokens: {}", eps, tokens_left_to_emit);
-
         storage::set_backstop_emis_data(e, pool_id, &emission_data);
     } else {
         // first time the pool's backstop is receiving emissions - ensure data is written
         let eps = u64(tokens_left_to_emit * SCALAR_7 / (7 * 24 * 60 * 60)).unwrap_optimized();
-        println!("new eps: {}\n new tokens: {}", eps, tokens_left_to_emit);
         storage::set_backstop_emis_data(
             e,
             pool_id,
