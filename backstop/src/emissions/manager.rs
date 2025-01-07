@@ -635,8 +635,8 @@ mod tests {
                 &e,
                 &to_add,
                 &PoolBalance {
-                    shares: 100_000_0000000,
-                    tokens: 75_000_0000000,
+                    shares: 30_000_0000000,
+                    tokens: 40_000_0000000,
                     q4w: 1_000_0000000,
                 },
             );

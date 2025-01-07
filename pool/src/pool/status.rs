@@ -131,8 +131,8 @@ pub fn calc_pool_backstop_threshold(pool_backstop_data: &PoolBackstopData) -> i1
     //       so saturating mul is used. This is safe because the threshold is below i128::MAX and the
     //       protocol does not need to differentiate between pools over the threshold product constant.
     //       The calculation is:
-    //        - Threshold % = (bal_blnd^4 * bal_usdc) / PC^5 such that PC is 200k
-    let threshold_pc = 320_000_000_000_000_000_000_000_000i128; // 3.2e26 (200k^5)
+    //        - Threshold % = (bal_blnd^4 * bal_usdc) / PC^5 such that PC is 100k
+    let threshold_pc = 10_000_000_000_000_000_000_000_000i128; // 1e25 (100k^5)
 
     // floor balances to nearest full unit and calculate saturated pool product constant
     // and scale to SCALAR_7 to get final division result in SCALAR_7 points
@@ -235,7 +235,7 @@ mod tests {
             &vec![&e, 400_001_0000000, 10_001_0000000],
             &samwise,
         );
-        backstop_client.deposit(&samwise, &pool_id, &40_000_0000000);
+        backstop_client.deposit(&samwise, &pool_id, &20_000_0000000);
         backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
@@ -648,7 +648,7 @@ mod tests {
             &vec![&e, 400_001_0000000, 10_001_0000000],
             &samwise,
         );
-        backstop_client.deposit(&samwise, &pool_id, &40_000_0000000);
+        backstop_client.deposit(&samwise, &pool_id, &20_000_0000000);
         backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
@@ -1107,30 +1107,14 @@ mod tests {
         e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
-            blnd: 300_000_0000000,
+            blnd: 175_000_0000000,
             q4w_pct: 0,
             tokens: 20_000_0000000,
-            usdc: 25_000_0000000,
-        }; // ~91.2% threshold
+            usdc: 6_500_0000000,
+        }; // ~90.5% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
-        assert_eq!(result, 0_6328125);
-    }
-
-    #[test]
-    fn test_calc_pool_backstop_threshold_10_percent() {
-        let e = Env::default();
-        e.cost_estimate().budget().reset_unlimited();
-
-        let pool_backstop_data = PoolBackstopData {
-            blnd: 30_000_0000000,
-            q4w_pct: 0,
-            tokens: 1_000_0000000,
-            usdc: 3_975_0000000,
-        }; // ~10% threshold
-
-        let result = calc_pool_backstop_threshold(&pool_backstop_data);
-        assert_eq!(result, 0_0000100);
+        assert_eq!(result, 0_6096289);
     }
 
     #[test]
@@ -1155,14 +1139,14 @@ mod tests {
         e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
-            blnd: 364_643_0000000,
+            blnd: 200_000_0000000,
             q4w_pct: 0,
             tokens: 15_000_0000000,
-            usdc: 18_100_0000000,
+            usdc: 6_250_0000000,
         }; // 100% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
-        assert_eq!(result, 1_0000002);
+        assert_eq!(result, 1_0000000);
     }
 
     #[test]
@@ -1175,22 +1159,22 @@ mod tests {
             q4w_pct: 0,
             tokens: 999_999_0000000,
             usdc: 10_000_000_0000000,
-        }; // 181x threshold
+        }; // 362x threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
-        assert_eq!(result, 53169_1198313);
+        assert_eq!(result, 1701411_8346046);
     }
 
     #[test]
-    fn test_calc_pool_backstop_threshold_10pct() {
+    fn test_calc_pool_backstop_threshold_10_percent() {
         let e = Env::default();
         e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 20_000_0000000,
             q4w_pct: 0,
-            tokens: 999_999_0000000,
-            usdc: 20_000_0000000,
+            tokens: 1_000_0000000,
+            usdc: 625_0000000,
         }; // 10% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
@@ -1206,7 +1190,7 @@ mod tests {
             blnd: 10_000_0000000,
             q4w_pct: 0,
             tokens: 999_999_0000000,
-            usdc: 10_000_0000000,
+            usdc: 312_5000000,
         }; // 5% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
