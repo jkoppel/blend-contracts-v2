@@ -1,5 +1,7 @@
 //! Methods for distributing backstop emissions to depositors
 
+use std::println;
+
 use cast::i128;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{unwrap::UnwrapOptimized, Address, Env};
@@ -82,6 +84,10 @@ pub fn update_emission_data(
                 index: additional_idx + emis_data.index,
                 last_time: e.ledger().timestamp(),
             };
+            println!(
+                "expiration: {} , index: {}, additional_index: {}, unqueued_shares: {}",
+                new_data.expiration, new_data.index, additional_idx, unqueued_shares
+            );
             storage::set_backstop_emis_data(e, pool_id, &new_data);
             Some(new_data)
         }

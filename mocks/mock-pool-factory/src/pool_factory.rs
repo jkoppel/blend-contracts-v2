@@ -1,10 +1,12 @@
+use std::println;
+
 use crate::{
     storage::{self, PoolInitMeta},
     PoolFactoryError,
 };
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, vec, Address, BytesN, Env, IntoVal, String, Symbol,
-    Val, Vec,
+    contract, contractimpl, panic_with_error, testutils::Address as _, vec, Address, BytesN, Env,
+    IntoVal, String, Symbol, Val, Vec,
 };
 
 use pool::PoolContract;
@@ -87,7 +89,9 @@ impl MockPoolFactoryTrait for MockPoolFactory {
         init_args.push_back(pool_init_meta.backstop.to_val());
         init_args.push_back(pool_init_meta.blnd_id.to_val());
 
-        let pool_address = e.register(PoolContract {}, ());
+        let pool_address = Address::generate(&e);
+        e.register_at(&pool_address, PoolContract {}, ());
+        println!("{:?}", pool_address);
         e.invoke_contract::<Val>(&pool_address, &Symbol::new(&e, "initialize"), init_args);
 
         storage::set_deployed(&e, &pool_address);

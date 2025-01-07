@@ -1,3 +1,5 @@
+use std::println;
+
 use cast::{i128, u64};
 use sep_41_token::TokenClient;
 use soroban_fixed_point_math::FixedPoint;
@@ -72,8 +74,37 @@ pub fn add_to_reward_zone(e: &Env, to_add: Address, to_remove: Option<Address>) 
     }
     storage::set_backstop_gulp_index(&e, &to_add, &gulp_index);
     storage::set_reward_zone(e, &reward_zone);
+}
 
+/// remove a pool to the reward zone if below the minimum backstop deposit threshold
+pub fn remove_from_reward_zone(e: &Env, to_remove: Address) {
+    let mut reward_zone = storage::get_reward_zone(e);
+
+    // enusre to_add has met the minimum backstop deposit threshold
+    // NOTE: "to_add" can only carry a pool balance if it is a deployed pool from the factory
+    let pool_data = load_pool_backstop_data(e, &to_remove);
+    if require_pool_above_threshold(&pool_data) {
+        panic_with_error!(e, BackstopError::BadRequest);
+    } else {
+        let to_remove_index = reward_zone.first_index_of(to_remove.clone());
+        match to_remove_index {
+            Some(idx) => {
+                // verify distribute was run recently to prevent "to_remove" from losing excess emissions
+                // @dev: resource constraints prevent us from distributing on reward zone changes
+                let last_distribution = storage::get_last_distribution_time(e);
+                if last_distribution < e.ledger().timestamp() - 24 * 60 * 60 {
+                    panic_with_error!(e, BackstopError::BadRequest);
+                }
+
+                // Gulp emissions from "to_remove" and set "to_add" to the current gulp index and delete "to_remove" index
+                gulp_emissions(e, &to_remove);
+                storage::del_backstop_gulp_index(e, &to_remove);
+                reward_zone.remove(idx);
                 storage::set_reward_zone(e, &reward_zone);
+            }
+            None => panic_with_error!(e, BackstopError::InvalidRewardZoneEntry),
+        }
+    }
 }
 
 pub fn distribute(e: &Env) -> i128 {
@@ -104,9 +135,14 @@ pub fn distribute(e: &Env) -> i128 {
         let pool_balance = storage::get_pool_balance(e, &rz_pool);
         total_non_queued_tokens += pool_balance.non_queued_tokens();
     }
+
     let additional_index = new_emissions
         .fixed_div_floor(total_non_queued_tokens, SCALAR_7 * SCALAR_7)
         .unwrap_optimized();
+    println!(
+        "additional index: {} \n new emissions: {} \ntotal non queued tokens: {}",
+        additional_index, new_emissions, total_non_queued_tokens
+    );
     let new_index = prev_index + additional_index;
     storage::set_gulp_index(e, &new_index);
 
@@ -182,16 +218,20 @@ pub fn set_backstop_emission_eps(
             let tokens_since_last_emission = i128(emission_data.eps)
                 .fixed_mul_floor(i128(time_since_last_emission), SCALAR_7)
                 .unwrap_optimized();
+            println!("tokens since last emission: {}", tokens_since_last_emission);
             tokens_left_to_emit += tokens_since_last_emission;
         }
         // Scale eps by 14 decimal places to reduce rounding errors
         let eps = u64(tokens_left_to_emit * SCALAR_7 / (7 * 24 * 60 * 60)).unwrap_optimized();
         emission_data.eps = eps;
         emission_data.expiration = expiration;
+        println!("new eps: {}\n new tokens: {}", eps, tokens_left_to_emit);
+
         storage::set_backstop_emis_data(e, pool_id, &emission_data);
     } else {
         // first time the pool's backstop is receiving emissions - ensure data is written
         let eps = u64(tokens_left_to_emit * SCALAR_7 / (7 * 24 * 60 * 60)).unwrap_optimized();
+        println!("new eps: {}\n new tokens: {}", eps, tokens_left_to_emit);
         storage::set_backstop_emis_data(
             e,
             pool_id,
@@ -1231,6 +1271,238 @@ mod tests {
             storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove.clone()));
-                    });
+        });
+    }
+
+    /********** remove_from_reward_zone **********/
+
+    #[test]
+    fn test_remove_from_rz() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let backstop_id = create_backstop(&e);
+        create_blnd_token(&e, &backstop_id, &Address::generate(&e));
+
+        let to_remove = Address::generate(&e);
+        let mut reward_zone: Vec<Address> = vec![
+            &e,
+            Address::generate(&e),
+            to_remove.clone(), // index 7
+        ];
+
+        e.as_contract(&backstop_id, || {
+            storage::set_reward_zone(&e, &reward_zone);
+            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60));
+            storage::set_pool_balance(
+                &e,
+                &to_remove,
+                &PoolBalance {
+                    shares: 90_000_0000000,
+                    tokens: 100_001_0000000,
+                    q4w: 1_000_0000000,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &to_remove,
+                &PoolBalance {
+                    shares: 35_000_0000000,
+                    tokens: 40_000_0000000,
+                    q4w: 1_000_0000000,
+                },
+            );
+            storage::set_backstop_emis_data(
+                &e,
+                &to_remove,
+                &BackstopEmissionData {
+                    eps: 0_10000000000000,
+                    expiration: BACKSTOP_EPOCH + 1000,
+                    index: 0,
+                    last_time: BACKSTOP_EPOCH - 12345,
+                },
+            );
+            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
+            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
+            remove_from_reward_zone(&e, to_remove.clone());
+            let actual_rz = storage::get_reward_zone(&e);
+            reward_zone.remove(1);
+            assert_eq!(actual_rz.len(), 1);
+            assert_eq!(actual_rz, reward_zone);
+
+            let to_remove_emission_data =
+                storage::get_backstop_emis_data(&e, &to_remove).unwrap_optimized();
+            let to_remove_gulp_index = storage::get_backstop_gulp_index(&e, &to_remove);
+            assert_eq!(to_remove_gulp_index, None);
+            assert_eq!(to_remove_emission_data.last_time, BACKSTOP_EPOCH);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_remove_from_rz_above_threshold() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let backstop_id = create_backstop(&e);
+        create_blnd_token(&e, &backstop_id, &Address::generate(&e));
+
+        let to_remove = Address::generate(&e);
+        let reward_zone: Vec<Address> = vec![
+            &e,
+            Address::generate(&e),
+            to_remove.clone(), // index 7
+        ];
+
+        e.as_contract(&backstop_id, || {
+            storage::set_reward_zone(&e, &reward_zone);
+            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60));
+            storage::set_pool_balance(
+                &e,
+                &to_remove,
+                &PoolBalance {
+                    shares: 80_000_0000000,
+                    tokens: 90_000_0000000,
+                    q4w: 1_000_0000000,
+                },
+            );
+            storage::set_backstop_emis_data(
+                &e,
+                &to_remove,
+                &BackstopEmissionData {
+                    eps: 0_10000000000000,
+                    expiration: BACKSTOP_EPOCH + 1000,
+                    index: 0,
+                    last_time: BACKSTOP_EPOCH - 12345,
+                },
+            );
+            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
+            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
+            remove_from_reward_zone(&e, to_remove.clone());
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_remove_from_rz_last_distribution_too_long_ago() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let backstop_id = create_backstop(&e);
+        create_blnd_token(&e, &backstop_id, &Address::generate(&e));
+
+        let to_remove = Address::generate(&e);
+        let reward_zone: Vec<Address> = vec![
+            &e,
+            Address::generate(&e),
+            to_remove.clone(), // index 7
+        ];
+
+        e.as_contract(&backstop_id, || {
+            storage::set_reward_zone(&e, &reward_zone);
+            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60 - 1));
+            storage::set_pool_balance(
+                &e,
+                &to_remove,
+                &PoolBalance {
+                    shares: 80_000_0000000,
+                    tokens: 90_000_0000000,
+                    q4w: 1_000_0000000,
+                },
+            );
+            storage::set_backstop_emis_data(
+                &e,
+                &to_remove,
+                &BackstopEmissionData {
+                    eps: 0_10000000000000,
+                    expiration: BACKSTOP_EPOCH + 1000,
+                    index: 0,
+                    last_time: BACKSTOP_EPOCH - 12345,
+                },
+            );
+            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
+            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
+            remove_from_reward_zone(&e, to_remove.clone());
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1002)")]
+    fn test_remove_from_rz_not_in_rz() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let backstop_id = create_backstop(&e);
+        create_blnd_token(&e, &backstop_id, &Address::generate(&e));
+
+        let to_remove = Address::generate(&e);
+        let reward_zone: Vec<Address> = vec![&e, Address::generate(&e)];
+
+        e.as_contract(&backstop_id, || {
+            storage::set_reward_zone(&e, &reward_zone);
+            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60));
+            storage::set_pool_balance(
+                &e,
+                &to_remove,
+                &PoolBalance {
+                    shares: 35_000_0000000,
+                    tokens: 40_000_0000000,
+                    q4w: 1_000_0000000,
+                },
+            );
+            storage::set_backstop_emis_data(
+                &e,
+                &to_remove,
+                &BackstopEmissionData {
+                    eps: 0_10000000000000,
+                    expiration: BACKSTOP_EPOCH + 1000,
+                    index: 0,
+                    last_time: BACKSTOP_EPOCH - 12345,
+                },
+            );
+            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
+            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
+            remove_from_reward_zone(&e, to_remove.clone());
+        });
     }
 }

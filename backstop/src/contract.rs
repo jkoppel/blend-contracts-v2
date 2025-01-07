@@ -126,6 +126,15 @@ pub trait Backstop {
     /// If the pool to remove has more tokens, or if distribution occurred in the last 48 hours
     fn add_reward(e: Env, to_add: Address, to_remove: Option<Address>);
 
+    /// Remove a pool from the reward zone
+    ///
+    /// ### Arguments
+    /// * `to_remove` - The address of the pool to remove
+    ///
+    /// ### Errors
+    /// If the pool is not below the threshold or if the pool is not in the reward zone
+    fn remove_reward(e: Env, to_remove: Address);
+
     /// Claim backstop deposit emissions from a list of pools for `from`
     ///
     /// Returns the amount of BLND emissions claimed
@@ -295,7 +304,14 @@ impl Backstop for BackstopContract {
         storage::extend_instance(&e);
         emissions::add_to_reward_zone(&e, to_add.clone(), to_remove.clone());
 
-        BackstopEvents::rw_zone(&e, to_add, to_remove);
+        BackstopEvents::rw_zone_add(&e, to_add, to_remove);
+    }
+
+    fn remove_reward(e: Env, to_remove: Address) {
+        storage::extend_instance(&e);
+        emissions::remove_from_reward_zone(&e, to_remove.clone());
+
+        BackstopEvents::rw_zone_remove(&e, to_remove);
     }
 
     fn claim(e: Env, from: Address, pool_addresses: Vec<Address>, to: Address) -> i128 {

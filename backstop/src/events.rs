@@ -108,15 +108,27 @@ impl BackstopEvents {
 
     /// Emitted when the reward zone is updated
     ///
-    /// - topics - `["rw_zone"]`
+    /// - topics - `["rw_zone_add"]`
     /// - data - `[to_add: Address, to_remove: Address]`
     ///
     /// ### Arguments
     /// * `to_add` - The address to add to the reward zone
     /// * `to_remove` - The address to remove from the reward zone
-    pub fn rw_zone(e: &Env, to_add: Address, to_remove: Option<Address>) {
-        let topics = (Symbol::new(e, "rw_zone"),);
+    pub fn rw_zone_add(e: &Env, to_add: Address, to_remove: Option<Address>) {
+        let topics = (Symbol::new(e, "rw_zone_add"),);
         e.events().publish(topics, (to_add, to_remove));
+    }
+
+    /// Emitted when a pool is removed from the reward zone
+    ///
+    /// - topics - `["rw_zone_remove", pool_address: Address]`
+    /// - data - `[to_remove: Address]`
+    ///
+    /// ### Arguments
+    /// * `to_remove` - The address to remove from the reward zone
+    pub fn rw_zone_remove(e: &Env, to_remove: Address) {
+        let topics = (Symbol::new(e, "rw_zone_remove"),);
+        e.events().publish(topics, to_remove);
     }
 
     /// Emitted when emissions are claimed

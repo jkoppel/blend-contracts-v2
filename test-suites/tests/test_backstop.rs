@@ -141,6 +141,18 @@ fn test_backstop() {
     // Start the next emission cycle
     fixture.emitter.distribute();
     fixture.backstop.distribute();
+    let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
+    assert_eq!(
+        event,
+        vec![
+            &fixture.env,
+            (
+                fixture.backstop.address.clone(),
+                (Symbol::new(&fixture.env, "distribute"),).into_val(&fixture.env),
+                ((60 * 60 * 24 * 7 + 60) * SCALAR_7).into_val(&fixture.env),
+            )
+        ]
+    );
     pool.gulp_emissions();
     let amount = 2_000 * SCALAR_7;
     fixture.lp.approve(
