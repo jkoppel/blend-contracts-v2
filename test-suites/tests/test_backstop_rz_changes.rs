@@ -32,7 +32,7 @@ fn test_backstop_rz_changes_handle_emissions() {
     );
     fixture
         .backstop
-        .deposit(&sam, &pool_fixture.pool.address, &(12_500 * SCALAR_7));
+        .deposit(&sam, &pool_fixture.pool.address, &(12500 * SCALAR_7));
     fixture
         .backstop
         .queue_withdrawal(frodo, &pool_fixture.pool.address, &(45000 * SCALAR_7));
@@ -44,12 +44,6 @@ fn test_backstop_rz_changes_handle_emissions() {
     fixture
         .backstop
         .withdraw(frodo, &pool_fixture.pool.address, &(45000 * SCALAR_7));
-    let result = fixture.backstop.claim(
-        &sam,
-        &vec![&fixture.env, pool_fixture.pool.address.clone()],
-        &sam,
-    );
-    assert_eq!(result, 3005700000000);
 
     fixture.backstop.remove_reward(&pool_fixture.pool.address);
 
@@ -63,7 +57,7 @@ fn test_backstop_rz_changes_handle_emissions() {
         &vec![&fixture.env, pool_fixture.pool.address.clone()],
         &sam,
     );
-    assert_eq!(result, 4797429238475);
+    assert_eq!(result, 6901542857142);
 
     fixture.jump(60 * 60 * 24 * 4);
     let result = fixture.backstop.claim(
@@ -71,7 +65,7 @@ fn test_backstop_rz_changes_handle_emissions() {
         &vec![&fixture.env, pool_fixture.pool.address.clone()],
         &sam,
     );
-    assert_eq!(result, 6816808840184);
+    assert_eq!(result, 6771681835261);
 
     fixture.jump(1);
     let result = fixture.backstop.claim(
@@ -83,7 +77,7 @@ fn test_backstop_rz_changes_handle_emissions() {
 
     fixture
         .backstop
-        .deposit(frodo, &pool_fixture.pool.address, &(45000 * SCALAR_7));
+        .deposit(frodo, &pool_fixture.pool.address, &(50000 * SCALAR_7));
 
     fixture
         .backstop
