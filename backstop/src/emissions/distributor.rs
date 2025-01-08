@@ -4,6 +4,7 @@ use cast::i128;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{unwrap::UnwrapOptimized, Address, Env};
 
+use super::update_rz_emis_data;
 use crate::{
     backstop::{PoolBalance, UserBalance},
     constants::{SCALAR_14, SCALAR_7},
@@ -19,6 +20,7 @@ pub fn update_emissions(
     user_id: &Address,
     user_balance: &UserBalance,
 ) {
+    update_rz_emis_data(e, pool_id, false);
     if let Some(emis_data) = update_emission_data(e, pool_id, pool_balance) {
         update_user_emissions(e, pool_id, user_id, &emis_data, user_balance, false);
     }
@@ -38,6 +40,7 @@ pub(super) fn claim_emissions(
     user_id: &Address,
     user_balance: &UserBalance,
 ) -> i128 {
+    update_rz_emis_data(e, pool_id, false);
     if let Some(emis_data) = update_emission_data(e, pool_id, pool_balance) {
         update_user_emissions(e, pool_id, user_id, &emis_data, user_balance, true)
     } else {
@@ -71,11 +74,9 @@ pub fn update_emission_data(
             let unqueued_shares = pool_balance.shares - pool_balance.q4w;
             require_nonnegative(e, unqueued_shares);
             // Eps is in 14 decimals and needs to be converted to 7 decimals to match emission token decimals
-            let additional_idx = (i128(max_timestamp - emis_data.last_time)
-                .fixed_mul_floor(i128(emis_data.eps), SCALAR_7))
-            .unwrap_optimized()
-            .fixed_div_floor(unqueued_shares, SCALAR_14)
-            .unwrap_optimized();
+            let additional_idx = (i128(max_timestamp - emis_data.last_time) * i128(emis_data.eps))
+                .fixed_div_floor(unqueued_shares, SCALAR_7)
+                .unwrap_optimized();
             let new_data = BackstopEmissionData {
                 eps: emis_data.eps,
                 expiration: emis_data.expiration,
@@ -157,6 +158,7 @@ mod tests {
         testutils::{Address as _, Ledger, LedgerInfo},
         vec,
     };
+    use storage::RzEmissionData;
 
     /********** update_emissions **********/
 
@@ -193,12 +195,22 @@ mod tests {
             storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
+            storage::set_rz_emission_index(&e, &1_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool_1,
+                &RzEmissionData {
+                    index: 0,
+                    accrued: 0,
+                },
+            );
 
             let pool_balance = PoolBalance {
                 shares: 150_0000000,
                 tokens: 200_0000000,
                 q4w: 0,
             };
+            storage::set_pool_balance(&e, &pool_1, &pool_balance);
             let user_balance = UserBalance {
                 shares: 9_0000000,
                 q4w: vec![&e],
@@ -213,6 +225,10 @@ mod tests {
             assert_eq!(new_backstop_data.index, 82488886666666);
             assert_eq!(new_user_data.accrued, 7_4140001);
             assert_eq!(new_user_data.index, 82488886666666);
+
+            let new_rz_data_1 = storage::get_rz_emis_data(&e, &pool_1).unwrap_optimized();
+            assert_eq!(new_rz_data_1.index, 100000000000000);
+            assert_eq!(new_rz_data_1.accrued, 2000000000);
         });
     }
 
@@ -456,12 +472,22 @@ mod tests {
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
+            storage::set_rz_emission_index(&e, &1_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool_1,
+                &RzEmissionData {
+                    index: 0,
+                    accrued: 0,
+                },
+            );
 
             let pool_balance = PoolBalance {
                 shares: 150_0000000,
                 tokens: 200_0000000,
                 q4w: 0,
             };
+            storage::set_pool_balance(&e, &pool_1, &pool_balance);
             let user_balance = UserBalance {
                 shares: 9_0000000,
                 q4w: vec![&e],
@@ -477,6 +503,10 @@ mod tests {
             assert_eq!(new_backstop_data.index, 82488886666666);
             assert_eq!(new_user_data.accrued, 0);
             assert_eq!(new_user_data.index, 82488886666666);
+
+            let new_rz_data_1 = storage::get_rz_emis_data(&e, &pool_1).unwrap_optimized();
+            assert_eq!(new_rz_data_1.index, 100000000000000);
+            assert_eq!(new_rz_data_1.accrued, 2000000000);
         });
     }
 

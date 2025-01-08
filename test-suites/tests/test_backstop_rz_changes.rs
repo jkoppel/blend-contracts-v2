@@ -1,13 +1,7 @@
 #![cfg(test)]
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{
-    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events},
-    vec, Address, IntoVal, String, Symbol, Val, Vec,
-};
+use soroban_sdk::{testutils::Address as _, vec, Address};
 use test_suites::{
-    assertions::assert_approx_eq_abs,
     create_fixture_with_data,
-    pool::default_reserve_metadata,
     test_fixture::{TokenIndex, SCALAR_7},
 };
 
@@ -99,5 +93,5 @@ fn test_backstop_rz_changes_handle_emissions() {
     fixture.backstop.distribute();
 
     let result = pool_fixture.pool.gulp_emissions();
-    assert_eq!(result, 1814403000000); // (60 * 60 * 24 * 7 + 1) * 0.3
+    assert_eq!(result, 1814402999999); // (60 * 60 * 24 * 7 + 1) * 0.3
 }

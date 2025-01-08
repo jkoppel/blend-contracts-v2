@@ -19,6 +19,14 @@ pub(crate) const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER + 20 * ONE_DAY_LE
 
 /********** Storage Types **********/
 
+// The emission data for a reward zone pool
+#[derive(Clone)]
+#[contracttype]
+pub struct RzEmissionData {
+    pub index: i128,
+    pub accrued: i128,
+}
+
 // The emission data for a pool's backstop
 #[derive(Clone)]
 #[contracttype]
@@ -54,7 +62,7 @@ const LAST_DISTRO_KEY: &str = "LastDist";
 const REWARD_ZONE_KEY: &str = "RZ";
 const DROP_LIST_KEY: &str = "DropList";
 const LP_TOKEN_VAL_KEY: &str = "LPTknVal";
-const GULP_EMISSION_INDEX_KEY: &str = "GulpIndex";
+const RZ_EMISSION_INDEX_KEY: &str = "RZEmissionIndex";
 
 #[derive(Clone)]
 #[contracttype]
@@ -69,7 +77,7 @@ pub enum BackstopDataKey {
     UserBalance(PoolUserKey),
     PoolBalance(Address),
     PoolUSDC(Address),
-    BackstopGulpIndex(Address),
+    RzEmisData(Address),
     BEmisData(Address),
     UEmisData(PoolUserKey),
 }
@@ -339,40 +347,40 @@ pub fn set_reward_zone(e: &Env, reward_zone: &Vec<Address>) {
 
 /********** Backstop Depositor Emissions **********/
 
-/// Get the gulp emission index
+/// Get the reward zone emission index
 /// The index is used to calculate the amount of tokens to distribute to the backstop
-pub fn get_gulp_index(e: &Env) -> i128 {
+pub fn get_rz_emission_index(e: &Env) -> i128 {
     get_persistent_default(
         e,
-        &Symbol::new(&e, GULP_EMISSION_INDEX_KEY),
+        &Symbol::new(&e, RZ_EMISSION_INDEX_KEY),
         || 0i128,
         LEDGER_THRESHOLD_SHARED,
         LEDGER_BUMP_SHARED,
     )
 }
 
-/// Set the backstop's emission index
+/// Set the reward zone emission index
 /// The index is used to calculate the amount of tokens to distribute to the backstop
 ///
 /// ### Arguments
 /// * 'index' - The index of the backstop's emissions
-pub fn set_gulp_index(e: &Env, index: &i128) {
+pub fn set_rz_emission_index(e: &Env, index: &i128) {
     e.storage()
         .persistent()
-        .set::<Symbol, i128>(&Symbol::new(&e, GULP_EMISSION_INDEX_KEY), index);
+        .set::<Symbol, i128>(&Symbol::new(&e, RZ_EMISSION_INDEX_KEY), index);
     e.storage().persistent().extend_ttl(
-        &Symbol::new(&e, GULP_EMISSION_INDEX_KEY),
+        &Symbol::new(&e, RZ_EMISSION_INDEX_KEY),
         LEDGER_THRESHOLD_SHARED,
         LEDGER_BUMP_SHARED,
     );
 }
 
-/// Get the backstop - pool's gulp index
+/// Get the emission data for the reward zone pool
 ///
 /// ### Arguments
 /// * `pool` - The pool
-pub fn get_backstop_gulp_index(e: &Env, pool: &Address) -> Option<i128> {
-    let key = BackstopDataKey::BackstopGulpIndex(pool.clone());
+pub fn get_rz_emis_data(e: &Env, pool: &Address) -> Option<RzEmissionData> {
+    let key = BackstopDataKey::RzEmisData(pool.clone());
     get_persistent_default(
         e,
         &key,
@@ -382,28 +390,19 @@ pub fn get_backstop_gulp_index(e: &Env, pool: &Address) -> Option<i128> {
     )
 }
 
-/// Set the backstop - pool's gulp index
+/// Set the emission data for the reward zone pool
 ///
 /// ### Arguments
 /// * `pool` - The pool
 /// * `index` - The index of the backstop's emissions
-pub fn set_backstop_gulp_index(e: &Env, pool: &Address, index: &i128) {
-    let key = BackstopDataKey::BackstopGulpIndex(pool.clone());
+pub fn set_rz_emis_data(e: &Env, pool: &Address, emis_data: &RzEmissionData) {
+    let key = BackstopDataKey::RzEmisData(pool.clone());
     e.storage()
         .persistent()
-        .set::<BackstopDataKey, i128>(&key, index);
+        .set::<BackstopDataKey, RzEmissionData>(&key, emis_data);
     e.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD_SHARED, LEDGER_BUMP_SHARED);
-}
-
-/// Delete the backstop - pool's gulp index
-///
-/// ### Arguments
-/// * `pool` - The pool
-pub fn del_backstop_gulp_index(e: &Env, pool: &Address) {
-    let key = BackstopDataKey::BackstopGulpIndex(pool.clone());
-    e.storage().persistent().remove::<BackstopDataKey>(&key);
 }
 
 /// Get the pool's backstop emissions data

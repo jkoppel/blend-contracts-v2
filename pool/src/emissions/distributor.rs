@@ -1,7 +1,7 @@
 use cast::i128;
 use sep_41_token::TokenClient;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{panic_with_error, unwrap::UnwrapOptimized, Address, Env, Vec};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::{panic_with_error, Address, Env, Vec};
 
 use crate::{
     constants::SCALAR_7,
@@ -167,11 +167,9 @@ pub(super) fn update_emission_data(
                 e.ledger().timestamp()
             };
 
-            let additional_idx = i128(ledger_timestamp - res_emission_data.last_time)
-                .fixed_mul_floor(i128(res_emission_data.eps), SCALAR_7)
-                .unwrap_optimized()
-                .fixed_div_floor(supply, supply_scalar * SCALAR_7)
-                .unwrap_optimized();
+            let additional_idx = (i128(ledger_timestamp - res_emission_data.last_time)
+                * i128(res_emission_data.eps))
+            .fixed_div_floor(&e, &supply, &supply_scalar);
 
             res_emission_data.index += additional_idx;
             res_emission_data.last_time = ledger_timestamp;
@@ -197,12 +195,11 @@ fn update_user_emissions(
             if balance != 0 {
                 let delta_index = res_emis_data.index - user_data.index;
                 require_nonnegative(e, &delta_index);
-                let to_accrue = balance
-                    .fixed_mul_floor(
-                        res_emis_data.index - user_data.index,
-                        supply_scalar * SCALAR_7,
-                    )
-                    .unwrap_optimized();
+                let to_accrue = balance.fixed_mul_floor(
+                    e,
+                    &(res_emis_data.index - user_data.index),
+                    &(supply_scalar * SCALAR_7),
+                );
                 accrual += to_accrue;
             }
             return set_user_emissions(e, user, res_token_id, res_emis_data.index, accrual, claim);
@@ -213,9 +210,8 @@ fn update_user_emissions(
         return set_user_emissions(e, user, res_token_id, res_emis_data.index, 0, claim);
     } else {
         // user had tokens before emissions began, they are due any historical emissions
-        let to_accrue = balance
-            .fixed_mul_floor(res_emis_data.index, supply_scalar * SCALAR_7)
-            .unwrap_optimized();
+        let to_accrue =
+            balance.fixed_mul_floor(e, &res_emis_data.index, &(supply_scalar * SCALAR_7));
         return set_user_emissions(e, user, res_token_id, res_emis_data.index, to_accrue, claim);
     }
 }
@@ -250,6 +246,7 @@ mod tests {
     use soroban_sdk::{
         map,
         testutils::{Address as AddressTestTrait, Ledger, LedgerInfo},
+        unwrap::UnwrapOptimized,
         vec,
     };
 
@@ -401,6 +398,66 @@ mod tests {
                 &samwise,
                 user_position,
             );
+        });
+    }
+
+    #[test]
+    fn test_update_emission_no_overflow() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let pool = testutils::create_pool(&e);
+        let samwise = Address::generate(&e);
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 1501000000, // 10^6 seconds have passed
+            protocol_version: 22,
+            sequence_number: 123,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        // Supply of 1 trillion at 18 decimals
+        let supply: i128 = 1000000000000_000000000000000000;
+        let user_position: i128 = 1_000000000000000000;
+        e.as_contract(&pool, || {
+            let reserve_emission_data = ReserveEmissionData {
+                expiration: 1600000000,
+                eps: 0_01000000000000,
+                index: 23456780000000,
+                last_time: 1500000000,
+            };
+            let user_emission_data = UserEmissionData {
+                index: 12345670000000,
+                accrued: 0_1000000,
+            };
+            let res_token_type = 0;
+            let res_token_index = 1 * 2 + res_token_type;
+
+            storage::set_res_emis_data(&e, &res_token_index, &reserve_emission_data);
+            storage::set_user_emissions(&e, &samwise, &res_token_index, &user_emission_data);
+
+            update_emissions(
+                &e,
+                res_token_index,
+                supply,
+                1_000000000000000000,
+                &samwise,
+                user_position,
+            );
+
+            let new_reserve_emission_data =
+                storage::get_res_emis_data(&e, &res_token_index).unwrap_optimized();
+            let new_user_emission_data =
+                storage::get_user_emissions(&e, &samwise, &res_token_index).unwrap_optimized();
+            assert_eq!(new_reserve_emission_data.last_time, 1501000000);
+            assert_eq!(
+                new_user_emission_data.index,
+                new_reserve_emission_data.index
+            );
+            assert_eq!(new_user_emission_data.accrued, 2111111);
         });
     }
 

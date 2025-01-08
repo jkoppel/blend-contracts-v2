@@ -90,6 +90,7 @@ mod tests {
         unwrap::UnwrapOptimized,
         vec,
     };
+    use storage::RzEmissionData;
 
     /********** claim **********/
 
@@ -151,7 +152,23 @@ mod tests {
             storage::set_user_emis_data(&e, &pool_2_id, &samwise, &user_2_emissions_data);
             storage::set_backstop_token(&e, &lp_address);
             storage::set_blnd_token(&e, &blnd_address);
-
+            storage::set_rz_emission_index(&e, &1_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool_1_id,
+                &RzEmissionData {
+                    index: 0,
+                    accrued: 0,
+                },
+            );
+            storage::set_rz_emis_data(
+                &e,
+                &pool_2_id,
+                &RzEmissionData {
+                    index: 0,
+                    accrued: 0,
+                },
+            );
             storage::set_pool_balance(
                 &e,
                 &pool_1_id,
@@ -244,6 +261,15 @@ mod tests {
             assert_eq!(new_backstop_2_data.index, 70526315789473);
             assert_eq!(new_user_2_data.accrued, 0);
             assert_eq!(new_user_2_data.index, 70526315789473);
+
+            let new_rz_emission_1_data =
+                storage::get_rz_emis_data(&e, &pool_1_id).unwrap_optimized();
+            assert_eq!(new_rz_emission_1_data.index, 100000000000000);
+            assert_eq!(new_rz_emission_1_data.accrued, 1973333334);
+            let new_rz_emission_2_data =
+                storage::get_rz_emis_data(&e, &pool_2_id).unwrap_optimized();
+            assert_eq!(new_rz_emission_2_data.index, 100000000000000);
+            assert_eq!(new_rz_emission_2_data.accrued, 712500000);
         });
     }
 

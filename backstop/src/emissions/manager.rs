@@ -8,7 +8,7 @@ use crate::{
     constants::{BACKSTOP_EPOCH, SCALAR_14, SCALAR_7},
     dependencies::EmitterClient,
     errors::BackstopError,
-    storage::{self, BackstopEmissionData},
+    storage::{self, BackstopEmissionData, RzEmissionData},
     PoolBalance,
 };
 
@@ -17,7 +17,7 @@ use super::distributor::update_emission_data;
 /// Add a pool to the reward zone. If the reward zone is full, attempt to swap it with the pool to remove.
 pub fn add_to_reward_zone(e: &Env, to_add: Address, to_remove: Option<Address>) {
     let mut reward_zone = storage::get_reward_zone(e);
-    let gulp_index = storage::get_gulp_index(e);
+    let rz_emission_index = storage::get_rz_emission_index(e);
     let max_rz_len = if e.ledger().timestamp() < BACKSTOP_EPOCH {
         10
     } else {
@@ -60,9 +60,18 @@ pub fn add_to_reward_zone(e: &Env, to_add: Address, to_remove: Option<Address>) 
                             panic_with_error!(e, BackstopError::InvalidRewardZoneEntry);
                         }
 
-                        // Gulp emissions from "to_remove" and then delete "to_remove" gulp index and set "to_add" to the current gulp index
-                        gulp_emissions(e, &to_remove);
-                        storage::del_backstop_gulp_index(e, &to_remove);
+                        // update backstop emissions for the pool before removing it from the reward zone
+                        // set emission index to i128::MAX to prevent further emissions
+                        let to_remove_emis_data =
+                            storage::get_rz_emis_data(e, &to_remove).unwrap_optimized();
+                        set_rz_emissions(
+                            e,
+                            &to_remove,
+                            i128::MAX,
+                            to_remove_emis_data.accrued,
+                            false,
+                        );
+
                         reward_zone.set(idx, to_add.clone());
                     }
                     None => panic_with_error!(e, BackstopError::InvalidRewardZoneEntry),
@@ -70,7 +79,18 @@ pub fn add_to_reward_zone(e: &Env, to_add: Address, to_remove: Option<Address>) 
             }
         }
     }
-    storage::set_backstop_gulp_index(&e, &to_add, &gulp_index);
+    // Set the new pool's backstop emissions index to the current gulp index
+    if let Some(to_add_emis_data) = storage::get_rz_emis_data(e, &to_add) {
+        set_rz_emissions(
+            e,
+            &to_add,
+            rz_emission_index,
+            to_add_emis_data.accrued,
+            false,
+        );
+    } else {
+        set_rz_emissions(e, &to_add, rz_emission_index, 0, false);
+    }
     storage::set_reward_zone(e, &reward_zone);
 }
 
@@ -94,9 +114,12 @@ pub fn remove_from_reward_zone(e: &Env, to_remove: Address) {
                     panic_with_error!(e, BackstopError::BadRequest);
                 }
 
-                // Gulp emissions from "to_remove" and set "to_add" to the current gulp index and delete "to_remove" index
-                gulp_emissions(e, &to_remove);
-                storage::del_backstop_gulp_index(e, &to_remove);
+                // update backstop emissions for the pool before removing it from the reward zone
+                // set emission index to i128::MAX to prevent further emissions
+                let to_remove_emis_data =
+                    storage::get_rz_emis_data(e, &to_remove).unwrap_optimized();
+                set_rz_emissions(e, &to_remove, i128::MAX, to_remove_emis_data.accrued, false);
+
                 reward_zone.remove(idx);
                 storage::set_reward_zone(e, &reward_zone);
             }
@@ -123,7 +146,7 @@ pub fn distribute(e: &Env) -> i128 {
         panic_with_error!(e, BackstopError::BadRequest);
     }
     storage::set_last_distribution_time(e, &emitter_last_distribution);
-    let prev_index = storage::get_gulp_index(e);
+    let prev_index = storage::get_rz_emission_index(e);
     let new_emissions = i128(emitter_last_distribution - last_distribution) * SCALAR_7; // emitter releases 1 token per second
 
     // fetch total tokens of BLND in the reward zone
@@ -138,7 +161,7 @@ pub fn distribute(e: &Env) -> i128 {
         .fixed_div_floor(total_non_queued_tokens, SCALAR_14)
         .unwrap_optimized();
     let new_index = prev_index + additional_index;
-    storage::set_gulp_index(e, &new_index);
+    storage::set_rz_emission_index(e, &new_index);
 
     return new_emissions;
 }
@@ -147,44 +170,61 @@ pub fn distribute(e: &Env) -> i128 {
 /// Returns the amount of backstop and pool emissions assigned to the pool
 #[allow(clippy::zero_prefixed_literal)]
 pub fn gulp_emissions(e: &Env, pool: &Address) -> (i128, i128) {
-    let gulp_index = storage::get_gulp_index(e);
-    let backstop_gulp_index = storage::get_backstop_gulp_index(e, pool);
     let pool_balance = storage::get_pool_balance(e, pool);
 
-    match backstop_gulp_index {
-        None => panic_with_error!(e, BackstopError::NotInRewardZone),
-        Some(mut index) => {
-            if index < gulp_index {
+    let new_emissions = update_rz_emis_data(e, pool, true);
+    if new_emissions > 0 {
+        let new_backstop_emissions = new_emissions
+            .fixed_mul_floor(0_7000000, SCALAR_7)
+            .unwrap_optimized();
+        let new_pool_emissions = new_emissions
+            .fixed_mul_floor(0_3000000, SCALAR_7)
+            .unwrap_optimized();
+
+        // distribute pool emissions via allowance to pools
+        let blnd_token_client = TokenClient::new(e, &storage::get_blnd_token(e));
+        let current_allowance = blnd_token_client.allowance(&e.current_contract_address(), pool);
+        let new_seq = e.ledger().sequence() + storage::LEDGER_BUMP_USER; // ~120 days
+        blnd_token_client.approve(
+            &e.current_contract_address(),
+            pool,
+            &(current_allowance + new_pool_emissions),
+            &new_seq,
+        );
+        set_backstop_emission_eps(e, &pool, &pool_balance, new_backstop_emissions);
+        return (new_backstop_emissions, new_pool_emissions);
+    }
+    return (0, 0);
+}
+
+pub fn update_rz_emis_data(e: &Env, pool: &Address, to_gulp: bool) -> i128 {
+    if let Some(emission_data) = storage::get_rz_emis_data(e, pool) {
+        let pool_balance = storage::get_pool_balance(e, pool);
+        let gulp_index = storage::get_rz_emission_index(e);
+        let mut accrued = emission_data.accrued;
+        if emission_data.index < gulp_index || to_gulp {
+            if pool_balance.non_queued_tokens() > 0 {
                 let new_emissions = pool_balance
                     .non_queued_tokens()
-                    .fixed_mul_floor(gulp_index - index, SCALAR_14)
+                    .fixed_mul_floor(gulp_index - emission_data.index, SCALAR_14)
                     .unwrap_optimized();
-                let new_backstop_emissions = new_emissions
-                    .fixed_mul_floor(0_7000000, SCALAR_7)
-                    .unwrap_optimized();
-                let new_pool_emissions = new_emissions
-                    .fixed_mul_floor(0_3000000, SCALAR_7)
-                    .unwrap_optimized();
-                index = gulp_index;
-
-                storage::set_backstop_gulp_index(e, pool, &index);
-
-                // distribute pool emissions via allowance to pools
-                let blnd_token_client = TokenClient::new(e, &storage::get_blnd_token(e));
-                let current_allowance =
-                    blnd_token_client.allowance(&e.current_contract_address(), pool);
-                let new_seq = e.ledger().sequence() + storage::LEDGER_BUMP_USER; // ~120 days
-                blnd_token_client.approve(
-                    &e.current_contract_address(),
-                    pool,
-                    &(current_allowance + new_pool_emissions),
-                    &new_seq,
-                );
-                set_backstop_emission_eps(e, &pool, &pool_balance, new_backstop_emissions);
-                return (new_backstop_emissions, new_pool_emissions);
+                accrued += new_emissions;
+                return set_rz_emissions(e, pool, gulp_index, accrued, to_gulp);
+            } else {
+                return set_rz_emissions(e, pool, gulp_index, accrued, to_gulp);
             }
-            (0, 0)
         }
+    }
+    return 0;
+}
+
+fn set_rz_emissions(e: &Env, pool_id: &Address, index: i128, accrued: i128, to_gulp: bool) -> i128 {
+    if to_gulp {
+        storage::set_rz_emis_data(e, pool_id, &RzEmissionData { index, accrued: 0 });
+        accrued
+    } else {
+        storage::set_rz_emis_data(e, pool_id, &RzEmissionData { index, accrued });
+        0
     }
 }
 
@@ -302,9 +342,30 @@ mod tests {
             storage::set_last_distribution_time(&e, &(emitter_distro_time - 7 * 24 * 60 * 60));
             storage::set_reward_zone(&e, &reward_zone);
             storage::set_backstop_emis_data(&e, &pool_1, &pool_1_emissions_data);
-            storage::set_backstop_gulp_index(&e, &pool_1, &0);
-            storage::set_backstop_gulp_index(&e, &pool_2, &0);
-            storage::set_backstop_gulp_index(&e, &pool_3, &0);
+            storage::set_rz_emis_data(
+                &e,
+                &pool_1,
+                &RzEmissionData {
+                    index: 0,
+                    accrued: 0,
+                },
+            );
+            storage::set_rz_emis_data(
+                &e,
+                &pool_2,
+                &RzEmissionData {
+                    index: 0,
+                    accrued: 0,
+                },
+            );
+            storage::set_rz_emis_data(
+                &e,
+                &pool_3,
+                &RzEmissionData {
+                    index: 0,
+                    accrued: 0,
+                },
+            );
             storage::set_backstop_emis_data(&e, &pool_2, &pool_2_emissions_data);
             storage::set_pool_balance(
                 &e,
@@ -463,7 +524,7 @@ mod tests {
 
             distribute(&e);
 
-            let gulp_index = storage::get_gulp_index(&e);
+            let gulp_index = storage::get_rz_emission_index(&e);
             assert_eq!(gulp_index, 8640000000000);
         });
     }
@@ -641,7 +702,14 @@ mod tests {
         e.as_contract(&backstop, || {
             storage::set_last_distribution_time(&e, &(&BACKSTOP_EPOCH));
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_backstop_gulp_index(&e, &pool_1, &0);
+            storage::set_rz_emis_data(
+                &e,
+                &pool_1,
+                &RzEmissionData {
+                    index: 0,
+                    accrued: 0,
+                },
+            );
             storage::set_pool_balance(
                 &e,
                 &pool_1,
@@ -652,7 +720,7 @@ mod tests {
                 },
             );
 
-            let gulp_index = storage::get_gulp_index(&e);
+            let gulp_index = storage::get_rz_emission_index(&e);
             assert_eq!(gulp_index, 0);
         });
         // Distribute 1 trillion tokens to 1 backstop token
@@ -680,7 +748,7 @@ mod tests {
             );
         }
         e.as_contract(&backstop, || {
-            let gulp_index = storage::get_gulp_index(&e);
+            let gulp_index = storage::get_rz_emission_index(&e);
             assert_eq!(gulp_index, 101000000000000000000000000);
         });
     }
@@ -1009,8 +1077,15 @@ mod tests {
                     last_time: BACKSTOP_EPOCH - 12345,
                 },
             );
-            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
-            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_rz_emis_data(
+                &e,
+                &to_remove,
+                &RzEmissionData {
+                    index: (1234 * SCALAR_7),
+                    accrued: 0,
+                },
+            );
+            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
             storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove.clone()));
             let actual_rz = storage::get_reward_zone(&e);
@@ -1018,13 +1093,10 @@ mod tests {
             reward_zone.set(7, to_add.clone());
             assert_eq!(actual_rz, reward_zone);
 
-            let to_remove_emission_data =
-                storage::get_backstop_emis_data(&e, &to_remove).unwrap_optimized();
-            let to_remove_gulp_index = storage::get_backstop_gulp_index(&e, &to_remove);
-            let to_add_gulp_index = storage::get_backstop_gulp_index(&e, &to_add);
-            assert_eq!(to_add_gulp_index, Some(5678 * SCALAR_7));
-            assert_eq!(to_remove_gulp_index, None);
-            assert_eq!(to_remove_emission_data.last_time, BACKSTOP_EPOCH);
+            let to_remove_emis_data = storage::get_rz_emis_data(&e, &to_remove).unwrap_optimized();
+            let to_add_emis_data = storage::get_rz_emis_data(&e, &to_add).unwrap_optimized();
+            assert_eq!(to_add_emis_data.index, 5678 * SCALAR_7);
+            assert_eq!(to_remove_emis_data.index, i128::MAX);
         });
     }
 
@@ -1321,8 +1393,13 @@ mod tests {
                     last_time: BACKSTOP_EPOCH - 12345,
                 },
             );
-            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
-            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_rz_emis_data(&e, &to_remove, {
+                &RzEmissionData {
+                    index: 1234 * SCALAR_7,
+                    accrued: 0,
+                }
+            });
+            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
             storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             remove_from_reward_zone(&e, to_remove.clone());
             let actual_rz = storage::get_reward_zone(&e);
@@ -1330,11 +1407,9 @@ mod tests {
             assert_eq!(actual_rz.len(), 1);
             assert_eq!(actual_rz, reward_zone);
 
-            let to_remove_emission_data =
-                storage::get_backstop_emis_data(&e, &to_remove).unwrap_optimized();
-            let to_remove_gulp_index = storage::get_backstop_gulp_index(&e, &to_remove);
-            assert_eq!(to_remove_gulp_index, None);
-            assert_eq!(to_remove_emission_data.last_time, BACKSTOP_EPOCH);
+            let to_remove_rz_emis_data =
+                storage::get_rz_emis_data(&e, &to_remove).unwrap_optimized();
+            assert_eq!(to_remove_rz_emis_data.index, i128::MAX);
         });
     }
 
@@ -1385,8 +1460,13 @@ mod tests {
                     last_time: BACKSTOP_EPOCH - 12345,
                 },
             );
-            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
-            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_rz_emis_data(&e, &to_remove, {
+                &RzEmissionData {
+                    index: 1234 * SCALAR_7,
+                    accrued: 0,
+                }
+            });
+            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
             storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             remove_from_reward_zone(&e, to_remove.clone());
         });
@@ -1439,8 +1519,13 @@ mod tests {
                     last_time: BACKSTOP_EPOCH - 12345,
                 },
             );
-            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
-            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_rz_emis_data(&e, &to_remove, {
+                &RzEmissionData {
+                    index: 1234 * SCALAR_7,
+                    accrued: 0,
+                }
+            });
+            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
             storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             remove_from_reward_zone(&e, to_remove.clone());
         });
@@ -1489,10 +1574,311 @@ mod tests {
                     last_time: BACKSTOP_EPOCH - 12345,
                 },
             );
-            storage::set_backstop_gulp_index(&e, &to_remove, &(1234 * SCALAR_7));
-            storage::set_gulp_index(&e, &(5678 * SCALAR_7));
+            storage::set_rz_emis_data(&e, &to_remove, {
+                &RzEmissionData {
+                    index: 1234 * SCALAR_7,
+                    accrued: 0,
+                }
+            });
+            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
             storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             remove_from_reward_zone(&e, to_remove.clone());
+        });
+    }
+
+    /********** update_rz_emis_data **********/
+
+    #[test]
+    fn test_update_rz_emis_data() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let backstop_id = create_backstop(&e);
+        let pool = Address::generate(&e);
+
+        e.as_contract(&backstop_id, || {
+            storage::set_rz_emission_index(&e, &22_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool,
+                &RzEmissionData {
+                    index: 11_00000000000000,
+                    accrued: 100_0000000,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 200_0000000,
+                    q4w: 2_0000000,
+                },
+            );
+            let result = update_rz_emis_data(&e, &pool, false);
+            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
+            assert_eq!(result, 0);
+            assert_eq!(actual_data.index, 22_00000000000000);
+            assert_eq!(actual_data.accrued, 2270_6666674);
+        });
+    }
+
+    #[test]
+    fn test_update_rz_emis_data_consumes_accrued() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let backstop_id = create_backstop(&e);
+        let pool = Address::generate(&e);
+
+        e.as_contract(&backstop_id, || {
+            storage::set_rz_emission_index(&e, &22_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool,
+                &RzEmissionData {
+                    index: 11_00000000000000,
+                    accrued: 100_0000000,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 200_0000000,
+                    q4w: 2_0000000,
+                },
+            );
+            let result = update_rz_emis_data(&e, &pool, true);
+            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
+            assert_eq!(result, 22706666674);
+            assert_eq!(actual_data.index, 22_00000000000000);
+            assert_eq!(actual_data.accrued, 0);
+        });
+    }
+
+    #[test]
+    fn test_update_rz_emis_data_zero_pool_tokens() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let backstop_id = create_backstop(&e);
+        let pool = Address::generate(&e);
+
+        e.as_contract(&backstop_id, || {
+            storage::set_rz_emission_index(&e, &22_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool,
+                &RzEmissionData {
+                    index: 11_00000000000000,
+                    accrued: 100_0000000,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 0,
+                    q4w: 2_0000000,
+                },
+            );
+            let result = update_rz_emis_data(&e, &pool, false);
+            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
+            assert_eq!(result, 0);
+            assert_eq!(actual_data.index, 22_00000000000000);
+            assert_eq!(actual_data.accrued, 100_0000000);
+        });
+    }
+
+    #[test]
+    fn test_update_rz_emis_data_gulp_zero_pool_tokens() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let backstop_id = create_backstop(&e);
+        let pool = Address::generate(&e);
+
+        e.as_contract(&backstop_id, || {
+            storage::set_rz_emission_index(&e, &22_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool,
+                &RzEmissionData {
+                    index: 11_00000000000000,
+                    accrued: 100_0000000,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 0,
+                    q4w: 2_0000000,
+                },
+            );
+            let result = update_rz_emis_data(&e, &pool, true);
+            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
+            assert_eq!(result, 100_0000000);
+            assert_eq!(actual_data.index, 22_00000000000000);
+            assert_eq!(actual_data.accrued, 0);
+        });
+    }
+
+    #[test]
+    fn test_update_rz_emis_data_index_already_updated() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let backstop_id = create_backstop(&e);
+        let pool = Address::generate(&e);
+
+        e.as_contract(&backstop_id, || {
+            storage::set_rz_emission_index(&e, &22_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool,
+                &RzEmissionData {
+                    index: 22_00000000000000,
+                    accrued: 100_0000000,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 0,
+                    q4w: 2_0000000,
+                },
+            );
+
+            let result = update_rz_emis_data(&e, &pool, false);
+            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
+            assert_eq!(result, 0);
+            assert_eq!(actual_data.index, 22_00000000000000);
+            assert_eq!(actual_data.accrued, 100_0000000);
+        });
+    }
+
+    #[test]
+    fn test_update_rz_emis_data_gulp_updated_index() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let backstop_id = create_backstop(&e);
+        let pool = Address::generate(&e);
+
+        e.as_contract(&backstop_id, || {
+            storage::set_rz_emission_index(&e, &22_00000000000000);
+            storage::set_rz_emis_data(
+                &e,
+                &pool,
+                &RzEmissionData {
+                    index: 22_00000000000000,
+                    accrued: 100_0000000,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 0,
+                    q4w: 2_0000000,
+                },
+            );
+            let result = update_rz_emis_data(&e, &pool, true);
+            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
+            assert_eq!(result, 100_0000000);
+            assert_eq!(actual_data.index, 22_00000000000000);
+            assert_eq!(actual_data.accrued, 0);
+        });
+    }
+
+    #[test]
+    fn test_update_rz_emis_data_no_emis_data() {
+        let e = Env::default();
+        e.ledger().set(LedgerInfo {
+            timestamp: BACKSTOP_EPOCH,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let backstop_id = create_backstop(&e);
+        let pool = Address::generate(&e);
+
+        e.as_contract(&backstop_id, || {
+            storage::set_rz_emission_index(&e, &22_00000000000000);
+
+            storage::set_pool_balance(
+                &e,
+                &pool,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 0,
+                    q4w: 2_0000000,
+                },
+            );
+            let result = update_rz_emis_data(&e, &pool, false);
+            let actual_data = storage::get_rz_emis_data(&e, &pool);
+            assert_eq!(result, 0);
+            assert!(actual_data.is_none());
         });
     }
 }

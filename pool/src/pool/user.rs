@@ -407,8 +407,8 @@ mod tests {
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
             let new_index = 10000000000
-                + (1000i128 * 0_1000000)
-                    .fixed_div_floor(starting_d_supply_0, SCALAR_7 * SCALAR_7)
+                + (1000i128 * 0_10000000000000)
+                    .fixed_div_floor(starting_d_supply_0, SCALAR_7)
                     .unwrap();
             assert_eq!(new_emis_res_data.last_time, 10001000);
             assert_eq!(new_emis_res_data.index, new_index);
