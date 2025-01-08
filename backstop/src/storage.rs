@@ -19,13 +19,25 @@ pub(crate) const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER + 20 * ONE_DAY_LE
 
 /********** Storage Types **********/
 
+// The emission data for a reward zone pool
+#[derive(Clone)]
+#[contracttype]
+pub struct RzEmissionData {
+    pub index: i128,
+    pub accrued: i128,
+}
+
 // The emission data for a pool's backstop
 #[derive(Clone)]
 #[contracttype]
 pub struct BackstopEmissionData {
+    // The expiration time of the backstop's emissions
     pub expiration: u64,
+    // The earnings per share of the backstop (14 decimals)
     pub eps: u64,
+    // The backstop's emission index (14 decimals)
     pub index: i128,
+    // The last time the backstop's emissions were updated
     pub last_time: u64,
 }
 
@@ -33,6 +45,7 @@ pub struct BackstopEmissionData {
 #[derive(Clone)]
 #[contracttype]
 pub struct UserEmissionData {
+    // The user's last accrued emission index (14 decimals)
     pub index: i128,
     pub accrued: i128,
 }
@@ -49,6 +62,7 @@ const LAST_DISTRO_KEY: &str = "LastDist";
 const REWARD_ZONE_KEY: &str = "RZ";
 const DROP_LIST_KEY: &str = "DropList";
 const LP_TOKEN_VAL_KEY: &str = "LPTknVal";
+const RZ_EMISSION_INDEX_KEY: &str = "RZEmissionIndex";
 
 #[derive(Clone)]
 #[contracttype]
@@ -63,8 +77,7 @@ pub enum BackstopDataKey {
     UserBalance(PoolUserKey),
     PoolBalance(Address),
     PoolUSDC(Address),
-    PoolEmis(Address),
-    BEmisCfg(Address),
+    RzEmisData(Address),
     BEmisData(Address),
     UEmisData(PoolUserKey),
 }
@@ -332,37 +345,65 @@ pub fn set_reward_zone(e: &Env, reward_zone: &Vec<Address>) {
     );
 }
 
-/// Get the current emissions accrued for the pool
-///
-/// ### Arguments
-/// * `pool` - The pool
-pub fn get_pool_emissions(e: &Env, pool: &Address) -> i128 {
-    let key = BackstopDataKey::PoolEmis(pool.clone());
+/********** Backstop Depositor Emissions **********/
+
+/// Get the reward zone emission index
+/// The index is used to calculate the amount of tokens to distribute to the backstop
+pub fn get_rz_emission_index(e: &Env) -> i128 {
     get_persistent_default(
         e,
-        &key,
+        &Symbol::new(&e, RZ_EMISSION_INDEX_KEY),
         || 0i128,
         LEDGER_THRESHOLD_SHARED,
         LEDGER_BUMP_SHARED,
     )
 }
 
-/// Set the current emissions accrued for the pool
+/// Set the reward zone emission index
+/// The index is used to calculate the amount of tokens to distribute to the backstop
+///
+/// ### Arguments
+/// * 'index' - The index of the backstop's emissions
+pub fn set_rz_emission_index(e: &Env, index: &i128) {
+    e.storage()
+        .persistent()
+        .set::<Symbol, i128>(&Symbol::new(&e, RZ_EMISSION_INDEX_KEY), index);
+    e.storage().persistent().extend_ttl(
+        &Symbol::new(&e, RZ_EMISSION_INDEX_KEY),
+        LEDGER_THRESHOLD_SHARED,
+        LEDGER_BUMP_SHARED,
+    );
+}
+
+/// Get the emission data for the reward zone pool
 ///
 /// ### Arguments
 /// * `pool` - The pool
-/// * `emissions` - The number of tokens to distribute to the pool
-pub fn set_pool_emissions(e: &Env, pool: &Address, emissions: i128) {
-    let key = BackstopDataKey::PoolEmis(pool.clone());
+pub fn get_rz_emis_data(e: &Env, pool: &Address) -> Option<RzEmissionData> {
+    let key = BackstopDataKey::RzEmisData(pool.clone());
+    get_persistent_default(
+        e,
+        &key,
+        || None,
+        LEDGER_THRESHOLD_SHARED,
+        LEDGER_BUMP_SHARED,
+    )
+}
+
+/// Set the emission data for the reward zone pool
+///
+/// ### Arguments
+/// * `pool` - The pool
+/// * `index` - The index of the backstop's emissions
+pub fn set_rz_emis_data(e: &Env, pool: &Address, emis_data: &RzEmissionData) {
+    let key = BackstopDataKey::RzEmisData(pool.clone());
     e.storage()
         .persistent()
-        .set::<BackstopDataKey, i128>(&key, &emissions);
+        .set::<BackstopDataKey, RzEmissionData>(&key, emis_data);
     e.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD_SHARED, LEDGER_BUMP_SHARED);
 }
-
-/********** Backstop Depositor Emissions **********/
 
 /// Get the pool's backstop emissions data
 ///

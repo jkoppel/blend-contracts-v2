@@ -1,5 +1,5 @@
 use pool::{Request, RequestType, ReserveEmissionMetadata};
-use soroban_sdk::{testutils::Address as _, vec as svec, Address, String, Vec as SVec};
+use soroban_sdk::{vec as svec, String, Vec as SVec};
 
 use crate::{
     pool::default_reserve_metadata,
@@ -74,13 +74,13 @@ pub fn create_fixture_with_data<'a>(wasm: bool) -> TestFixture<'a> {
     fixture.backstop.update_tkn_val();
     fixture
         .backstop
-        .add_reward(&pool_fixture.pool.address, &Address::generate(&fixture.env));
+        .add_reward(&pool_fixture.pool.address, &None);
     pool_fixture.pool.set_status(&3);
     pool_fixture.pool.update_status();
 
     // enable emissions
     fixture.emitter.distribute();
-    fixture.backstop.gulp_emissions();
+    fixture.backstop.distribute();
     pool_fixture.pool.gulp_emissions();
 
     fixture.jump(60);
@@ -196,7 +196,7 @@ mod tests {
             fixture.env.ledger().timestamp() - 60 * 61
         );
         assert_eq!(emis_data.index, 0);
-        assert_eq!(0_180_0000, emis_data.eps);
+        assert_eq!(0_180_0000_0000000, emis_data.eps);
         assert_eq!(
             fixture.env.ledger().timestamp() + 7 * 24 * 60 * 60 - 60 * 61,
             emis_data.expiration
@@ -253,7 +253,7 @@ mod tests {
             fixture.env.ledger().timestamp() - 60 * 61
         );
         assert_eq!(emis_data.index, 0);
-        assert_eq!(0_180_0000, emis_data.eps);
+        assert_eq!(0_180_0000_0000000, emis_data.eps);
         assert_eq!(
             fixture.env.ledger().timestamp() + 7 * 24 * 60 * 60 - 60 * 61,
             emis_data.expiration

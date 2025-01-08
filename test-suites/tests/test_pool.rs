@@ -355,7 +355,7 @@ fn test_pool_user() {
     // allow the rest of the emissions period to pass (6 days - 5d23h59m emitted for XLM supply)
     fixture.jump(6 * 24 * 60 * 60);
     fixture.emitter.distribute();
-    fixture.backstop.gulp_emissions();
+    fixture.backstop.distribute();
     pool_fixture.pool.gulp_emissions();
     assert_eq!(fixture.env.auths().len(), 0); // no auth required to update emissions
 
@@ -525,7 +525,7 @@ fn test_pool_user() {
             )
         ]
     );
-    assert_eq!(result, 2940_3113155); // ~ 4.99k / (100k + 4.99k) * 0.12 (xlm eps) * 5d23hr59m in seconds
+    assert_eq!(result, 2940_3117289); // ~ 4.99k / (100k + 4.99k) * 0.12 (xlm eps) * 5d23hr59m in seconds
     assert_eq!(blnd.balance(&sam), sam_blnd_balance + result);
 }
 

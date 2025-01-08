@@ -212,7 +212,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&frodo, &vec![&fixture.env, 0, 3], &frodo);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 4665_6384000);
+    assert_eq!(claim_amount, 4665_6412742);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -228,7 +228,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&sam, &vec![&fixture.env, 0, 3], &sam);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 730943066650);
+    assert_eq!(claim_amount, 730943587256);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -365,7 +365,7 @@ fn test_wasm_happy_path() {
 
     // Distribute emissions
     fixture.emitter.distribute();
-    fixture.backstop.gulp_emissions();
+    fixture.backstop.distribute();
     pool_fixture.pool.gulp_emissions();
 
     // Frodo claim emissions
@@ -376,7 +376,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&frodo, &vec![&fixture.env, 0, 3], &frodo);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 11673_1656000);
+    assert_eq!(claim_amount, 11673_1666080);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -391,7 +391,7 @@ fn test_wasm_happy_path() {
         &vec![&fixture.env, pool_fixture.pool.address.clone()],
         &frodo,
     );
-    assert_eq!(claim_amount, 420797_9972539);
+    assert_eq!(claim_amount, 420797_9999999);
     backstop_blnd_balance -= claim_amount;
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
@@ -404,7 +404,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&sam, &vec![&fixture.env, 0, 3], &sam);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 90908_8243725);
+    assert_eq!(claim_amount, 90908_8333918);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -417,12 +417,12 @@ fn test_wasm_happy_path() {
     // Let 51 weeks go by and call update to validate emissions won't get missed
     fixture.jump(60 * 60 * 24 * 7 * 51);
     fixture.emitter.distribute();
-    fixture.backstop.gulp_emissions();
+    fixture.backstop.distribute();
     pool_fixture.pool.gulp_emissions();
     // Allow another week go by to distribute missed emissions
     fixture.jump(60 * 60 * 24 * 7);
     fixture.emitter.distribute();
-    fixture.backstop.gulp_emissions();
+    fixture.backstop.distribute();
     pool_fixture.pool.gulp_emissions();
 
     // Frodo claims a year worth of backstop emissions
@@ -433,8 +433,8 @@ fn test_wasm_happy_path() {
         &vec![&fixture.env, pool_fixture.pool.address.clone()],
         &frodo,
     );
-    assert_eq!(claim_amount, 22014719_9950114); //actual amount is 22014720_0000000 but get's rounded down
-    backstop_blnd_balance -= 22014719_9950114;
+    assert_eq!(claim_amount, 22014719_9999997); //actual amount is 22014720_0000000 but get's rounded down
+    backstop_blnd_balance -= 22014719_9999997;
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -445,7 +445,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&frodo, &vec![&fixture.env, 0, 3], &frodo);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 1073628_1628000);
+    assert_eq!(claim_amount, 1073628_1820163);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -456,7 +456,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&sam, &vec![&fixture.env, 0, 3], &sam);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 8361251_6449409);
+    assert_eq!(claim_amount, 8361251_8179829);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance

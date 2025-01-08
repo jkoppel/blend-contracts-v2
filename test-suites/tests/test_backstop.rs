@@ -138,6 +138,22 @@ fn test_backstop() {
     // Simulate the pool backstop making money and progress 6d23h (6d23hr total emissions for sam)
     // @dev: setup jumps 1 hour and 1 minute
     fixture.jump(60 * 60 * 24 * 7 - 60 * 60);
+    // Start the next emission cycle
+    fixture.emitter.distribute();
+    fixture.backstop.distribute();
+    let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
+    assert_eq!(
+        event,
+        vec![
+            &fixture.env,
+            (
+                fixture.backstop.address.clone(),
+                (Symbol::new(&fixture.env, "distribute"),).into_val(&fixture.env),
+                ((60 * 60 * 24 * 7 + 60) * SCALAR_7).into_val(&fixture.env),
+            )
+        ]
+    );
+    pool.gulp_emissions();
     let amount = 2_000 * SCALAR_7;
     fixture.lp.approve(
         &frodo,
@@ -209,9 +225,6 @@ fn test_backstop() {
         bstop_bstop_token_balance
     );
 
-    // Start the next emission cycle
-    fixture.emitter.distribute();
-    fixture.backstop.gulp_emissions();
     assert_eq!(fixture.env.auths().len(), 0);
 
     // Sam queues 100% of position for withdrawal
@@ -274,7 +287,8 @@ fn test_backstop() {
     // Start the next emission cycle and jump 7 days (13d23hr total emissions for sam)
     fixture.jump(60 * 60 * 24 * 7);
     fixture.emitter.distribute();
-    fixture.backstop.gulp_emissions();
+    fixture.backstop.distribute();
+    pool.gulp_emissions();
 
     // Sam dequeues half of the withdrawal
     let amount = 6_250 * SCALAR_7; // shares
@@ -326,7 +340,8 @@ fn test_backstop() {
     // Start the next emission cycle and jump 7 days (20d23hr total emissions for sam)
     fixture.jump(60 * 60 * 24 * 7);
     fixture.emitter.distribute();
-    fixture.backstop.gulp_emissions();
+    fixture.backstop.distribute();
+    pool.gulp_emissions();
 
     // Backstop loses money
     let amount = 1_000 * SCALAR_7;
@@ -373,7 +388,6 @@ fn test_backstop() {
 
     // Jump to the end of the withdrawal period (27d23hr total emissions for sam)
     fixture.jump(60 * 60 * 24 * 16 + 1);
-
     // Sam withdraws the queue position
     let amount = 6_250 * SCALAR_7; // shares
     let result = fixture.backstop.withdraw(&sam, &pool.address, &amount);
@@ -461,7 +475,7 @@ fn test_backstop() {
     let emitted_blnd_1 = ((7 * 24 * 60 * 60 - 61 * 60) * SCALAR_7)
         .fixed_mul_floor(emission_share_1, SCALAR_7)
         .unwrap();
-    let emitted_blnd_2 = ((14 * 24 * 60 * 60 + 1) * SCALAR_7 + 2096022)
+    let emitted_blnd_2 = ((14 * 24 * 60 * 60 + 1) * SCALAR_7 + 2096012)
         .fixed_mul_floor(emission_share_2, SCALAR_7)
         .unwrap();
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];

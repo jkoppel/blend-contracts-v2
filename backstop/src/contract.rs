@@ -100,21 +100,40 @@ pub trait Backstop {
 
     /********** Emissions **********/
 
-    /// Consume emissions from the Emitter and distribute them to backstops and pools in the reward zone
-    fn gulp_emissions(e: Env);
+    /// Update the backstop with new emissions for all reward zone pools
+    ///
+    /// Returns the amount of new emissions for all reward zone pools
+    fn distribute(e: Env) -> i128;
+
+    /// Distribute emissions to a reward zone pool and its backstop
+    ///
+    /// Returns the amount of BLND emissions distributed to the pool
+    ///
+    /// ### Arguments
+    /// * `pool` - The address of the pool to distribute emissions to
+    ///
+    /// ### Errors
+    /// If the pool is not in the reward zone or the pool does not authorize the call
+    fn gulp_emissions(e: Env, pool: Address) -> i128;
 
     /// Add a pool to the reward zone, and if the reward zone is full, a pool to remove
     ///
     /// ### Arguments
     /// * `to_add` - The address of the pool to add
-    /// * `to_remove` - The address of the pool to remove
+    /// * `to_remove` - The address of the pool to remove (Optional - Used if the reward zone is full)
     ///
     /// ### Errors
     /// If the pool to remove has more tokens, or if distribution occurred in the last 48 hours
-    fn add_reward(e: Env, to_add: Address, to_remove: Address);
+    fn add_reward(e: Env, to_add: Address, to_remove: Option<Address>);
 
-    /// Consume the emissions for a pool and approve
-    fn gulp_pool_emissions(e: Env, pool_address: Address) -> i128;
+    /// Remove a pool from the reward zone
+    ///
+    /// ### Arguments
+    /// * `to_remove` - The address of the pool to remove
+    ///
+    /// ### Errors
+    /// If the pool is not below the threshold or if the pool is not in the reward zone
+    fn remove_reward(e: Env, to_remove: Address);
 
     /// Claim backstop deposit emissions from a list of pools for `from`
     ///
@@ -264,24 +283,35 @@ impl Backstop for BackstopContract {
 
     /********** Emissions **********/
 
-    fn gulp_emissions(e: Env) {
+    fn distribute(e: Env) -> i128 {
         storage::extend_instance(&e);
-        let new_tokens_emitted = emissions::gulp_emissions(&e);
+        let new_emissions = emissions::distribute(&e);
 
-        BackstopEvents::gulp_emissions(&e, new_tokens_emitted);
+        BackstopEvents::distribute(&e, new_emissions);
+        new_emissions
     }
 
-    fn add_reward(e: Env, to_add: Address, to_remove: Address) {
+    fn gulp_emissions(e: Env, pool: Address) -> i128 {
+        storage::extend_instance(&e);
+        pool.require_auth();
+        let (backstop_emissions, pool_emissions) = emissions::gulp_emissions(&e, &pool);
+
+        BackstopEvents::gulp_emissions(&e, pool, backstop_emissions, pool_emissions);
+        pool_emissions
+    }
+
+    fn add_reward(e: Env, to_add: Address, to_remove: Option<Address>) {
         storage::extend_instance(&e);
         emissions::add_to_reward_zone(&e, to_add.clone(), to_remove.clone());
 
-        BackstopEvents::rw_zone(&e, to_add, to_remove);
+        BackstopEvents::rw_zone_add(&e, to_add, to_remove);
     }
 
-    fn gulp_pool_emissions(e: Env, pool_address: Address) -> i128 {
+    fn remove_reward(e: Env, to_remove: Address) {
         storage::extend_instance(&e);
-        pool_address.require_auth();
-        emissions::gulp_pool_emissions(&e, &pool_address)
+        emissions::remove_from_reward_zone(&e, to_remove.clone());
+
+        BackstopEvents::rw_zone_remove(&e, to_remove);
     }
 
     fn claim(e: Env, from: Address, pool_addresses: Vec<Address>, to: Address) -> i128 {

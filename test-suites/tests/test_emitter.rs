@@ -85,7 +85,7 @@ fn test_emitter_no_reward_zone() {
     fixture.jump(6 * 24 * 60 * 60);
     let result = fixture.emitter.distribute();
     assert_eq!(result, (13 * 24 * 60 * 60) * SCALAR_7); // 1 token per second are emitted
-    let result = fixture.backstop.try_gulp_emissions();
+    let result = fixture.backstop.try_distribute();
     assert!(result.is_err());
 
     assert_eq!(fixture.env.auths().len(), 0);
@@ -129,9 +129,9 @@ fn test_emitter_no_reward_zone() {
 
     fixture
         .backstop
-        .add_reward(&pool_fixture.pool.address, &Address::generate(&fixture.env));
-    fixture.backstop.gulp_emissions();
-
+        .add_reward(&pool_fixture.pool.address, &None);
+    let result = fixture.backstop.distribute();
+    assert_eq!(result, (13 * 24 * 60 * 60) * SCALAR_7);
     let result = pool_fixture.pool.gulp_emissions();
     assert_eq!(result, (13 * 24 * 60 * 60) * 300_0000);
     // Let some time go by
@@ -144,14 +144,14 @@ fn test_emitter_no_reward_zone() {
     );
     let post_claim_1_balance = blnd_token.balance(&fixture.users[0]);
     assert_eq!(post_claim_1_balance - pre_claim_balance, result);
-    assert_eq!(result, (13 * 24 * 60 * 60) * 300_0000 - 400000); //pool claim is only 30% of the total emissions - subtracting 400000 for rounding
+    assert_eq!(result, (13 * 24 * 60 * 60) * 300_0000 - 1); //pool claim is only 30% of the total emissions - subtracting 1 for rounding
     let result_1 = fixture.backstop.claim(
         &fixture.users[0],
         &svec![&fixture.env, pool_fixture.pool.address.clone()],
         &fixture.users[0],
     );
     assert_eq!(result_1, (13 * 24 * 60 * 60) * 700_0000);
-    assert_eq!(result_1 + result, (13 * 24 * 60 * 60) * SCALAR_7 - 400000);
+    assert_eq!(result_1 + result, (13 * 24 * 60 * 60) * SCALAR_7 - 1);
 }
 
 /// Test user exposed functions on the emitter for basic functionality, auth, and events.
