@@ -478,8 +478,6 @@ mod tests {
         });
     }
 
-
-
     #[test]
     #[should_panic(expected = "Error(Contract, #9)")]
     fn test_submit_use_allowance_no_allowance() {
