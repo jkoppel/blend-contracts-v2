@@ -1,11 +1,11 @@
 use cast::{i128, u64};
 use sep_41_token::TokenClient;
 use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{panic_with_error, unwrap::UnwrapOptimized, Address, Env};
+use soroban_sdk::{panic_with_error, unwrap::UnwrapOptimized, Address, Env, Vec};
 
 use crate::{
     backstop::{load_pool_backstop_data, require_pool_above_threshold},
-    constants::{BACKSTOP_EPOCH, SCALAR_14, SCALAR_7},
+    constants::{MAX_RZ_SIZE, SCALAR_14, SCALAR_7},
     dependencies::EmitterClient,
     errors::BackstopError,
     storage::{self, BackstopEmissionData, RzEmissionData},
@@ -18,12 +18,6 @@ use super::distributor::update_emission_data;
 pub fn add_to_reward_zone(e: &Env, to_add: Address, to_remove: Option<Address>) {
     let mut reward_zone = storage::get_reward_zone(e);
     let rz_emission_index = storage::get_rz_emission_index(e);
-    let max_rz_len = if e.ledger().timestamp() < BACKSTOP_EPOCH {
-        10
-    } else {
-        // Max reward zone length is 50
-        (10 + (i128(e.ledger().timestamp() - BACKSTOP_EPOCH) >> 23)).min(50) // bit-shift 23 is ~97 day interval
-    };
 
     // ensure an entity in the reward zone cannot be included twice
     if reward_zone.contains(to_add.clone()) {
@@ -37,45 +31,19 @@ pub fn add_to_reward_zone(e: &Env, to_add: Address, to_remove: Option<Address>) 
         panic_with_error!(e, BackstopError::InvalidRewardZoneEntry);
     }
 
-    if max_rz_len > i128(reward_zone.len()) {
+    if MAX_RZ_SIZE > reward_zone.len() {
         // there is room in the reward zone. Add "to_add".
         reward_zone.push_front(to_add.clone());
     } else {
         match to_remove {
             None => panic_with_error!(e, BackstopError::RewardZoneFull),
             Some(to_remove) => {
-                // swap to_add for to_remove
-                let to_remove_index = reward_zone.first_index_of(to_remove.clone());
-                match to_remove_index {
-                    Some(idx) => {
-                        // verify distribute was run recently to prevent "to_remove" from losing excess emissions
-                        // @dev: resource constraints prevent us from distributing on reward zone changes
-                        let last_distribution = storage::get_last_distribution_time(e);
-                        if last_distribution < e.ledger().timestamp() - 24 * 60 * 60 {
-                            panic_with_error!(e, BackstopError::BadRequest);
-                        }
-
-                        // Verify "to_add" has a higher backstop deposit that "to_remove"
-                        if pool_data.tokens <= storage::get_pool_balance(e, &to_remove).tokens {
-                            panic_with_error!(e, BackstopError::InvalidRewardZoneEntry);
-                        }
-
-                        // update backstop emissions for the pool before removing it from the reward zone
-                        // set emission index to i128::MAX to prevent further emissions
-                        let to_remove_emis_data =
-                            storage::get_rz_emis_data(e, &to_remove).unwrap_optimized();
-                        set_rz_emissions(
-                            e,
-                            &to_remove,
-                            i128::MAX,
-                            to_remove_emis_data.accrued,
-                            false,
-                        );
-
-                        reward_zone.set(idx, to_add.clone());
-                    }
-                    None => panic_with_error!(e, BackstopError::InvalidRewardZoneEntry),
+                // Verify "to_add" has a higher backstop deposit that "to_remove"
+                if pool_data.tokens <= storage::get_pool_balance(e, &to_remove).tokens {
+                    panic_with_error!(e, BackstopError::InvalidRewardZoneEntry);
                 }
+                remove_pool(e, &mut reward_zone, &to_remove);
+                reward_zone.push_front(to_add.clone());
             }
         }
     }
@@ -104,27 +72,31 @@ pub fn remove_from_reward_zone(e: &Env, to_remove: Address) {
     if require_pool_above_threshold(&pool_data) {
         panic_with_error!(e, BackstopError::BadRequest);
     } else {
-        let to_remove_index = reward_zone.first_index_of(to_remove.clone());
-        match to_remove_index {
-            Some(idx) => {
-                // verify distribute was run recently to prevent "to_remove" from losing excess emissions
-                // @dev: resource constraints prevent us from distributing on reward zone changes
-                let last_distribution = storage::get_last_distribution_time(e);
-                if last_distribution < e.ledger().timestamp() - 24 * 60 * 60 {
-                    panic_with_error!(e, BackstopError::BadRequest);
-                }
+        remove_pool(e, &mut reward_zone, &to_remove);
+        storage::set_reward_zone(e, &reward_zone);
+    }
+}
 
-                // update backstop emissions for the pool before removing it from the reward zone
-                // set emission index to i128::MAX to prevent further emissions
-                let to_remove_emis_data =
-                    storage::get_rz_emis_data(e, &to_remove).unwrap_optimized();
-                set_rz_emissions(e, &to_remove, i128::MAX, to_remove_emis_data.accrued, false);
-
-                reward_zone.remove(idx);
-                storage::set_reward_zone(e, &reward_zone);
+/// Remove a pool from the reward zone and set the backstop emissions index to i128::MAX
+fn remove_pool(e: &Env, reward_zone: &mut Vec<Address>, to_remove: &Address) {
+    let to_remove_index = reward_zone.first_index_of(to_remove.clone());
+    match to_remove_index {
+        Some(idx) => {
+            // verify distribute was run recently to prevent "to_remove" from losing excess emissions
+            // @dev: resource constraints prevent us from distributing on reward zone changes
+            let last_distribution = storage::get_last_distribution_time(e);
+            if last_distribution < e.ledger().timestamp() - 24 * 60 * 60 {
+                panic_with_error!(e, BackstopError::BadRequest);
             }
-            None => panic_with_error!(e, BackstopError::InvalidRewardZoneEntry),
+
+            // update backstop emissions for the pool before removing it from the reward zone
+            // set emission index to i128::MAX to prevent further emissions
+            let to_remove_emis_data = storage::get_rz_emis_data(e, &to_remove).unwrap_optimized();
+            set_rz_emissions(e, &to_remove, i128::MAX, to_remove_emis_data.accrued, false);
+
+            reward_zone.remove(idx);
         }
+        None => panic_with_error!(e, BackstopError::InvalidRewardZoneEntry),
     }
 }
 
@@ -297,7 +269,7 @@ mod tests {
         e.budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -308,7 +280,7 @@ mod tests {
         });
 
         let backstop = create_backstop(&e);
-        let emitter_distro_time = BACKSTOP_EPOCH - 10;
+        let emitter_distro_time = 1713139200 - 10;
         let blnd_token_client = create_blnd_token(&e, &backstop, &Address::generate(&e)).1;
         create_emitter(
             &e,
@@ -324,18 +296,18 @@ mod tests {
 
         // setup pool 1 to have ongoing emissions
         let pool_1_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 1000,
+            expiration: 1713139200 + 1000,
             eps: 0_10000000000000,
             index: 8877660000000,
-            last_time: BACKSTOP_EPOCH - 12345,
+            last_time: 1713139200 - 12345,
         };
 
         // setup pool 2 to have expired emissions
         let pool_2_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH - 12345,
+            expiration: 1713139200 - 12345,
             eps: 0_05000000000000,
             index: 4532340000000,
-            last_time: BACKSTOP_EPOCH - 12345,
+            last_time: 1713139200 - 12345,
         };
         // setup pool 3 to have no emissions
         e.as_contract(&backstop, || {
@@ -431,30 +403,21 @@ mod tests {
 
             let new_pool_1_data = storage::get_backstop_emis_data(&e, &pool_1).unwrap_optimized();
             assert_eq!(new_pool_1_data.eps, 0_21016534391534);
-            assert_eq!(
-                new_pool_1_data.expiration,
-                BACKSTOP_EPOCH + 7 * 24 * 60 * 60
-            );
+            assert_eq!(new_pool_1_data.expiration, 1713139200 + 7 * 24 * 60 * 60);
             assert_eq!(new_pool_1_data.index, 9494910000000);
-            assert_eq!(new_pool_1_data.last_time, BACKSTOP_EPOCH);
+            assert_eq!(new_pool_1_data.last_time, 1713139200);
 
             let new_pool_2_data = storage::get_backstop_emis_data(&e, &pool_2).unwrap_optimized();
             assert_eq!(new_pool_2_data.eps, 0_14000000000000);
-            assert_eq!(
-                new_pool_2_data.expiration,
-                BACKSTOP_EPOCH + 7 * 24 * 60 * 60
-            );
+            assert_eq!(new_pool_2_data.expiration, 1713139200 + 7 * 24 * 60 * 60);
             assert_eq!(new_pool_2_data.index, 4532340000000);
-            assert_eq!(new_pool_2_data.last_time, BACKSTOP_EPOCH);
+            assert_eq!(new_pool_2_data.last_time, 1713139200);
 
             let new_pool_3_data = storage::get_backstop_emis_data(&e, &pool_3).unwrap_optimized();
             assert_eq!(new_pool_3_data.eps, 0_35000000000000);
-            assert_eq!(
-                new_pool_3_data.expiration,
-                BACKSTOP_EPOCH + 7 * 24 * 60 * 60
-            );
+            assert_eq!(new_pool_3_data.expiration, 1713139200 + 7 * 24 * 60 * 60);
             assert_eq!(new_pool_3_data.index, 0);
-            assert_eq!(new_pool_3_data.last_time, BACKSTOP_EPOCH);
+            assert_eq!(new_pool_3_data.last_time, 1713139200);
         });
     }
 
@@ -466,7 +429,7 @@ mod tests {
         e.budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -477,7 +440,7 @@ mod tests {
         });
 
         let backstop = create_backstop(&e);
-        let emitter_distro_time = BACKSTOP_EPOCH - 10;
+        let emitter_distro_time = 1713139200 - 10;
         create_emitter(
             &e,
             &backstop,
@@ -536,7 +499,7 @@ mod tests {
         e.budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -547,7 +510,7 @@ mod tests {
         });
 
         let backstop = create_backstop(&e);
-        let emitter_distro_time = BACKSTOP_EPOCH - 10;
+        let emitter_distro_time = 1713139200 - 10;
         create_emitter(
             &e,
             &backstop,
@@ -584,7 +547,7 @@ mod tests {
         e.budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -596,7 +559,7 @@ mod tests {
 
         let backstop = create_backstop(&e);
         create_blnd_token(&e, &backstop, &Address::generate(&e)).1;
-        let emitter_distro_time = BACKSTOP_EPOCH - 1000;
+        let emitter_distro_time = 1713139200 - 1000;
         create_emitter(
             &e,
             &backstop,
@@ -614,19 +577,19 @@ mod tests {
         // setup pool 1 to have ongoing emissions
 
         let pool_1_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 1000,
+            expiration: 1713139200 + 1000,
             eps: 0_1000000,
             index: 887766,
-            last_time: BACKSTOP_EPOCH - 12345,
+            last_time: 1713139200 - 12345,
         };
 
         // setup pool 2 to have expired emissions
 
         let pool_2_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH - 12345,
+            expiration: 1713139200 - 12345,
             eps: 0_0500000,
             index: 453234,
-            last_time: BACKSTOP_EPOCH - 12345,
+            last_time: 1713139200 - 12345,
         };
         // setup pool 3 to have no emissions
         e.as_contract(&backstop, || {
@@ -674,7 +637,7 @@ mod tests {
         e.budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH + 10_000_000_000,
+            timestamp: 1713139200 + 10_000_000_000,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -688,7 +651,7 @@ mod tests {
         let (blnd_address, _) = create_blnd_token(&e, &backstop, &Address::generate(&e));
 
         // Distribute 1 trillion tokens to 1 backstop token
-        let emitter_distro_time = BACKSTOP_EPOCH + 10_000_000_000;
+        let emitter_distro_time = 1713139200 + 10_000_000_000;
         create_emitter(
             &e,
             &backstop,
@@ -700,7 +663,7 @@ mod tests {
         let reward_zone: Vec<Address> = vec![&e, pool_1.clone()];
 
         e.as_contract(&backstop, || {
-            storage::set_last_distribution_time(&e, &(&BACKSTOP_EPOCH));
+            storage::set_last_distribution_time(&e, &(&1713139200));
             storage::set_reward_zone(&e, &reward_zone);
             storage::set_rz_emis_data(
                 &e,
@@ -759,7 +722,7 @@ mod tests {
     fn test_add_to_rz_empty_adds_pool() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             base_reserve: 10,
@@ -792,10 +755,10 @@ mod tests {
     }
 
     #[test]
-    fn test_add_to_rz_before_epoch_max_10() {
+    fn test_add_to_rz_before_max_50() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH - 100000,
+            timestamp: 1713139200 - 100000,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -845,7 +808,7 @@ mod tests {
     fn test_add_to_rz_empty_pool_under_backstop_threshold() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             base_reserve: 10,
@@ -881,7 +844,7 @@ mod tests {
     fn test_add_to_rz_increases_size_over_time() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH + (1 << 23),
+            timestamp: 1713139200 + (1 << 23),
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -932,7 +895,7 @@ mod tests {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
             // Allow enough time for 100 pools to be added
-            timestamp: BACKSTOP_EPOCH + (1 << 23) * 100,
+            timestamp: 1713139200 + (1 << 23) * 100,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -965,59 +928,12 @@ mod tests {
             add_to_reward_zone(&e, to_add.clone(), None);
         });
     }
-    #[test]
-    #[should_panic(expected = "Error(Contract, #1009)")]
-    fn test_add_to_rz_takes_floor_for_size() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH + (1 << 23) - 1,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-
-        let backstop_id = create_backstop(&e);
-        let to_add = Address::generate(&e);
-        let reward_zone: Vec<Address> = vec![
-            &e,
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-        ];
-
-        e.as_contract(&backstop_id, || {
-            storage::set_reward_zone(&e, &reward_zone);
-            storage::set_pool_balance(
-                &e,
-                &to_add,
-                &PoolBalance {
-                    shares: 90_000_0000000,
-                    tokens: 100_000_0000000,
-                    q4w: 1_000_0000000,
-                },
-            );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
-
-            add_to_reward_zone(&e, to_add.clone(), None);
-        });
-    }
 
     #[test]
     fn test_add_to_rz_swap_happy_path() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1032,23 +948,15 @@ mod tests {
 
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
-        let mut reward_zone: Vec<Address> = vec![
-            &e,
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            to_remove.clone(), // index 7
-            Address::generate(&e),
-            Address::generate(&e),
-        ];
+        let mut reward_zone: Vec<Address> = vec![&e];
+        for _ in 0..50 {
+            reward_zone.push_back(Address::generate(&e));
+        }
+        reward_zone.set(7, to_remove.clone());
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60));
+            storage::set_last_distribution_time(&e, &(1713139200 - 1 * 24 * 60 * 60));
             storage::set_pool_balance(
                 &e,
                 &to_add,
@@ -1072,9 +980,9 @@ mod tests {
                 &to_remove,
                 &BackstopEmissionData {
                     eps: 0_10000000000000,
-                    expiration: BACKSTOP_EPOCH + 1000,
+                    expiration: 1713139200 + 1000,
                     index: 0,
-                    last_time: BACKSTOP_EPOCH - 12345,
+                    last_time: 1713139200 - 12345,
                 },
             );
             storage::set_rz_emis_data(
@@ -1089,8 +997,9 @@ mod tests {
             storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove.clone()));
             let actual_rz = storage::get_reward_zone(&e);
-            assert_eq!(actual_rz.len(), 10);
-            reward_zone.set(7, to_add.clone());
+            assert_eq!(actual_rz.len(), 50);
+            reward_zone.remove(7);
+            reward_zone.push_front(to_add.clone());
             assert_eq!(actual_rz, reward_zone);
 
             let to_remove_emis_data = storage::get_rz_emis_data(&e, &to_remove).unwrap_optimized();
@@ -1105,7 +1014,7 @@ mod tests {
     fn test_add_to_rz_swap_not_enough_tokens() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1118,23 +1027,15 @@ mod tests {
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
-        let reward_zone: Vec<Address> = vec![
-            &e,
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            to_remove.clone(), // index 7
-            Address::generate(&e),
-            Address::generate(&e),
-        ];
+        let mut reward_zone: Vec<Address> = vec![&e];
+        for _ in 0..50 {
+            reward_zone.push_back(Address::generate(&e));
+        }
+        reward_zone.set(7, to_remove.clone());
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60));
+            storage::set_last_distribution_time(&e, &(1713139200 - 1 * 24 * 60 * 60));
             storage::set_pool_balance(
                 &e,
                 &to_add,
@@ -1164,7 +1065,7 @@ mod tests {
     fn test_add_to_rz_swap_distribution_too_long_ago() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1177,23 +1078,15 @@ mod tests {
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
-        let reward_zone: Vec<Address> = vec![
-            &e,
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            to_remove.clone(), // index 7
-            Address::generate(&e),
-            Address::generate(&e),
-        ];
+        let mut reward_zone: Vec<Address> = vec![&e];
+        for _ in 0..50 {
+            reward_zone.push_back(Address::generate(&e));
+        }
+        reward_zone.set(7, to_remove.clone());
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60 - 1));
+            storage::set_last_distribution_time(&e, &(1713139200 - 1 * 24 * 60 * 60 - 1));
             storage::set_pool_balance(
                 &e,
                 &to_add,
@@ -1223,7 +1116,7 @@ mod tests {
     fn test_add_to_rz_to_remove_not_in_rz() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1236,23 +1129,14 @@ mod tests {
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
-        let reward_zone: Vec<Address> = vec![
-            &e,
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-        ];
+        let mut reward_zone: Vec<Address> = vec![&e];
+        for _ in 0..50 {
+            reward_zone.push_back(Address::generate(&e));
+        }
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 24 * 60 * 60));
+            storage::set_last_distribution_time(&e, &(1713139200 - 24 * 60 * 60));
             storage::set_pool_balance(
                 &e,
                 &to_add,
@@ -1282,7 +1166,7 @@ mod tests {
     fn test_add_to_rz_already_exists_panics() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1311,7 +1195,7 @@ mod tests {
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 24 * 60 * 60));
+            storage::set_last_distribution_time(&e, &(1713139200 - 24 * 60 * 60));
             storage::set_pool_balance(
                 &e,
                 &to_add,
@@ -1342,7 +1226,7 @@ mod tests {
     fn test_remove_from_rz() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1364,7 +1248,7 @@ mod tests {
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60));
+            storage::set_last_distribution_time(&e, &(1713139200 - 1 * 24 * 60 * 60));
             storage::set_pool_balance(
                 &e,
                 &to_remove,
@@ -1388,9 +1272,9 @@ mod tests {
                 &to_remove,
                 &BackstopEmissionData {
                     eps: 0_10000000000000,
-                    expiration: BACKSTOP_EPOCH + 1000,
+                    expiration: 1713139200 + 1000,
                     index: 0,
-                    last_time: BACKSTOP_EPOCH - 12345,
+                    last_time: 1713139200 - 12345,
                 },
             );
             storage::set_rz_emis_data(&e, &to_remove, {
@@ -1418,7 +1302,7 @@ mod tests {
     fn test_remove_from_rz_above_threshold() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1440,7 +1324,7 @@ mod tests {
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60));
+            storage::set_last_distribution_time(&e, &(1713139200 - 1 * 24 * 60 * 60));
             storage::set_pool_balance(
                 &e,
                 &to_remove,
@@ -1455,9 +1339,9 @@ mod tests {
                 &to_remove,
                 &BackstopEmissionData {
                     eps: 0_10000000000000,
-                    expiration: BACKSTOP_EPOCH + 1000,
+                    expiration: 1713139200 + 1000,
                     index: 0,
-                    last_time: BACKSTOP_EPOCH - 12345,
+                    last_time: 1713139200 - 12345,
                 },
             );
             storage::set_rz_emis_data(&e, &to_remove, {
@@ -1477,7 +1361,7 @@ mod tests {
     fn test_remove_from_rz_last_distribution_too_long_ago() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1499,7 +1383,7 @@ mod tests {
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60 - 1));
+            storage::set_last_distribution_time(&e, &(1713139200 - 1 * 24 * 60 * 60 - 1));
             storage::set_pool_balance(
                 &e,
                 &to_remove,
@@ -1514,9 +1398,9 @@ mod tests {
                 &to_remove,
                 &BackstopEmissionData {
                     eps: 0_10000000000000,
-                    expiration: BACKSTOP_EPOCH + 1000,
+                    expiration: 1713139200 + 1000,
                     index: 0,
-                    last_time: BACKSTOP_EPOCH - 12345,
+                    last_time: 1713139200 - 12345,
                 },
             );
             storage::set_rz_emis_data(&e, &to_remove, {
@@ -1536,7 +1420,7 @@ mod tests {
     fn test_remove_from_rz_not_in_rz() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1554,7 +1438,7 @@ mod tests {
 
         e.as_contract(&backstop_id, || {
             storage::set_reward_zone(&e, &reward_zone);
-            storage::set_last_distribution_time(&e, &(BACKSTOP_EPOCH - 1 * 24 * 60 * 60));
+            storage::set_last_distribution_time(&e, &(1713139200 - 1 * 24 * 60 * 60));
             storage::set_pool_balance(
                 &e,
                 &to_remove,
@@ -1569,9 +1453,9 @@ mod tests {
                 &to_remove,
                 &BackstopEmissionData {
                     eps: 0_10000000000000,
-                    expiration: BACKSTOP_EPOCH + 1000,
+                    expiration: 1713139200 + 1000,
                     index: 0,
-                    last_time: BACKSTOP_EPOCH - 12345,
+                    last_time: 1713139200 - 12345,
                 },
             );
             storage::set_rz_emis_data(&e, &to_remove, {
@@ -1592,7 +1476,7 @@ mod tests {
     fn test_update_rz_emis_data() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1635,7 +1519,7 @@ mod tests {
     fn test_update_rz_emis_data_consumes_accrued() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1678,7 +1562,7 @@ mod tests {
     fn test_update_rz_emis_data_zero_pool_tokens() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1721,7 +1605,7 @@ mod tests {
     fn test_update_rz_emis_data_gulp_zero_pool_tokens() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1764,7 +1648,7 @@ mod tests {
     fn test_update_rz_emis_data_index_already_updated() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1808,7 +1692,7 @@ mod tests {
     fn test_update_rz_emis_data_gulp_updated_index() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),
@@ -1851,7 +1735,7 @@ mod tests {
     fn test_update_rz_emis_data_no_emis_data() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
-            timestamp: BACKSTOP_EPOCH,
+            timestamp: 1713139200,
             protocol_version: 22,
             sequence_number: 0,
             network_id: Default::default(),

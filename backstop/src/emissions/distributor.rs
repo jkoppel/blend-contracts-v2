@@ -151,7 +151,7 @@ fn set_user_emissions(
 
 #[cfg(test)]
 mod tests {
-    use crate::{constants::BACKSTOP_EPOCH, testutils::create_backstop, Q4W};
+    use crate::{testutils::create_backstop, Q4W};
 
     use super::*;
     use soroban_sdk::{
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn test_update_emissions() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 1234;
+        let block_timestamp = 1713139200 + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -182,17 +182,17 @@ mod tests {
         let samwise = Address::generate(&e);
 
         let backstop_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
             eps: 0_10000000000000,
             index: 222220000000,
-            last_time: BACKSTOP_EPOCH,
+            last_time: 1713139200,
         };
         let user_emissions_data = UserEmissionData {
             index: 111110000000,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
             storage::set_rz_emission_index(&e, &1_00000000000000);
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn test_update_emissions_no_data() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 1234;
+        let block_timestamp = 1713139200 + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -252,7 +252,7 @@ mod tests {
         let samwise = Address::generate(&e);
 
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             let pool_balance = PoolBalance {
                 shares: 150_0000000,
@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn test_update_emissions_first_action() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 12345;
+        let block_timestamp = 1713139200 + 12345;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -293,13 +293,13 @@ mod tests {
         let samwise = Address::generate(&e);
 
         let backstop_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
             eps: 0_04200000000000,
             index: 222220000000,
-            last_time: BACKSTOP_EPOCH,
+            last_time: 1713139200,
         };
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
 
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn test_update_emissions_config_set_after_user() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 12345;
+        let block_timestamp = 1713139200 + 12345;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -345,13 +345,13 @@ mod tests {
         let samwise = Address::generate(&e);
 
         let backstop_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
             eps: 0_04200000000000,
             index: 0,
-            last_time: BACKSTOP_EPOCH,
+            last_time: 1713139200,
         };
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
 
@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn test_update_emissions_q4w_not_counted() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 1234;
+        let block_timestamp = 1713139200 + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -397,17 +397,17 @@ mod tests {
         let samwise = Address::generate(&e);
 
         let backstop_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
             eps: 0_10000000000000,
             index: 222220000000,
-            last_time: BACKSTOP_EPOCH,
+            last_time: 1713139200,
         };
         let user_emissions_data = UserEmissionData {
             index: 111110000000,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn test_claim_emissions() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 1234;
+        let block_timestamp = 1713139200 + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -458,17 +458,17 @@ mod tests {
         let samwise = Address::generate(&e);
 
         let backstop_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
             eps: 0_10000000000000,
             index: 222220000000,
-            last_time: BACKSTOP_EPOCH,
+            last_time: 1713139200,
         };
         let user_emissions_data = UserEmissionData {
             index: 111110000000,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn test_claim_emissions_no_config() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 1234;
+        let block_timestamp = 1713139200 + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -530,7 +530,7 @@ mod tests {
         let samwise = Address::generate(&e);
 
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             let pool_balance = PoolBalance {
                 shares: 150_0000000,
@@ -559,7 +559,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #8)")]
     fn test_update_emissions_more_q4w_than_shares_panics() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 1234;
+        let block_timestamp = 1713139200 + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -576,17 +576,17 @@ mod tests {
         let samwise = Address::generate(&e);
 
         let backstop_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
             eps: 0_10000000000000,
             index: 22222,
-            last_time: BACKSTOP_EPOCH,
+            last_time: 1713139200,
         };
         let user_emissions_data = UserEmissionData {
             index: 11111,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
@@ -613,7 +613,7 @@ mod tests {
     #[should_panic(expected = "attempt to subtract with overflow")]
     fn test_update_emissions_negative_time_dif() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 1234;
+        let block_timestamp = 1713139200 + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -630,7 +630,7 @@ mod tests {
         let samwise = Address::generate(&e);
 
         let backstop_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
             eps: 0_10000000000000,
             index: 22222,
             last_time: block_timestamp + 1,
@@ -640,7 +640,7 @@ mod tests {
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
@@ -663,7 +663,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #8)")]
     fn test_update_emissions_negative_user_index() {
         let e = Env::default();
-        let block_timestamp = BACKSTOP_EPOCH + 1234;
+        let block_timestamp = 1713139200 + 1234;
         e.ledger().set(LedgerInfo {
             timestamp: block_timestamp,
             protocol_version: 22,
@@ -680,17 +680,17 @@ mod tests {
         let samwise = Address::generate(&e);
 
         let backstop_emissions_data = BackstopEmissionData {
-            expiration: BACKSTOP_EPOCH + 7 * 24 * 60 * 60,
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
             eps: 0_10000000000000,
             index: 222220000000,
-            last_time: BACKSTOP_EPOCH,
+            last_time: 1713139200,
         };
         let user_emissions_data = UserEmissionData {
             index: 345660000000000 + 1,
             accrued: 3,
         };
         e.as_contract(&backstop_id, || {
-            storage::set_last_distribution_time(&e, &BACKSTOP_EPOCH);
+            storage::set_last_distribution_time(&e, &1713139200);
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
