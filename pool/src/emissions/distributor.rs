@@ -410,7 +410,7 @@ mod tests {
         let samwise = Address::generate(&e);
 
         e.ledger().set(LedgerInfo {
-            timestamp: 1501000000, // 10^6 seconds have passed
+            timestamp: 1510000000, // 10^7 seconds have passed
             protocol_version: 22,
             sequence_number: 123,
             network_id: Default::default(),
@@ -425,7 +425,7 @@ mod tests {
         e.as_contract(&pool, || {
             let reserve_emission_data = ReserveEmissionData {
                 expiration: 1600000000,
-                eps: 0_01000000000000,
+                eps: 100_00000000000000,
                 index: 23456780000000,
                 last_time: 1500000000,
             };
@@ -439,6 +439,8 @@ mod tests {
             storage::set_res_emis_data(&e, &res_token_index, &reserve_emission_data);
             storage::set_user_emissions(&e, &samwise, &res_token_index, &user_emission_data);
 
+            // Intermediate index math should not overflow using SorobanFixedPoint
+            // 10^7 * 10^16 * 10^18 = 10^41 > i128::MAX
             update_emissions(
                 &e,
                 res_token_index,
@@ -452,12 +454,12 @@ mod tests {
                 storage::get_res_emis_data(&e, &res_token_index).unwrap_optimized();
             let new_user_emission_data =
                 storage::get_user_emissions(&e, &samwise, &res_token_index).unwrap_optimized();
-            assert_eq!(new_reserve_emission_data.last_time, 1501000000);
+            assert_eq!(new_reserve_emission_data.last_time, 1510000000);
             assert_eq!(
                 new_user_emission_data.index,
                 new_reserve_emission_data.index
             );
-            assert_eq!(new_user_emission_data.accrued, 2111111);
+            assert_eq!(new_user_emission_data.accrued, 2121111);
         });
     }
 

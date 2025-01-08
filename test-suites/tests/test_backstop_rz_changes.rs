@@ -93,5 +93,7 @@ fn test_backstop_rz_changes_handle_emissions() {
     fixture.backstop.distribute();
 
     let result = pool_fixture.pool.gulp_emissions();
+
+    // Emissions are distributed to the pool because the reward zone was empty when the backstop was added
     assert_eq!(result, 1814402999999); // (60 * 60 * 24 * 7 + 1) * 0.3
 }
