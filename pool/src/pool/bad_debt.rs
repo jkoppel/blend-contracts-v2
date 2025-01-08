@@ -108,7 +108,7 @@ mod tests {
             storage::set_backstop(&e, &backstop);
             storage::set_user_positions(&e, &samwise, &user_positions);
 
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             transfer_bad_debt_to_backstop(&e, &samwise);
 
             let new_user_positions = storage::get_user_positions(&e, &samwise);
@@ -130,7 +130,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_transfer_bad_debt_with_collateral_panics() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths();
 
         e.ledger().set(LedgerInfo {
@@ -183,7 +183,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_transfer_bad_debt_without_liabilities_panics() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths();
 
         e.ledger().set(LedgerInfo {
@@ -224,7 +224,7 @@ mod tests {
             storage::set_backstop(&e, &backstop);
             storage::set_user_positions(&e, &samwise, &user_positions);
 
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             transfer_bad_debt_to_backstop(&e, &samwise);
         });
     }
@@ -277,7 +277,7 @@ mod tests {
             storage::set_backstop(&e, &backstop);
             storage::set_user_positions(&e, &samwise, &user_positions);
 
-            e.budget().reset_unlimited();
+            e.cost_estimate().budget().reset_unlimited();
             transfer_bad_debt_to_backstop(&e, &backstop);
         });
     }

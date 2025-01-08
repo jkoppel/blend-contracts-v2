@@ -69,8 +69,8 @@ pub fn require_pool_above_threshold(pool_backstop_data: &PoolBackstopData) -> bo
     //       so saturating mul is used. This is safe because the threshold is below i128::MAX and the
     //       protocol does not need to differentiate between pools over the threshold product constant.
     //       The calculation is:
-    //        - Threshold % = (bal_blnd^4 * bal_usdc) / PC^5 such that PC is 200k
-    let threshold_pc = 320_000_000_000_000_000_000_000_000i128; // 3.2e26 (200k^5)
+    //        - Threshold % = (bal_blnd^4 * bal_usdc) / PC^5 such that PC is 100k
+    let threshold_pc = 10_000_000_000_000_000_000_000_000i128; // 1e25 (100k^5)
 
     // floor balances to nearest full unit and calculate saturated pool product constant
     let bal_blnd = pool_backstop_data.blnd / SCALAR_7;
@@ -290,14 +290,14 @@ mod tests {
     #[test]
     fn test_require_pool_above_threshold_under() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
-            blnd: 300_000_0000000,
+            blnd: 200000_0000000,
             q4w_pct: 0,
             tokens: 20_000_0000000,
-            usdc: 25_000_0000000,
-        }; // ~91.2% threshold
+            usdc: 6_249_0000000,
+        }; // ~99% threshold
 
         let result = require_pool_above_threshold(&pool_backstop_data);
         assert!(!result);
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_require_pool_above_threshold_zero() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 5_000_0000000,
@@ -322,13 +322,13 @@ mod tests {
     #[test]
     fn test_require_pool_above_threshold_over() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
-            blnd: 364_643_0000000,
+            blnd: 200001_0000000,
             q4w_pct: 0,
             tokens: 15_000_0000000,
-            usdc: 18_100_0000000,
+            usdc: 6_250_0000000,
         }; // 100% threshold
 
         let result = require_pool_above_threshold(&pool_backstop_data);
@@ -338,14 +338,14 @@ mod tests {
     #[test]
     fn test_require_pool_above_threshold_saturates() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let pool_backstop_data = PoolBackstopData {
             blnd: 50_000_000_0000000,
             q4w_pct: 0,
             tokens: 999_999_0000000,
             usdc: 10_000_000_0000000,
-        }; // 181x threshold
+        }; // 362x threshold
 
         let result = require_pool_above_threshold(&pool_backstop_data);
         assert!(result);

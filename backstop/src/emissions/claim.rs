@@ -109,7 +109,7 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         let backstop_address = create_backstop(&e);
         let pool_1_id = Address::generate(&e);
@@ -212,7 +212,6 @@ mod tests {
             let pre_pool_tokens_2 = storage::get_pool_balance(&e, &pool_2_id).tokens;
             let pre_pool_shares_1 = storage::get_pool_balance(&e, &pool_1_id).shares;
             let pre_pool_shares_2 = storage::get_pool_balance(&e, &pool_2_id).shares;
-            e.budget().reset_default();
             let result = execute_claim(
                 &e,
                 &samwise,
@@ -276,7 +275,7 @@ mod tests {
     #[test]
     fn test_claim_twice() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths();
 
         let block_timestamp = 1500000000 + 12345;

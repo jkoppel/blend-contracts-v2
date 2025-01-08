@@ -135,7 +135,7 @@ pub fn create_fixture_with_data<'a>(wasm: bool) -> TestFixture<'a> {
 
     fixture.jump(60 * 60); // 1 hr
 
-    fixture.env.budget().reset_unlimited();
+    fixture.env.cost_estimate().budget().reset_unlimited();
     fixture
 }
 

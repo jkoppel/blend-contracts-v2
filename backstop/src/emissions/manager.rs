@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn test_gulp_emissions() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 1713139200,
@@ -426,7 +426,7 @@ mod tests {
     #[test]
     fn test_distribute() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 1713139200,
@@ -496,7 +496,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1000)")]
     fn test_distribute_empty_rz() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 1713139200,
@@ -544,7 +544,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1000)")]
     fn test_distribute_too_soon() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 1713139200,
@@ -634,7 +634,7 @@ mod tests {
     #[test]
     fn test_distribute_gulp_no_overflow() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
             timestamp: 1713139200 + 10_000_000_000,
@@ -826,8 +826,8 @@ mod tests {
                 &e,
                 &to_add,
                 &PoolBalance {
-                    shares: 100_000_0000000,
-                    tokens: 75_000_0000000,
+                    shares: 30_000_0000000,
+                    tokens: 40_000_0000000,
                     q4w: 1_000_0000000,
                 },
             );

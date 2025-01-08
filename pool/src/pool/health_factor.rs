@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn test_calculate_from_positions() {
         let e = Env::default();
-        e.budget().reset_unlimited();
+        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths();
 
         let bombadil = Address::generate(&e);
