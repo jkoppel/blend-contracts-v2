@@ -4,7 +4,6 @@ resolver = "2"
 members = [
     "backstop",
     "blend-contract-sdk",
-    "emitter",
     "pool",
     "mocks/mock-pool-factory",
     "pool-factory",

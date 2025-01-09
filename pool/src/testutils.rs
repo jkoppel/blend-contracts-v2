@@ -6,7 +6,7 @@ use crate::{
     storage::{self, ReserveConfig, ReserveData},
     PoolContract,
 };
-use emitter::{EmitterClient, EmitterContract};
+use blend_contract_sdk::emitter::{Client as EmitterClient, WASM as EmitterWASM};
 use sep_40_oracle::testutils::{MockPriceOracleClient, MockPriceOracleWASM};
 use sep_41_token::testutils::{MockTokenClient, MockTokenWASM};
 use soroban_fixed_point_math::FixedPoint;
@@ -77,7 +77,7 @@ pub(crate) fn create_emitter<'a>(
     backstop_token: &Address,
     blnd_token: &Address,
 ) -> (Address, EmitterClient<'a>) {
-    let contract_address = e.register(EmitterContract {}, ());
+    let contract_address = e.register(EmitterWASM, ());
     let client = EmitterClient::new(e, &contract_address);
     client.initialize(blnd_token, backstop_id, backstop_token);
     (contract_address.clone(), client)

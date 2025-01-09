@@ -15,7 +15,7 @@ use soroban_sdk::{
 
 use sep_41_token::testutils::{MockTokenClient, MockTokenWASM};
 
-use emitter::{EmitterClient, EmitterContract};
+use blend_contract_sdk::emitter::{Client as EmitterClient, WASM as EmitterWASM};
 use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient};
 
 pub(crate) fn create_backstop(e: &Env) -> Address {
@@ -90,7 +90,7 @@ pub(crate) fn create_emitter<'a>(
     blnd_token: &Address,
     emitter_last_distro: u64,
 ) -> (Address, EmitterClient<'a>) {
-    let contract_address = e.register(EmitterContract {}, ());
+    let contract_address = e.register(EmitterWASM, ());
 
     let prev_timestamp = e.ledger().timestamp();
     e.ledger().set(LedgerInfo {

@@ -9,7 +9,7 @@ use crate::pool::POOL_WASM;
 use crate::pool_factory::create_pool_factory;
 use crate::token::{create_stellar_token, create_token};
 use backstop::BackstopClient;
-use emitter::EmitterClient;
+use blend_contract_sdk::emitter::Client as EmitterClient;
 use pool::{PoolClient, PoolConfig, PoolDataKey, ReserveConfig, ReserveData, ReserveEmissionData};
 use pool_factory::{PoolFactoryClient, PoolInitMeta};
 use sep_40_oracle::testutils::{Asset, MockPriceOracleClient};
@@ -88,7 +88,7 @@ impl TestFixture<'_> {
 
         // deploy Blend Protocol contracts
         let (backstop_id, backstop_client) = create_backstop(&e, wasm);
-        let (emitter_id, emitter_client) = create_emitter(&e, wasm);
+        let (emitter_id, emitter_client) = create_emitter(&e);
         let (pool_factory_id, _) = create_pool_factory(&e, wasm);
 
         // deploy external contracts
