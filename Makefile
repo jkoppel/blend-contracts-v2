@@ -10,9 +10,6 @@ build:
 	cargo rustc --manifest-path=pool/Cargo.toml --crate-type=cdylib --target=wasm32-unknown-unknown --release
 	mkdir -p target/wasm32-unknown-unknown/optimized
 	stellar contract optimize \
-		--wasm target/wasm32-unknown-unknown/release/emitter.wasm \
-		--wasm-out target/wasm32-unknown-unknown/optimized/emitter.wasm
-	stellar contract optimize \
 		--wasm target/wasm32-unknown-unknown/release/pool_factory.wasm \
 		--wasm-out target/wasm32-unknown-unknown/optimized/pool_factory.wasm
 	stellar contract optimize \
