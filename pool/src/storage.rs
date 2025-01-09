@@ -96,7 +96,6 @@ pub struct UserEmissionData {
 
 /********** Storage Key Types **********/
 
-const IS_INIT_KEY: &str = "IsInit";
 const ADMIN_KEY: &str = "Admin";
 const NAME_KEY: &str = "Name";
 const BACKSTOP_KEY: &str = "Backstop";
@@ -167,20 +166,6 @@ fn get_persistent_default<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>, F: FnOn
     } else {
         default()
     }
-}
-
-/********** Init **********/
-
-/// Check if the contract has been initialized
-pub fn get_is_init(e: &Env) -> bool {
-    e.storage().instance().has(&Symbol::new(e, IS_INIT_KEY))
-}
-
-/// Set the contract as initialized
-pub fn set_is_init(e: &Env) {
-    e.storage()
-        .instance()
-        .set::<Symbol, bool>(&Symbol::new(e, IS_INIT_KEY), &true);
 }
 
 /********** User **********/

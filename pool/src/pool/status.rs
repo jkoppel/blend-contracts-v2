@@ -151,10 +151,7 @@ pub fn calc_pool_backstop_threshold(pool_backstop_data: &PoolBackstopData) -> i1
 mod tests {
     use crate::{
         storage::PoolConfig,
-        testutils::{
-            create_backstop, create_comet_lp_pool, create_pool, create_token_contract,
-            setup_backstop,
-        },
+        testutils::{create_backstop, create_comet_lp_pool, create_pool, create_token_contract},
     };
 
     use super::*;
@@ -174,8 +171,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -222,8 +218,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens - under limit
         blnd_client.mint(&samwise, &400_001_0000000);
@@ -267,8 +262,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -311,8 +305,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -359,8 +352,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -404,8 +396,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -448,8 +439,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -471,10 +461,14 @@ mod tests {
             max_positions: 4,
         };
         e.as_contract(&pool_id, || {
+            std::println!("1");
             storage::set_admin(&e, &bombadil);
+            std::println!("2");
             storage::set_pool_config(&e, &pool_config);
+            std::println!("3");
 
             execute_set_pool_status(&e, 4);
+            std::println!("4");
 
             let new_pool_config = storage::get_pool_config(&e);
             assert_eq!(new_pool_config.status, 4);
@@ -495,8 +489,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -539,8 +532,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -587,8 +579,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -635,8 +626,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens - under limit
         blnd_client.mint(&samwise, &400_001_0000000);
@@ -683,8 +673,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -732,8 +721,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -781,8 +769,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -830,8 +817,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -878,8 +864,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -927,8 +912,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -977,8 +961,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -1022,8 +1005,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);
@@ -1067,8 +1049,7 @@ mod tests {
         let (blnd, blnd_client) = create_token_contract(&e, &bombadil);
         let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
         let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
-        let (backstop_id, backstop_client) = create_backstop(&e);
-        setup_backstop(&e, &pool_id, &backstop_id, &lp_token, &usdc, &blnd);
+        let (_, backstop_client) = create_backstop(&e, &pool_id, &lp_token, &usdc, &blnd);
 
         // mint lp tokens
         blnd_client.mint(&samwise, &500_001_0000000);

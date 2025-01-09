@@ -22,16 +22,7 @@ fn test_backstop() {
     let bstop_token = &fixture.lp;
     let sam = Address::generate(&fixture.env);
 
-    // Verify initialization can't be re-run
-    let result = fixture.backstop.try_initialize(
-        &Address::generate(&fixture.env),
-        &Address::generate(&fixture.env),
-        &Address::generate(&fixture.env),
-        &Address::generate(&fixture.env),
-        &Address::generate(&fixture.env),
-        &vec![&fixture.env],
-    );
-    assert!(result.is_err());
+    // Verify constructor set the backstop token
     assert_eq!(
         fixture.backstop.backstop_token(),
         bstop_token.address.clone()

@@ -52,7 +52,6 @@ pub struct UserEmissionData {
 
 /********** Storage Key Types **********/
 
-const IS_INIT_KEY: &str = "IsInit";
 const EMITTER_KEY: &str = "Emitter";
 const BACKSTOP_TOKEN_KEY: &str = "BToken";
 const POOL_FACTORY_KEY: &str = "PoolFact";
@@ -112,18 +111,6 @@ fn get_persistent_default<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>, F: FnOn
 }
 
 /********** Instance Storage **********/
-
-/// Check if the contract has been initialized
-pub fn get_is_init(e: &Env) -> bool {
-    e.storage().instance().has(&Symbol::new(e, IS_INIT_KEY))
-}
-
-/// Set the contract as initialized
-pub fn set_is_init(e: &Env) {
-    e.storage()
-        .instance()
-        .set::<Symbol, bool>(&Symbol::new(e, IS_INIT_KEY), &true);
-}
 
 /// Fetch the pool factory id
 pub fn get_emitter(e: &Env) -> Address {
@@ -471,7 +458,7 @@ pub fn set_user_emis_data(
 /// Get the current pool addresses that are in the drop list and the amount of the initial distribution they receive
 pub fn get_drop_list(e: &Env) -> Vec<(Address, i128)> {
     e.storage()
-        .temporary()
+        .persistent()
         .get::<Symbol, Vec<(Address, i128)>>(&Symbol::new(&e, DROP_LIST_KEY))
         .unwrap_optimized()
 }
@@ -482,9 +469,9 @@ pub fn get_drop_list(e: &Env) -> Vec<(Address, i128)> {
 /// * `drop_list` - The map of pool addresses to the amount of the initial distribution they receive
 pub fn set_drop_list(e: &Env, drop_list: &Vec<(Address, i128)>) {
     e.storage()
-        .temporary()
+        .persistent()
         .set::<Symbol, Vec<(Address, i128)>>(&Symbol::new(&e, DROP_LIST_KEY), drop_list);
-    e.storage().temporary().extend_ttl(
+    e.storage().persistent().extend_ttl(
         &Symbol::new(&e, DROP_LIST_KEY),
         LEDGER_THRESHOLD_USER,
         LEDGER_BUMP_USER,

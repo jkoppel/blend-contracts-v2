@@ -101,16 +101,24 @@ fn remove_pool(e: &Env, reward_zone: &mut Vec<Address>, to_remove: &Address) {
 }
 
 pub fn distribute(e: &Env) -> i128 {
+    let emitter = storage::get_emitter(e);
+    let emitter_last_distribution =
+        EmitterClient::new(&e, &emitter).get_last_distro(&e.current_contract_address());
+    let last_distribution = storage::get_last_distribution_time(e);
+
+    // if we have never distributed before, record the emitter's last distribution time and
+    // start emissions from that time
+    if last_distribution == 0 {
+        storage::set_last_distribution_time(e, &emitter_last_distribution);
+        return 0;
+    }
+
     let reward_zone = storage::get_reward_zone(e);
     let rz_len = reward_zone.len();
     // reward zone must have at least one pool for emissions to start
     if rz_len == 0 {
         panic_with_error!(e, BackstopError::BadRequest);
     }
-    let emitter = storage::get_emitter(e);
-    let emitter_last_distribution =
-        EmitterClient::new(&e, &emitter).get_last_distro(&e.current_contract_address());
-    let last_distribution = storage::get_last_distribution_time(e);
 
     // ensure enough time has passed between the last emitter distribution and gulp_emissions
     // to prevent excess rounding issues
@@ -489,6 +497,8 @@ mod tests {
 
             let gulp_index = storage::get_rz_emission_index(&e);
             assert_eq!(gulp_index, 8640000000000);
+            let last_distro_time = storage::get_last_distribution_time(&e);
+            assert_eq!(last_distro_time, emitter_distro_time);
         });
     }
 
@@ -713,6 +723,75 @@ mod tests {
         e.as_contract(&backstop, || {
             let gulp_index = storage::get_rz_emission_index(&e);
             assert_eq!(gulp_index, 101000000000000000000000000);
+        });
+    }
+
+    #[test]
+    fn test_distribute_no_last_dist_time() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 1713139200,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let backstop = create_backstop(&e);
+        let emitter_distro_time = 1713139200 - 10;
+        create_emitter(
+            &e,
+            &backstop,
+            &Address::generate(&e),
+            &Address::generate(&e),
+            emitter_distro_time,
+        );
+
+        let pool_1 = Address::generate(&e);
+        let pool_2 = Address::generate(&e);
+        let pool_3 = Address::generate(&e);
+        let reward_zone: Vec<Address> = vec![&e, pool_1.clone(), pool_2.clone(), pool_3.clone()];
+
+        e.as_contract(&backstop, || {
+            storage::set_reward_zone(&e, &reward_zone);
+            storage::set_pool_balance(
+                &e,
+                &pool_1,
+                &PoolBalance {
+                    tokens: 300_000_0000000,
+                    shares: 200_000_0000000,
+                    q4w: 0,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool_2,
+                &PoolBalance {
+                    tokens: 200_000_0000000,
+                    shares: 150_000_0000000,
+                    q4w: 0,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool_3,
+                &PoolBalance {
+                    tokens: 500_000_0000000,
+                    shares: 600_000_0000000,
+                    q4w: 0,
+                },
+            );
+
+            let new_emissions = distribute(&e);
+
+            assert_eq!(new_emissions, 0);
+            let last_distro_time = storage::get_last_distribution_time(&e);
+            assert_eq!(last_distro_time, emitter_distro_time);
         });
     }
 
