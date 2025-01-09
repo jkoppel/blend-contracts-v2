@@ -5,7 +5,8 @@ use soroban_sdk::{contracttype, panic_with_error, unwrap::UnwrapOptimized, Addre
 use crate::{
     constants::{SCALAR_7, SCALAR_9},
     errors::PoolError,
-    storage::{self, PoolConfig, ReserveData},
+    pool::actions::RequestType,
+    storage::{self, PoolConfig, ReserveData, ReserveFlags},
 };
 
 use super::interest::calc_accrual;
@@ -27,6 +28,7 @@ pub struct Reserve {
     pub d_supply: i128,        // the total supply of d tokens
     pub backstop_credit: i128, // the total amount of underlying tokens owed to the backstop
     pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
+    pub status: u32,          // the status of this reserve
 }
 
 impl Reserve {
@@ -59,6 +61,7 @@ impl Reserve {
             d_supply: reserve_data.d_supply,
             backstop_credit: reserve_data.backstop_credit,
             collateral_cap: reserve_config.collateral_cap,
+            status: reserve_config.flags,
         };
 
         // short circuit if the reserve has already been updated this ledger
@@ -139,6 +142,22 @@ impl Reserve {
     pub fn require_utilization_below_max(&self, e: &Env) {
         if self.utilization() > i128(self.max_util) {
             panic_with_error!(e, PoolError::InvalidUtilRate)
+        }
+    }
+
+    /// Check the action is allowed according to the reserve status, or panic.
+    ///
+    /// ### Arguments
+    /// * `action_type` - The type of action being performed
+    pub fn require_action_allowed(&self, e: &Env, action_type: u32) {
+        // disable borrowing or auction cancellation for any non-active pool and disable supplying for any frozen pool
+        if self.status != ReserveFlags::Enabled as u32 {
+            if action_type != RequestType::Withdraw as u32
+                && action_type != RequestType::WithdrawCollateral as u32
+                && action_type != RequestType::Repay as u32
+            {
+                panic_with_error!(e, PoolError::InvalidReserveStatus);
+            }
         }
     }
 
@@ -672,5 +691,39 @@ mod tests {
         let result = reserve.to_b_token_down(1_4850243);
 
         assert_eq!(result, 1_1234566);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_require_action_allowed_panics_if_supply_disabled_asset() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.status = ReserveFlags::Disabled as u32;
+
+        reserve.require_action_allowed(&e, RequestType::SupplyCollateral as u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_require_action_allowed_panics_if_borrow_disabled_asset() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.status = ReserveFlags::Disabled as u32;
+
+        reserve.require_action_allowed(&e, RequestType::Borrow as u32);
+    }
+
+    #[test]
+    fn test_require_action_allowed_passed_if_withdraw_or_repay() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.status = ReserveFlags::Disabled as u32;
+
+        reserve.require_action_allowed(&e, RequestType::Withdraw as u32);
+        reserve.require_action_allowed(&e, RequestType::WithdrawCollateral as u32);
+        reserve.require_action_allowed(&e, RequestType::Repay as u32);
     }
 }

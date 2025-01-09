@@ -3,7 +3,7 @@
 use crate::{
     constants::{SCALAR_7, SCALAR_9},
     pool::Reserve,
-    storage::{self, ReserveConfig, ReserveData},
+    storage::{self, ReserveConfig, ReserveData, ReserveFlags},
     PoolContract,
 };
 use emitter::{EmitterClient, EmitterContract};
@@ -177,6 +177,7 @@ pub(crate) fn default_reserve(e: &Env) -> Reserve {
         d_supply: 75_0000000,
         backstop_credit: 0,
         collateral_cap: 1000000000000000000,
+        status: ReserveFlags::Enabled as u32,
     }
 }
 
@@ -195,6 +196,7 @@ pub(crate) fn default_reserve_meta() -> (ReserveConfig, ReserveData) {
             reactivity: 0_0000020, // 2e-6
             index: 0,
             collateral_cap: 1000000000000000000,
+            flags: ReserveFlags::Enabled as u32,
         },
         ReserveData {
             b_rate: 1_000_000_000,
@@ -227,6 +229,13 @@ pub(crate) fn create_reserve(
         new_reserve_config.index = index;
         storage::set_res_config(e, &token_address, &new_reserve_config);
         storage::set_res_data(e, &token_address, &reserve_data);
+        let mut status_summary = storage::get_res_flags_summary(e);
+        if reserve_config.flags == ReserveFlags::Enabled as u32 {
+            status_summary.remove(token_address.clone());
+        } else {
+            status_summary.set(token_address.clone(), reserve_config.flags);
+        }
+        storage::set_res_flags_summary(e, &status_summary);
     });
     let underlying_client = MockTokenClient::new(e, token_address);
 

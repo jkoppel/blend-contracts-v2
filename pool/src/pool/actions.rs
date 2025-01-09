@@ -119,6 +119,7 @@ pub fn build_actions_from_request(
         match RequestType::from_u32(e, request.request_type) {
             RequestType::Supply => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
+                reserve.require_action_allowed(e, request.request_type);
                 let b_tokens_minted = reserve.to_b_token_down(request.amount);
                 from_state.add_supply(e, &mut reserve, b_tokens_minted);
                 actions.add_for_spender_transfer(&reserve.asset, request.amount);
@@ -133,6 +134,7 @@ pub fn build_actions_from_request(
             }
             RequestType::Withdraw => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
+                reserve.require_action_allowed(e, request.request_type);
                 let cur_b_tokens = from_state.get_supply(reserve.index);
                 let mut to_burn = reserve.to_b_token_up(request.amount);
                 let mut tokens_out = request.amount;
@@ -153,6 +155,7 @@ pub fn build_actions_from_request(
             }
             RequestType::SupplyCollateral => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
+                reserve.require_action_allowed(e, request.request_type);
                 let b_tokens_minted = reserve.to_b_token_down(request.amount);
                 from_state.add_collateral(e, &mut reserve, b_tokens_minted);
                 actions.add_for_spender_transfer(&reserve.asset, request.amount);
@@ -170,6 +173,7 @@ pub fn build_actions_from_request(
             }
             RequestType::WithdrawCollateral => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
+                reserve.require_action_allowed(e, request.request_type);
                 let cur_b_tokens = from_state.get_collateral(reserve.index);
                 let mut to_burn = reserve.to_b_token_up(request.amount);
                 let mut tokens_out = request.amount;
@@ -191,6 +195,7 @@ pub fn build_actions_from_request(
             }
             RequestType::Borrow => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
+                reserve.require_action_allowed(e, request.request_type);
                 let d_tokens_minted = reserve.to_d_token_up(request.amount);
                 from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
                 reserve.require_utilization_below_max(e);
@@ -207,6 +212,7 @@ pub fn build_actions_from_request(
             }
             RequestType::Repay => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
+                reserve.require_action_allowed(e, request.request_type);
                 let cur_d_tokens = from_state.get_liabilities(reserve.index);
                 let d_tokens_burnt = reserve.to_d_token_down(request.amount);
                 if d_tokens_burnt > cur_d_tokens {
@@ -316,7 +322,7 @@ mod tests {
 
     use crate::{
         constants::SCALAR_7,
-        storage::{self, PoolConfig},
+        storage::{self, PoolConfig, ReserveFlags},
         testutils::{self, create_comet_lp_pool, create_pool},
         AuctionData, AuctionType, Positions,
     };
@@ -1713,6 +1719,84 @@ mod tests {
                 request_type: RequestType::SupplyCollateral as u32,
                 address: underlying.clone(),
                 amount: 20_0000000, // Try to supply more than cap
+            },
+        ];
+
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            let mut pool = Pool::load(&e);
+
+            build_actions_from_request(&e, &mut pool, &samwise, requests);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_build_actions_panic_borrow_disabled_asset() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config, reserve_data) = testutils::default_reserve_meta();
+        reserve_config.flags = ReserveFlags::Disabled as u32;
+        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
+
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 1,
+        };
+
+        let requests = vec![
+            &e,
+            Request {
+                request_type: RequestType::Borrow as u32,
+                address: underlying.clone(),
+                amount: 20_0000000,
+            },
+        ];
+
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            let mut pool = Pool::load(&e);
+
+            build_actions_from_request(&e, &mut pool, &samwise, requests);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_build_actions_panic_supply_disabled_asset() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config, reserve_data) = testutils::default_reserve_meta();
+        reserve_config.flags = ReserveFlags::Disabled as u32;
+        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
+
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 1,
+        };
+
+        let requests = vec![
+            &e,
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: underlying.clone(),
+                amount: 20_0000000,
             },
         ];
 

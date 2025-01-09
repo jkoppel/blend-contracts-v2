@@ -38,6 +38,15 @@ pub struct PoolEmissionConfig {
     pub last_time: u64,
 }
 
+#[derive(Clone)]
+#[contracttype]
+#[repr(u32)]
+pub enum ReserveFlags {
+    Enabled,  // 0
+    Disabled, // 1
+    Num,
+}
+
 /// The configuration information about a reserve asset
 #[derive(Clone)]
 #[contracttype]
@@ -54,6 +63,7 @@ pub struct ReserveConfig {
     pub r_three: u32, // the R3 value in the interest rate formula scaled expressed in 7 decimals
     pub reactivity: u32, // the reactivity constant for the reserve scaled expressed in 7 decimals
     pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
+    pub flags: u32,           // the flag of the reserve
 }
 
 #[derive(Clone)]
@@ -104,6 +114,7 @@ const BLND_TOKEN_KEY: &str = "BLNDTkn";
 const POOL_CONFIG_KEY: &str = "Config";
 const RES_LIST_KEY: &str = "ResList";
 const POOL_EMIS_KEY: &str = "PoolEmis";
+const RES_FLAGS_SUMMARY: &str = "ResFlagsSummary";
 
 #[derive(Clone)]
 #[contracttype]
@@ -409,6 +420,32 @@ pub fn set_queued_reserve_set(e: &Env, res_init: &QueuedReserveInit, asset: &Add
 pub fn del_queued_reserve_set(e: &Env, asset: &Address) {
     let key = PoolDataKey::ResInit(asset.clone());
     e.storage().temporary().remove(&key);
+}
+
+/// Fetch the reserve flags summary
+pub fn get_res_flags_summary(e: &Env) -> Map<Address, u32> {
+    get_persistent_default(
+        e,
+        &Symbol::new(e, RES_FLAGS_SUMMARY),
+        || map![e],
+        LEDGER_THRESHOLD_SHARED,
+        LEDGER_BUMP_SHARED,
+    )
+}
+
+/// Set the reserve flags summary
+///
+/// ### Arguments
+/// * `summary` - The map of reserve's status summary by reserve address to a status u32
+pub fn set_res_flags_summary(e: &Env, summary: &Map<Address, u32>) {
+    e.storage()
+        .persistent()
+        .set::<Symbol, Map<Address, u32>>(&Symbol::new(e, RES_FLAGS_SUMMARY), summary);
+    e.storage().persistent().extend_ttl(
+        &Symbol::new(e, RES_FLAGS_SUMMARY),
+        LEDGER_THRESHOLD_SHARED,
+        LEDGER_BUMP_SHARED,
+    );
 }
 
 /********** Reserve Data (ResData) **********/
