@@ -77,18 +77,37 @@ fn do_gulp_emissions(e: &Env, new_emissions: i128) {
     let reserve_list = storage::get_res_list(e);
 
     let mut total_share: u64 = 0;
-    for (_res_token_id, res_eps_share) in pool_emissions.iter() {
-        total_share += res_eps_share;
-    }
+    let mut process_list: Vec<(u32, i128)> = Vec::new(e);
     for (res_token_id, res_eps_share) in pool_emissions.iter() {
-        let reserve_index = res_token_id / 2;
-        let res_asset_address = reserve_list.get_unchecked(reserve_index);
-        let new_reserve_emissions = i128(res_eps_share)
-            .fixed_div_floor(total_share.into(), SCALAR_7)
-            .unwrap_optimized()
-            .fixed_mul_floor(new_emissions, SCALAR_7)
-            .unwrap_optimized();
-        update_reserve_emission_eps(e, &res_asset_address, res_token_id, new_reserve_emissions);
+        total_share += res_eps_share;
+        process_list.push_back((res_token_id, i128(res_eps_share)));
+    }
+    if process_list.len() > 0 {
+        let mut distributes_emissions: i128 = 0;
+        for i in 0..process_list.len() {
+            let (res_token_id, res_eps_share) = process_list.get_unchecked(i);
+            let new_reserve_emissions = res_eps_share
+                .fixed_div_floor(total_share.into(), SCALAR_7)
+                .unwrap_optimized()
+                .fixed_mul_floor(new_emissions, SCALAR_7)
+                .unwrap_optimized();
+
+            process_list.set(i, (res_token_id, new_reserve_emissions));
+            distributes_emissions += new_reserve_emissions;
+        }
+
+        let remaining_emissions = new_emissions - distributes_emissions;
+        if remaining_emissions > 0 {
+            let index = (remaining_emissions as u32) % process_list.len();
+            let (res_token_id, new_reserve_emissions) = process_list.get_unchecked(index);
+            process_list.set(index, (res_token_id, new_reserve_emissions + remaining_emissions));
+        }
+
+        for (res_token_id, new_reserve_emissions) in process_list {
+            let reserve_index = res_token_id / 2;
+            let res_asset_address = reserve_list.get_unchecked(reserve_index);
+            update_reserve_emission_eps(e, &res_asset_address, res_token_id, new_reserve_emissions);
+        }
     }
 }
 
@@ -290,6 +309,184 @@ mod tests {
             let r_1_s_data = storage::get_res_emis_data(&e, &3).unwrap_optimized();
             assert_eq!(r_1_s_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
             assert_eq!(r_1_s_config.eps, 0_12500000000000);
+            assert_eq!(r_1_s_data.index, 111110000000);
+            assert_eq!(r_1_s_data.last_time, 1500000000);
+        });
+    }
+
+    #[test]
+    fn test_gulp_emissions_in_diffrent_weignt_01() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.ledger().set(LedgerInfo {
+            timestamp: 1500000000,
+            protocol_version: 22,
+            sequence_number: 20100,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let pool = testutils::create_pool(&e);
+        let bombadil = Address::generate(&e);
+
+        let new_emissions: i128 = 302_400_0000000;
+        let pool_emissions01: Map<u32, u64> = map![
+            &e,
+            (0, 0_1000000), // reserve_0 liability
+            (2, 0_2750000), // reserve_1 liability
+            (3, 0_1250000)  // reserve_1 supply
+        ];
+
+        let (reserve_config, mut reserve_data) = testutils::default_reserve_meta();
+        reserve_data.last_time = 1499900000;
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+        let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(&e, &pool, &underlying_2, &reserve_config, &reserve_data);
+
+        // setup reserve_0 liability to have emissions remaining
+        let old_r_0_l_data = ReserveEmissionData {
+            eps: 0_15000000000000,
+            expiration: 1500000200,
+            index: 999990000000,
+            last_time: 1499980000,
+        };
+
+        // setup reserve_1 liability to have no emissions
+
+        // steup reserve_1 supply to have emissions expired
+        let old_r_1_s_data = ReserveEmissionData {
+            eps: 0_35000000000000,
+            expiration: 1499990000,
+            index: 111110000000,
+            last_time: 1499990000,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_emissions(&e, &pool_emissions01);
+            storage::set_res_emis_data(&e, &0, &old_r_0_l_data);
+            storage::set_res_emis_data(&e, &3, &old_r_1_s_data);
+
+            do_gulp_emissions(&e, new_emissions);
+
+            assert!(storage::get_res_emis_data(&e, &1).is_none());
+            assert!(storage::get_res_emis_data(&e, &4).is_none());
+            assert!(storage::get_res_emis_data(&e, &5).is_none());
+
+            // verify reserve_0 liability leftover emissions were carried over
+            let r_0_l_config = storage::get_res_emis_data(&e, &0).unwrap_optimized();
+            let r_0_l_data = storage::get_res_emis_data(&e, &0).unwrap_optimized();
+            assert_eq!(r_0_l_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_0_l_config.eps, 0_10004960317460);
+            assert_eq!(r_0_l_data.index, (99999 + 40 * SCALAR_7) * SCALAR_7);
+            assert_eq!(r_0_l_data.last_time, 1500000000);
+
+            // verify reserve_1 liability initialized emissions
+            let r_1_l_config = storage::get_res_emis_data(&e, &2).unwrap_optimized();
+            let r_1_l_data = storage::get_res_emis_data(&e, &2).unwrap_optimized();
+            assert_eq!(r_1_l_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_1_l_config.eps, 0_27500000000000);
+            assert_eq!(r_1_l_data.index, 0);
+            assert_eq!(r_1_l_data.last_time, 1500000000);
+
+            // verify reserve_1 supply updated reserve data to the correct timestamp
+            let r_1_s_config = storage::get_res_emis_data(&e, &3).unwrap_optimized();
+            let r_1_s_data = storage::get_res_emis_data(&e, &3).unwrap_optimized();
+            assert_eq!(r_1_s_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_1_s_config.eps, 0_12500000000000);
+            assert_eq!(r_1_s_data.index, 111110000000);
+            assert_eq!(r_1_s_data.last_time, 1500000000);
+        });
+    }
+
+    #[test]
+    fn test_gulp_emissions_in_round_down() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.ledger().set(LedgerInfo {
+            timestamp: 1500000000,
+            protocol_version: 22,
+            sequence_number: 20100,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let pool = testutils::create_pool(&e);
+        let bombadil = Address::generate(&e);
+
+        let new_emissions: i128 = 302_400_0000003;
+        let pool_emissions02: Map<u32, u64> = map![
+            &e,
+            (0, 0_3000000), // reserve_0 liability
+            (2, 0_8250000), // reserve_1 liability
+            (3, 0_3750000)  // reserve_1 supply
+        ];
+
+        let (reserve_config, mut reserve_data) = testutils::default_reserve_meta();
+        reserve_data.last_time = 1499900000;
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+        let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(&e, &pool, &underlying_2, &reserve_config, &reserve_data);
+
+        // setup reserve_0 liability to have emissions remaining
+        let old_r_0_l_data = ReserveEmissionData {
+            eps: 0_15000000000000,
+            expiration: 1500000200,
+            index: 999990000000,
+            last_time: 1499980000,
+        };
+
+        // setup reserve_1 liability to have no emissions
+
+        // steup reserve_1 supply to have emissions expired
+        let old_r_1_s_data = ReserveEmissionData {
+            eps: 0_35000000000000,
+            expiration: 1499990000,
+            index: 111110000000,
+            last_time: 1499990000,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_emissions(&e, &pool_emissions02);
+            storage::set_res_emis_data(&e, &0, &old_r_0_l_data);
+            storage::set_res_emis_data(&e, &3, &old_r_1_s_data);
+
+            do_gulp_emissions(&e, new_emissions);
+
+            assert!(storage::get_res_emis_data(&e, &1).is_none());
+            assert!(storage::get_res_emis_data(&e, &4).is_none());
+            assert!(storage::get_res_emis_data(&e, &5).is_none());
+
+            // verify reserve_0 liability leftover emissions were carried over
+            let r_0_l_config = storage::get_res_emis_data(&e, &0).unwrap_optimized();
+            let r_0_l_data = storage::get_res_emis_data(&e, &0).unwrap_optimized();
+            assert_eq!(r_0_l_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_0_l_config.eps, 0_10004960317460);
+            assert_eq!(r_0_l_data.index, (99999 + 40 * SCALAR_7) * SCALAR_7);
+            assert_eq!(r_0_l_data.last_time, 1500000000);
+
+            // verify reserve_1 liability initialized emissions
+            let r_1_l_config = storage::get_res_emis_data(&e, &2).unwrap_optimized();
+            let r_1_l_data = storage::get_res_emis_data(&e, &2).unwrap_optimized();
+            assert_eq!(r_1_l_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_1_l_config.eps, 0_27500000000016);
+            assert_eq!(r_1_l_data.index, 0);
+            assert_eq!(r_1_l_data.last_time, 1500000000);
+
+            // verify reserve_1 supply updated reserve data to the correct timestamp
+            let r_1_s_config = storage::get_res_emis_data(&e, &3).unwrap_optimized();
+            let r_1_s_data = storage::get_res_emis_data(&e, &3).unwrap_optimized();
+            assert_eq!(r_1_s_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_1_s_config.eps, 0_12500000000033);
             assert_eq!(r_1_s_data.index, 111110000000);
             assert_eq!(r_1_s_data.last_time, 1500000000);
         });
