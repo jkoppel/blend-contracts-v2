@@ -2,7 +2,7 @@ use crate::{
     auctions::{self, AuctionData},
     emissions::{self, ReserveEmissionMetadata},
     events::PoolEvents,
-    pool::{self, Positions, Request, Reserve},
+    pool::{self, FlashLoan, Positions, Request, Reserve},
     storage::{self, ReserveConfig},
     PoolConfig, ReserveEmissionData, UserEmissionData,
 };
@@ -126,6 +126,26 @@ pub trait Pool {
         from: Address,
         spender: Address,
         to: Address,
+        requests: Vec<Request>,
+    ) -> Positions;
+
+    /// Submit a set of requests to the pool where 'from' takes on the position, 'sender' sends any
+    /// required tokens to the pool and 'to' receives any tokens sent from the pool
+    ///
+    /// Returns the new positions for 'from'
+    ///
+    /// ### Arguments
+    /// * `from` - The address of the user whose positions are being modified
+    /// * `spender` - The address of the user who is sending tokens to the pool
+    /// * `to` - The address of the user who is receiving tokens from the pool
+    /// * `requests` - A vec of requests to be processed
+    ///
+    /// ### Panics
+    /// If the request is not able to be completed for cases like insufficient funds or invalid health factor
+    fn flash_loan(
+        e: Env,
+        from: Address,
+        flash_loan: FlashLoan,
         requests: Vec<Request>,
     ) -> Positions;
 
@@ -379,6 +399,18 @@ impl Pool for PoolContract {
         }
 
         pool::execute_submit(&e, &from, &spender, &to, requests, false)
+    }
+
+    fn flash_loan(
+        e: Env,
+        from: Address,
+        flash_loan: FlashLoan,
+        requests: Vec<Request>,
+    ) -> Positions {
+        storage::extend_instance(&e);
+        from.require_auth();
+        
+        pool::execute_submit_with_flash_loan(&e, &from, flash_loan, requests, false)
     }
 
     fn submit_with_allowance(

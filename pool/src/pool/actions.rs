@@ -54,6 +54,13 @@ impl RequestType {
     }
 }
 
+#[contracttype]
+pub struct FlashLoan {
+    pub contract: Address,
+    pub asset: Address,
+    pub amount: i128
+}
+
 /// Transfer actions to be taken by the sender and pool
 pub struct Actions {
     pub spender_transfer: Map<Address, i128>,
