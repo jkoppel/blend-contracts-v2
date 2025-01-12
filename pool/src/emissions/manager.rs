@@ -73,15 +73,15 @@ fn do_gulp_emissions(e: &Env, new_emissions: i128) {
     let pool_emissions = storage::get_pool_emissions(e);
     let reserve_list = storage::get_res_list(e);
 
-    let mut total_share: u64 = 0;
+    let mut total_share: i128 = 0;
     for (_res_token_id, res_eps_share) in pool_emissions.iter() {
-        total_share += res_eps_share;
+        total_share += i128(res_eps_share);
     }
     for (res_token_id, res_eps_share) in pool_emissions.iter() {
         let reserve_index = res_token_id / 2;
         let res_asset_address = reserve_list.get_unchecked(reserve_index);
         let new_reserve_emissions = i128(res_eps_share)
-            .fixed_div_floor(total_share.into(), SCALAR_7)
+            .fixed_div_floor(total_share, SCALAR_7)
             .unwrap_optimized()
             .fixed_mul_floor(new_emissions, SCALAR_7)
             .unwrap_optimized();
