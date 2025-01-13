@@ -1241,11 +1241,9 @@ mod tests {
         e.cost_estimate().budget().reset_unlimited();
         let (backstop_token_id, backstop_token_client) =
             testutils::create_token_contract(&e, &bombadil);
-        let (backstop_address, backstop_client) = testutils::create_backstop(&e);
-        testutils::setup_backstop(
+        let (backstop_address, backstop_client) = testutils::create_backstop(
             &e,
             &pool_address,
-            &backstop_address,
             &backstop_token_id,
             &Address::generate(&e),
             &Address::generate(&e),
@@ -1361,7 +1359,8 @@ mod tests {
 
         let (backstop_token_id, backstop_token_client) =
             create_comet_lp_pool(&e, &bombadil, &blnd_id, &usdc_id);
-        let (backstop_address, backstop_client) = testutils::create_backstop(&e);
+        let (backstop_address, backstop_client) =
+            testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         blnd_client.mint(&samwise, &10_000_0000000);
         usdc_client.mint(&samwise, &250_0000000);
         let exp_ledger = e.ledger().sequence() + 100;
@@ -1371,14 +1370,6 @@ mod tests {
             &(100 * SCALAR_7),
             &vec![&e, 10_000_0000000, 250_0000000],
             &samwise,
-        );
-        testutils::setup_backstop(
-            &e,
-            &pool_address,
-            &backstop_address,
-            &backstop_token_id,
-            &usdc_id,
-            &blnd_id,
         );
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
         backstop_client.update_tkn_val();

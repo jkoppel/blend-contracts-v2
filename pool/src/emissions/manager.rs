@@ -359,6 +359,7 @@ mod tests {
     #[test]
     fn test_set_pool_emissions() {
         let e = Env::default();
+        e.mock_all_auths();
         e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
@@ -416,6 +417,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_set_pool_emissions_panics_if_anyone_share_equal_0() {
         let e = Env::default();
+        e.mock_all_auths();
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
             protocol_version: 22,
@@ -470,6 +472,7 @@ mod tests {
     #[test]
     fn test_set_pool_emissions_ok_if_under_100() {
         let e = Env::default();
+        e.mock_all_auths();
         e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
