@@ -82,8 +82,11 @@ pub fn execute_submit_with_flash_loan(
         build_actions_from_request(e, &mut pool, from, requests);
 
     // similarly to usual borrows, we want the flash loan to be debited before
-    // checking the health factor. TODO: We should decide whether the execution ordering
-    // matters here (I'm pretty sure it doesn't but haven't looked much into it).
+    // checking the health factor.
+    
+    // Warning: at this point user state is not written yet before invoking the 
+    // flash loan contract, so was this function ever reentrant this code would become
+    // unsafe.
     {
         let mut reserve = pool.load_reserve(e, &flash_loan.asset, true);
         let d_tokens_minted = reserve.to_d_token_up(flash_loan.amount);

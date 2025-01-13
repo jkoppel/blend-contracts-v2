@@ -410,7 +410,7 @@ impl Pool for PoolContract {
         storage::extend_instance(&e);
         from.require_auth();
         
-        pool::execute_submit_with_flash_loan(&e, &from, flash_loan, requests, false)
+        pool::execute_submit_with_flash_loan(&e, &from, flash_loan, requests, true)
     }
 
     fn submit_with_allowance(
