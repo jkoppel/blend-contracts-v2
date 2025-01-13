@@ -87,28 +87,13 @@ impl Reserve {
         );
         reserve.ir_mod = new_ir_mod;
 
-        let pre_update_supply = reserve.total_supply();
         let pre_update_liabilities = reserve.total_liabilities();
-
         reserve.d_rate = loan_accrual
             .fixed_mul_ceil(reserve.d_rate, SCALAR_9)
             .unwrap_optimized();
-
         let accrued_interest = reserve.total_liabilities() - pre_update_liabilities;
-        if accrued_interest > 0 {
-            // credit the backstop underlying from the accrued interest based on the backstop rate
-            // update the accrued interest to reflect the amount the pool accrued
-            let mut new_backstop_credit: i128 = 0;
-            if pool_config.bstop_rate > 0 {
-                new_backstop_credit = accrued_interest
-                    .fixed_mul_floor(i128(pool_config.bstop_rate), SCALAR_7)
-                    .unwrap_optimized();
-                reserve.backstop_credit += new_backstop_credit;
-            }
-            reserve.b_rate = (pre_update_supply + accrued_interest - new_backstop_credit)
-                .fixed_div_floor(reserve.b_supply, SCALAR_9)
-                .unwrap_optimized();
-        }
+
+        reserve.gulp(pool_config, accrued_interest);
 
         reserve.last_time = e.ledger().timestamp();
         reserve
@@ -126,6 +111,26 @@ impl Reserve {
             last_time: self.last_time,
         };
         storage::set_res_data(e, &self.asset, &reserve_data);
+    }
+
+    /// Update the reserve's b_rate and the pool's backstop rate based on the difference in the pools token balance and the reserves stored balance.
+    pub fn gulp(&mut self, pool_config: &PoolConfig, delta_balance: i128) {
+        let pre_update_supply = self.total_supply();
+
+        if delta_balance > 0 {
+            // credit the backstop underlying from the accrued interest based on the backstop rate
+            // update the accrued interest to reflect the amount the pool accrued
+            let mut new_backstop_credit: i128 = 0;
+            if pool_config.bstop_rate > 0 {
+                new_backstop_credit = (delta_balance)
+                    .fixed_mul_floor(i128(pool_config.bstop_rate), SCALAR_7)
+                    .unwrap_optimized();
+                self.backstop_credit += new_backstop_credit;
+            }
+            self.b_rate = (pre_update_supply + delta_balance - new_backstop_credit)
+                .fixed_div_floor(self.b_supply, SCALAR_9)
+                .unwrap_optimized();
+        }
     }
 
     /// Fetch the current utilization rate for the reserve normalized to 7 decimals
@@ -244,7 +249,6 @@ mod tests {
     use super::*;
     use crate::testutils;
     use soroban_sdk::testutils::{Address as _, Ledger, LedgerInfo};
-
     #[test]
     fn test_load_reserve() {
         let e = Env::default();
@@ -672,5 +676,69 @@ mod tests {
         let result = reserve.to_b_token_down(1_4850243);
 
         assert_eq!(result, 1_1234566);
+    }
+
+    #[test]
+    fn test_gulp() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 123456 * 5,
+            protocol_version: 22,
+            sequence_number: 123456,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let oracle = Address::generate(&e);
+        let pool_config = PoolConfig {
+            oracle,
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 5,
+        };
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.backstop_credit = 0_1234567;
+
+        reserve.gulp(&pool_config, 100_0000000);
+        assert_eq!(reserve.backstop_credit, 20_0000000 + 0_1234567);
+        assert_eq!(reserve.b_rate, 1_800000000);
+        assert_eq!(reserve.last_time, 0);
+    }
+
+    #[test]
+    fn test_gulp_negative_delta_no_change() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 123456 * 5,
+            protocol_version: 22,
+            sequence_number: 123456,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let oracle = Address::generate(&e);
+        let pool_config = PoolConfig {
+            oracle,
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 5,
+        };
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.backstop_credit = 0_1234567;
+
+        reserve.gulp(&pool_config, -10_0000000);
+        assert_eq!(reserve.backstop_credit, 0_1234567);
+        assert_eq!(reserve.b_rate, 1000000000);
+        assert_eq!(reserve.last_time, 0);
     }
 }
