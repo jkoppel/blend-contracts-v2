@@ -20,6 +20,5 @@ pub fn create_pool_factory<'a>(
     } else {
         e.register_at(&contract_id, MockPoolFactory {}, (pool_init_meta,));
     }
-    std::println!("Pool factory contract_id: {:?}", contract_id);
     PoolFactoryClient::new(e, &contract_id)
 }

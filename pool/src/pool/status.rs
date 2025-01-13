@@ -461,14 +461,10 @@ mod tests {
             max_positions: 4,
         };
         e.as_contract(&pool_id, || {
-            std::println!("1");
             storage::set_admin(&e, &bombadil);
-            std::println!("2");
             storage::set_pool_config(&e, &pool_config);
-            std::println!("3");
 
             execute_set_pool_status(&e, 4);
-            std::println!("4");
 
             let new_pool_config = storage::get_pool_config(&e);
             assert_eq!(new_pool_config.status, 4);

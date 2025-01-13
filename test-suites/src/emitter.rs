@@ -4,6 +4,5 @@ use blend_contract_sdk::emitter::{Client as EmitterClient, WASM as EmitterWASM};
 
 pub fn create_emitter<'a>(e: &Env) -> (Address, EmitterClient<'a>) {
     let contract_id = e.register(EmitterWASM, ());
-    std::println!("Emitter contract_id: {:?}", contract_id);
     (contract_id.clone(), EmitterClient::new(e, &contract_id))
 }

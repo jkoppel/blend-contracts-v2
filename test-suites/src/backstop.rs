@@ -43,6 +43,5 @@ pub fn create_backstop<'a>(
             ),
         );
     }
-    std::println!("Backstop contract_id: {:?}", contract_id);
     BackstopClient::new(e, &contract_id)
 }
