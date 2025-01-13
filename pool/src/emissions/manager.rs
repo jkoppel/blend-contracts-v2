@@ -35,20 +35,17 @@ pub struct ReserveEmissionMetadata {
 /// If the total share of the pool eps from the reserves is over 1
 pub fn set_pool_emissions(e: &Env, res_emission_metadata: Vec<ReserveEmissionMetadata>) {
     let mut pool_emissions: Map<u32, u64> = map![e];
-    let mut total_share = 0;
 
     let reserve_list = storage::get_res_list(e);
     for metadata in res_emission_metadata {
         let key = metadata.res_index * 2 + metadata.res_type;
-        if metadata.res_type > 1 || reserve_list.get(metadata.res_index).is_none() {
+        if metadata.res_type > 1
+            || reserve_list.get(metadata.res_index).is_none()
+            || metadata.share == 0
+        {
             panic_with_error!(e, PoolError::BadRequest);
         }
         pool_emissions.set(key, metadata.share);
-        total_share += metadata.share;
-    }
-
-    if total_share > SCALAR_7 as u64 {
-        panic_with_error!(e, PoolError::BadRequest);
     }
 
     storage::set_pool_emissions(e, &pool_emissions);
@@ -75,10 +72,17 @@ fn do_gulp_emissions(e: &Env, new_emissions: i128) {
     }
     let pool_emissions = storage::get_pool_emissions(e);
     let reserve_list = storage::get_res_list(e);
+
+    let mut total_share: i128 = 0;
+    for (_res_token_id, res_eps_share) in pool_emissions.iter() {
+        total_share += i128(res_eps_share);
+    }
     for (res_token_id, res_eps_share) in pool_emissions.iter() {
         let reserve_index = res_token_id / 2;
         let res_asset_address = reserve_list.get_unchecked(reserve_index);
         let new_reserve_emissions = i128(res_eps_share)
+            .fixed_div_floor(total_share, SCALAR_7)
+            .unwrap_optimized()
             .fixed_mul_floor(new_emissions, SCALAR_7)
             .unwrap_optimized();
         update_reserve_emission_eps(e, &res_asset_address, res_token_id, new_reserve_emissions);
@@ -410,7 +414,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #1200)")]
-    fn test_set_pool_emissions_panics_if_over_100() {
+    fn test_set_pool_emissions_panics_if_anyone_share_equal_0() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
@@ -448,6 +452,11 @@ mod tests {
                 res_index: 3,
                 res_type: 0,
                 share: 0_6500001,
+            },
+            ReserveEmissionMetadata {
+                res_index: 3,
+                res_type: 1,
+                share: 0,
             },
         ];
 
