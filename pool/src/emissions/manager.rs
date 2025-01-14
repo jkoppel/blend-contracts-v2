@@ -3,7 +3,7 @@ use crate::{
     dependencies::BackstopClient,
     errors::PoolError,
     events::PoolEvents,
-    storage::{self, ReserveEmissionData, ReserveFlags},
+    storage::{self, ReserveConfig, ReserveEmissionData},
 };
 use cast::{i128, u64};
 use soroban_fixed_point_math::FixedPoint;
@@ -72,48 +72,49 @@ fn do_gulp_emissions(e: &Env, new_emissions: i128) {
     }
     let pool_emissions = storage::get_pool_emissions(e);
     let reserve_list = storage::get_res_list(e);
-    let reserve_flags_summary = storage::get_res_flags_summary(e);
+    let mut pool_emis_enabled: Vec<(ReserveConfig, Address, u32, u64)> = Vec::new(e);
 
     let mut total_share: i128 = 0;
     for (res_token_id, res_eps_share) in pool_emissions.iter() {
         let reserve_index = res_token_id / 2;
         let res_asset_address = reserve_list.get_unchecked(reserve_index);
+        let res_config = storage::get_res_config(e, &res_asset_address);
 
-        if reserve_flags_summary
-            .get(res_asset_address)
-            .unwrap_or(ReserveFlags::Enabled as u32)
-            == ReserveFlags::Enabled as u32
-        {
+        if res_config.enabled {
+            pool_emis_enabled.push_back((
+                res_config,
+                res_asset_address,
+                res_token_id,
+                res_eps_share,
+            ));
             total_share += i128(res_eps_share);
         }
     }
-    for (res_token_id, res_eps_share) in pool_emissions.iter() {
-        let reserve_index = res_token_id / 2;
-        let res_asset_address = reserve_list.get_unchecked(reserve_index);
+    for (res_config, res_asset_address, res_token_id, res_eps_share) in pool_emis_enabled {
+        let new_reserve_emissions = i128(res_eps_share)
+            .fixed_div_floor(total_share, SCALAR_7)
+            .unwrap_optimized()
+            .fixed_mul_floor(new_emissions, SCALAR_7)
+            .unwrap_optimized();
 
-        if reserve_flags_summary
-            .get(res_asset_address.clone())
-            .unwrap_or(ReserveFlags::Enabled as u32)
-            == ReserveFlags::Enabled as u32
-        {
-            let new_reserve_emissions = i128(res_eps_share)
-                .fixed_div_floor(total_share, SCALAR_7)
-                .unwrap_optimized()
-                .fixed_mul_floor(new_emissions, SCALAR_7)
-                .unwrap_optimized();
-            update_reserve_emission_eps(e, &res_asset_address, res_token_id, new_reserve_emissions);
-        }
+        update_reserve_emission_eps(
+            e,
+            &res_config,
+            &res_asset_address,
+            res_token_id,
+            new_reserve_emissions,
+        );
     }
 }
 
 fn update_reserve_emission_eps(
     e: &Env,
+    reserve_config: &ReserveConfig,
     asset: &Address,
     res_token_id: u32,
     new_reserve_emissions: i128,
 ) {
     let mut tokens_left_to_emit = new_reserve_emissions;
-    let reserve_config = storage::get_res_config(e, asset);
     let reserve_data = storage::get_res_data(e, asset);
     let supply = match res_token_id % 2 {
         0 => reserve_data.d_supply,
@@ -345,7 +346,7 @@ mod tests {
         testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
 
         let mut reserve_config_disabled = reserve_config.clone();
-        reserve_config_disabled.flags = ReserveFlags::Disabled as u32;
+        reserve_config_disabled.enabled = false;
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         testutils::create_reserve(
             &e,

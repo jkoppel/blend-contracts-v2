@@ -3,7 +3,6 @@ use crate::{
     errors::PoolError,
     storage::{
         self, has_queued_reserve_set, PoolConfig, QueuedReserveInit, ReserveConfig, ReserveData,
-        ReserveFlags,
     },
 };
 use soroban_sdk::{panic_with_error, Address, Env, String};
@@ -160,17 +159,9 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
         r_three: config.r_three,
         reactivity: config.reactivity,
         collateral_cap: config.collateral_cap,
-        flags: config.flags,
+        enabled: config.enabled,
     };
     storage::set_res_config(e, asset, &reserve_config);
-
-    let mut status_summary = storage::get_res_flags_summary(e);
-    if config.flags == ReserveFlags::Enabled as u32 {
-        status_summary.remove(asset.clone());
-    } else {
-        status_summary.set(asset.clone(), config.flags);
-    }
-    storage::set_res_flags_summary(e, &status_summary);
 
     index
 }
@@ -187,7 +178,6 @@ fn require_valid_reserve_metadata(e: &Env, metadata: &ReserveConfig) {
         || metadata.r_base < 0_0001000
         || (metadata.r_one > metadata.r_two || metadata.r_two > metadata.r_three)
         || (metadata.reactivity > 0_0001000)
-        || (metadata.flags >= ReserveFlags::Num as u32)
     {
         panic_with_error!(e, PoolError::InvalidReserveMetadata);
     }
@@ -395,7 +385,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
@@ -444,7 +434,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
@@ -496,7 +486,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
@@ -537,7 +527,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
@@ -572,7 +562,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         e.as_contract(&pool, || {
             storage::set_queued_reserve_set(
@@ -611,7 +601,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         e.as_contract(&pool, || {
             storage::set_queued_reserve_set(
@@ -659,7 +649,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         e.as_contract(&pool, || {
             storage::set_queued_reserve_set(
@@ -867,7 +857,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 105,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
 
         let pool_config = PoolConfig {
@@ -913,7 +903,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         e.as_contract(&pool, || {
             initialize_reserve(&e, &asset_id_0, &metadata);
@@ -953,7 +943,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
         // no panic
@@ -978,7 +968,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1001,7 +991,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1024,7 +1014,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1047,7 +1037,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1070,7 +1060,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1093,7 +1083,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1116,7 +1106,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1139,7 +1129,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1162,7 +1152,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 0_0001001,
             collateral_cap: 1000000000000000000,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }

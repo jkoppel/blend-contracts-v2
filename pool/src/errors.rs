@@ -50,5 +50,5 @@ pub enum PoolError {
     ExceededCollateralCap = 1220,
     InvalidBid = 1221,
     InvalidLot = 1222,
-    InvalidReserveStatus = 1223,
+    ReserveDisabled = 1223,
 }

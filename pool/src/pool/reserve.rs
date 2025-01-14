@@ -6,7 +6,7 @@ use crate::{
     constants::{SCALAR_7, SCALAR_9},
     errors::PoolError,
     pool::actions::RequestType,
-    storage::{self, PoolConfig, ReserveData, ReserveFlags},
+    storage::{self, PoolConfig, ReserveData},
 };
 
 use super::interest::calc_accrual;
@@ -28,7 +28,7 @@ pub struct Reserve {
     pub d_supply: i128,        // the total supply of d tokens
     pub backstop_credit: i128, // the total amount of underlying tokens owed to the backstop
     pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
-    pub status: u32,          // the status of this reserve
+    pub enabled: bool,        // is the reserve enabled
 }
 
 impl Reserve {
@@ -61,7 +61,7 @@ impl Reserve {
             d_supply: reserve_data.d_supply,
             backstop_credit: reserve_data.backstop_credit,
             collateral_cap: reserve_config.collateral_cap,
-            status: reserve_config.flags,
+            enabled: reserve_config.enabled,
         };
 
         // short circuit if the reserve has already been updated this ledger
@@ -151,12 +151,12 @@ impl Reserve {
     /// * `action_type` - The type of action being performed
     pub fn require_action_allowed(&self, e: &Env, action_type: u32) {
         // disable borrowing or auction cancellation for any non-active pool and disable supplying for any frozen pool
-        if self.status != ReserveFlags::Enabled as u32 {
-            if action_type != RequestType::Withdraw as u32
-                && action_type != RequestType::WithdrawCollateral as u32
-                && action_type != RequestType::Repay as u32
+        if !self.enabled {
+            if action_type == RequestType::Supply as u32
+                || action_type == RequestType::SupplyCollateral as u32
+                || action_type == RequestType::Borrow as u32
             {
-                panic_with_error!(e, PoolError::InvalidReserveStatus);
+                panic_with_error!(e, PoolError::ReserveDisabled);
             }
         }
     }
@@ -699,7 +699,7 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.status = ReserveFlags::Disabled as u32;
+        reserve.enabled = false;
 
         reserve.require_action_allowed(&e, RequestType::SupplyCollateral as u32);
     }
@@ -710,7 +710,7 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.status = ReserveFlags::Disabled as u32;
+        reserve.enabled = false;
 
         reserve.require_action_allowed(&e, RequestType::Borrow as u32);
     }
@@ -720,7 +720,7 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.status = ReserveFlags::Disabled as u32;
+        reserve.enabled = false;
 
         reserve.require_action_allowed(&e, RequestType::Withdraw as u32);
         reserve.require_action_allowed(&e, RequestType::WithdrawCollateral as u32);

@@ -134,7 +134,6 @@ pub fn build_actions_from_request(
             }
             RequestType::Withdraw => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
-                reserve.require_action_allowed(e, request.request_type);
                 let cur_b_tokens = from_state.get_supply(reserve.index);
                 let mut to_burn = reserve.to_b_token_up(request.amount);
                 let mut tokens_out = request.amount;
@@ -173,7 +172,6 @@ pub fn build_actions_from_request(
             }
             RequestType::WithdrawCollateral => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
-                reserve.require_action_allowed(e, request.request_type);
                 let cur_b_tokens = from_state.get_collateral(reserve.index);
                 let mut to_burn = reserve.to_b_token_up(request.amount);
                 let mut tokens_out = request.amount;
@@ -212,7 +210,6 @@ pub fn build_actions_from_request(
             }
             RequestType::Repay => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
-                reserve.require_action_allowed(e, request.request_type);
                 let cur_d_tokens = from_state.get_liabilities(reserve.index);
                 let d_tokens_burnt = reserve.to_d_token_down(request.amount);
                 if d_tokens_burnt > cur_d_tokens {
@@ -322,7 +319,7 @@ mod tests {
 
     use crate::{
         constants::SCALAR_7,
-        storage::{self, PoolConfig, ReserveFlags},
+        storage::{self, PoolConfig},
         testutils::{self, create_comet_lp_pool, create_pool},
         AuctionData, AuctionType, Positions,
     };
@@ -1742,7 +1739,7 @@ mod tests {
 
         let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config, reserve_data) = testutils::default_reserve_meta();
-        reserve_config.flags = ReserveFlags::Disabled as u32;
+        reserve_config.enabled = false;
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
         let pool_config = PoolConfig {
@@ -1781,7 +1778,7 @@ mod tests {
 
         let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config, reserve_data) = testutils::default_reserve_meta();
-        reserve_config.flags = ReserveFlags::Disabled as u32;
+        reserve_config.enabled = false;
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
         let pool_config = PoolConfig {

@@ -118,7 +118,6 @@ pub fn calc_accrual(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::ReserveFlags;
     use soroban_sdk::testutils::{Ledger, LedgerInfo};
 
     #[test]
@@ -138,7 +137,7 @@ mod tests {
             reactivity: 0_0000020,
             collateral_cap: 1000000000000000000,
             index: 0,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let ir_mod: i128 = 1_000_000_000;
 
@@ -176,7 +175,7 @@ mod tests {
             reactivity: 0_0000020,
             collateral_cap: 1000000000000000000,
             index: 0,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let ir_mod: i128 = 1_000_000_000;
 
@@ -214,7 +213,7 @@ mod tests {
             reactivity: 0_0000020,
             collateral_cap: 1000000000000000000,
             index: 0,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let ir_mod: i128 = 1_000_000_000;
 
@@ -252,7 +251,7 @@ mod tests {
             reactivity: 0_0000020,
             collateral_cap: 1000000000000000000,
             index: 0,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let ir_mod: i128 = 9_997_000_000;
 
@@ -289,7 +288,7 @@ mod tests {
             reactivity: 0_0000020,
             collateral_cap: 1000000000000000000,
             index: 0,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let ir_mod: i128 = 0_150_000_000;
 
@@ -326,7 +325,7 @@ mod tests {
             reactivity: 0_0000020,
             collateral_cap: 1000000000000000000,
             index: 0,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let ir_mod: i128 = 0_100_000_000;
 
@@ -364,7 +363,7 @@ mod tests {
             reactivity: 0_0000020,
             collateral_cap: 1000000000000000000,
             index: 0,
-            flags: ReserveFlags::Enabled as u32,
+            enabled: true,
         };
         let ir_mod: i128 = 1_000_000_000;
 
