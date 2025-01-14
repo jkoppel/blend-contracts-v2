@@ -784,6 +784,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "moderc3156-example"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1443,6 +1450,7 @@ dependencies = [
  "cast",
  "emitter",
  "mock-pool-factory",
+ "moderc3156-example",
  "pool",
  "pool-factory",
  "rand 0.7.3",
