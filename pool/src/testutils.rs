@@ -195,6 +195,7 @@ pub(crate) fn default_reserve(e: &Env) -> Reserve {
         d_supply: 75_0000000,
         backstop_credit: 0,
         collateral_cap: 1000000000000000000,
+        enabled: true,
     }
 }
 
@@ -213,6 +214,7 @@ pub(crate) fn default_reserve_meta() -> (ReserveConfig, ReserveData) {
             reactivity: 0_0000020, // 2e-6
             index: 0,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         },
         ReserveData {
             b_rate: 1_000_000_000,

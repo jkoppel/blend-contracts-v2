@@ -54,6 +54,7 @@ pub struct ReserveConfig {
     pub r_three: u32, // the R3 value in the interest rate formula scaled expressed in 7 decimals
     pub reactivity: u32, // the reactivity constant for the reserve scaled expressed in 7 decimals
     pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
+    pub enabled: bool,        // the flag of the reserve
 }
 
 #[derive(Clone)]
