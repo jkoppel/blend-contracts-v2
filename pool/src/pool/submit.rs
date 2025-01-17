@@ -5,7 +5,7 @@ use soroban_sdk::{panic_with_error, Address, Env, Map, Symbol, Vec};
 use crate::PoolError;
 
 use super::{
-    actions::{build_actions_from_request, Actions, Request}, health_factor::PositionData, pool::Pool, FlashLoan, Positions
+    actions::{build_actions_from_request, Actions, Request}, health_factor::PositionData, pool::Pool, FlashLoan, Positions, User
 };
 
 /// Execute a set of updates for a user against the pool.
@@ -34,15 +34,16 @@ pub fn execute_submit(
         panic_with_error!(e, &PoolError::BadRequest);
     }
     let mut pool = Pool::load(e);
-
-    let (actions, new_from_state, check_health) =
-        build_actions_from_request(e, &mut pool, from, requests);
+    let mut from_state = User::load(e, from);
+    
+    let actions =
+    build_actions_from_request(e, &mut pool, &mut from_state, requests);
 
     // panics if the new positions set does not meet the health factor requirement
     // min is 1.0000100 to prevent rounding errors
-    if check_health
-        && new_from_state.has_liabilities()
-        && PositionData::calculate_from_positions(e, &mut pool, &new_from_state.positions)
+    if actions.check_health
+        && from_state.has_liabilities()
+        && PositionData::calculate_from_positions(e, &mut pool, &from_state.positions)
             .is_hf_under(1_0000100)
     {
         panic_with_error!(e, PoolError::InvalidHf);
@@ -56,41 +57,32 @@ pub fn execute_submit(
 
     // store updated info to ledger
     pool.store_cached_reserves(e);
-    new_from_state.store(e);
+    from_state.store(e);
 
-    new_from_state.positions
+    from_state.positions
 }
 
-// Note: if this looks like a good approach we should probably refactor the code
-// a bit to prevent duplicating execute_submit.
+/// Same as `execute_submit` but specifically made for performing a flash loan borrow before
+/// the other submitted requests.
 pub fn execute_submit_with_flash_loan(
     e: &Env,
     from: &Address,
     flash_loan: FlashLoan,
     requests: Vec<Request>,
-    use_allowance: bool,
 ) -> Positions {
     if from == &e.current_contract_address()
     {
         panic_with_error!(e, &PoolError::BadRequest);
     }
     let mut pool = Pool::load(e);
+    let mut from_state = User::load(e, from);
 
-    // note: check_health is omitted since we always will want to check the health
-    // if a flash loan is involved.
-    let (actions, mut new_from_state, _) =
-        build_actions_from_request(e, &mut pool, from, requests);
-
-    // similarly to usual borrows, we want the flash loan to be debited before
-    // checking the health factor.
-    
-    // Warning: at this point user state is not written yet before invoking the 
-    // flash loan contract, so was this function ever reentrant this code would become
-    // unsafe.
+    // note: we add the flash loan liabilities before building the other
+    // requests.
     {
         let mut reserve = pool.load_reserve(e, &flash_loan.asset, true);
         let d_tokens_minted = reserve.to_d_token_up(flash_loan.amount);
-        new_from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
+        from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
         reserve.require_utilization_below_max(e);
 
         e.events().publish(
@@ -103,10 +95,16 @@ pub fn execute_submit_with_flash_loan(
         );
     }
 
+    // note: check_health is omitted since we always will want to check the health
+    // if a flash loan is involved.
+    let actions =
+        build_actions_from_request(e, &mut pool, &mut from_state, requests);
+
+
     // panics if the new positions set does not meet the health factor requirement
     // min is 1.0000100 to prevent rounding errors
-    if new_from_state.has_liabilities()
-        && PositionData::calculate_from_positions(e, &mut pool, &new_from_state.positions)
+    if from_state.has_liabilities()
+        && PositionData::calculate_from_positions(e, &mut pool, &from_state.positions)
             .is_hf_under(1_0000100)
     {
         panic_with_error!(e, PoolError::InvalidHf);
@@ -128,17 +126,13 @@ pub fn execute_submit_with_flash_loan(
     // or the user needs to have some previously added collateral to cover the borrow, i.e user is already healthy at this point,
     // we just have to make sure that they have the balances they are claiming to have through the transfers. 
 
-    if use_allowance {
-        handle_transfer_with_allowance(e, &actions, from, from);
-    } else {
-        handle_transfers(e, &actions, from, from);
-    }
+    handle_transfer_with_allowance(e, &actions, from, from);
 
     // store updated info to ledger
     pool.store_cached_reserves(e);
-    new_from_state.store(e);
+    from_state.store(e);
 
-    new_from_state.positions
+    from_state.positions
 }
 
 

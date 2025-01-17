@@ -65,6 +65,7 @@ pub struct FlashLoan {
 pub struct Actions {
     pub spender_transfer: Map<Address, i128>,
     pub pool_transfer: Map<Address, i128>,
+    pub check_health: bool
 }
 
 impl Actions {
@@ -73,6 +74,7 @@ impl Actions {
         Actions {
             spender_transfer: Map::new(e),
             pool_transfer: Map::new(e),
+            check_health: false
         }
     }
 
@@ -90,6 +92,12 @@ impl Actions {
             asset.clone(),
             amount + self.pool_transfer.get(asset.clone()).unwrap_or(0),
         );
+    }
+
+    // just a simple flag since we won't need
+    // to switch it back to false once set to true.
+    pub fn do_check_health(&mut self) {
+        self.check_health = true
     }
 }
 
@@ -112,13 +120,11 @@ impl Actions {
 pub fn build_actions_from_request(
     e: &Env,
     pool: &mut Pool,
-    from: &Address,
+    from_state: &mut User,
     requests: Vec<Request>,
-) -> (Actions, User, bool) {
+) -> Actions {
     let mut actions = Actions::new(e);
-    let mut from_state = User::load(e, from);
     let prev_positions_count = from_state.positions.effective_count();
-    let mut check_health = false;
     for request in requests.iter() {
         // verify the request is allowed
         require_nonnegative(e, &request.amount);
@@ -133,7 +139,7 @@ pub fn build_actions_from_request(
                 PoolEvents::supply(
                     e,
                     request.address.clone(),
-                    from.clone(),
+                    from_state.address.clone(),
                     request.amount,
                     b_tokens_minted,
                 );
@@ -153,7 +159,7 @@ pub fn build_actions_from_request(
                 PoolEvents::withdraw(
                     e,
                     request.address.clone(),
-                    from.clone(),
+                    from_state.address.clone(),
                     request.amount,
                     to_burn,
                 );
@@ -170,7 +176,7 @@ pub fn build_actions_from_request(
                 PoolEvents::supply_collateral(
                     e,
                     request.address.clone(),
-                    from.clone(),
+                    from_state.address.clone(),
                     request.amount,
                     b_tokens_minted,
                 );
@@ -186,12 +192,12 @@ pub fn build_actions_from_request(
                 }
                 from_state.remove_collateral(e, &mut reserve, to_burn);
                 actions.add_for_pool_transfer(&reserve.asset, tokens_out);
-                check_health = true;
+                actions.do_check_health();
                 pool.cache_reserve(reserve);
                 PoolEvents::withdraw_collateral(
                     e,
                     request.address.clone(),
-                    from.clone(),
+                    from_state.address.clone(),
                     tokens_out,
                     to_burn,
                 );
@@ -202,12 +208,12 @@ pub fn build_actions_from_request(
                 from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
                 reserve.require_utilization_below_max(e);
                 actions.add_for_pool_transfer(&reserve.asset, request.amount);
-                check_health = true;
+                actions.do_check_health();
                 pool.cache_reserve(reserve);
                 PoolEvents::borrow(
                     e,
                     request.address.clone(),
-                    from.clone(),
+                    from_state.address.clone(),
                     request.amount,
                     d_tokens_minted,
                 );
@@ -226,7 +232,7 @@ pub fn build_actions_from_request(
                     PoolEvents::repay(
                         e,
                         request.address.clone(),
-                        from.clone(),
+                        from_state.address.clone(),
                         cur_underlying_borrowed,
                         cur_d_tokens,
                     );
@@ -236,7 +242,7 @@ pub fn build_actions_from_request(
                     PoolEvents::repay(
                         e,
                         request.address.clone(),
-                        from.clone(),
+                        from_state.address.clone(),
                         request.amount,
                         d_tokens_burnt,
                     );
@@ -249,16 +255,16 @@ pub fn build_actions_from_request(
                     pool,
                     0,
                     &request.address,
-                    &mut from_state,
+                    from_state,
                     request.amount as u64,
                 );
-                check_health = true;
+                actions.do_check_health();
 
                 PoolEvents::fill_auction(
                     e,
                     0u32,
                     request.address.clone(),
-                    from.clone(),
+                    from_state.address.clone(),
                     request.amount,
                     filled_auction,
                 );
@@ -270,16 +276,16 @@ pub fn build_actions_from_request(
                     pool,
                     1,
                     &request.address,
-                    &mut from_state,
+                    from_state,
                     request.amount as u64,
                 );
-                check_health = true;
+                actions.do_check_health();
 
                 PoolEvents::fill_auction(
                     e,
                     1u32,
                     request.address.clone(),
-                    from.clone(),
+                    from_state.address.clone(),
                     request.amount,
                     filled_auction,
                 );
@@ -291,23 +297,23 @@ pub fn build_actions_from_request(
                     pool,
                     2,
                     &request.address,
-                    &mut from_state,
+                    from_state,
                     request.amount as u64,
                 );
                 PoolEvents::fill_auction(
                     e,
                     2u32,
                     request.address.clone(),
-                    from.clone(),
+                    from_state.address.clone(),
                     request.amount,
                     filled_auction,
                 );
             }
             RequestType::DeleteLiquidationAuction => {
                 // Note: request object is ignored besides type
-                auctions::delete_liquidation(e, &from);
-                check_health = true;
-                PoolEvents::delete_liquidation_auction(e, from.clone());
+                auctions::delete_liquidation(e, &from_state.address);
+                actions.do_check_health();
+                PoolEvents::delete_liquidation_auction(e, from_state.address.clone());
             }
         }
     }
@@ -315,7 +321,7 @@ pub fn build_actions_from_request(
     // Verify max positions haven't been exceeded
     pool.require_under_max(e, &from_state.positions, prev_positions_count);
 
-    (actions, from_state, check_health)
+    actions
 }
 
 #[cfg(test)]
@@ -382,10 +388,12 @@ mod tests {
                     amount: 10_1234567,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, false);
+            assert_eq!(actions.check_health, false);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -458,10 +466,11 @@ mod tests {
                     amount: 10_1234567,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, false);
+            assert_eq!(actions.check_health, false);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -531,10 +540,11 @@ mod tests {
                     amount: 21_0000000,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, false);
+            assert_eq!(actions.check_health, false);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -596,10 +606,11 @@ mod tests {
                     amount: 10_1234567,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, false);
+            assert_eq!(actions.check_health, false);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -674,10 +685,11 @@ mod tests {
                     amount: 10_1234567,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, true);
+            assert_eq!(actions.check_health, true);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -747,10 +759,11 @@ mod tests {
                     amount: 21_0000000,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, true);
+            assert_eq!(actions.check_health, true);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -811,9 +824,11 @@ mod tests {
                     amount: 10_1234567,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
-            assert_eq!(health_check, true);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
+
+            assert_eq!(actions.check_health, true);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -882,10 +897,11 @@ mod tests {
                     amount: 10_1234567,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, false);
+            assert_eq!(actions.check_health, false);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -956,10 +972,11 @@ mod tests {
                     amount: 21_0000000,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests.clone());
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, false);
+            assert_eq!(actions.check_health, false);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -1057,10 +1074,11 @@ mod tests {
                     amount: 21_0000000,
                 },
             ];
-            let (actions, user, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, true);
+            assert_eq!(actions.check_health, true);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -1197,10 +1215,11 @@ mod tests {
                     amount: 50,
                 },
             ];
-            let (actions, _, health_check) =
-                build_actions_from_request(&e, &mut pool, &frodo, requests);
+            let mut user = User::load(&e, &frodo);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, true);
+            assert_eq!(actions.check_health, true);
             let exp_new_auction = AuctionData {
                 bid: map![&e, (underlying_2.clone(), 6187500)],
                 lot: map![
@@ -1329,10 +1348,11 @@ mod tests {
                     amount: 100,
                 },
             ];
-            let (actions, _, health_check) =
-                build_actions_from_request(&e, &mut pool, &frodo, requests);
+            let mut user = User::load(&e, &frodo);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, true);
+            assert_eq!(actions.check_health, true);
             assert_eq!(
                 storage::has_auction(&e, &(AuctionType::BadDebtAuction as u32), &backstop_address),
                 false
@@ -1476,8 +1496,9 @@ mod tests {
                 },
             ];
             let pre_fill_backstop_token_balance = backstop_token_client.balance(&backstop_address);
-            let (actions, _, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(backstop_token_client.balance(&samwise), 25_0000000);
             assert_eq!(
@@ -1486,7 +1507,7 @@ mod tests {
             );
             assert_eq!(underlying_0_client.balance(&samwise), 100_0000000);
             assert_eq!(underlying_1_client.balance(&samwise), 25_0000000);
-            assert_eq!(health_check, false);
+            assert_eq!(actions.check_health, false);
             assert_eq!(
                 storage::has_auction(
                     &e,
@@ -1561,10 +1582,11 @@ mod tests {
                     amount: 0,
                 },
             ];
-            let (actions, _, health_check) =
-                build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let actions =
+                build_actions_from_request(&e, &mut pool, &mut user, requests);
 
-            assert_eq!(health_check, true);
+            assert_eq!(actions.check_health, true);
             assert_eq!(
                 storage::has_auction(&e, &(AuctionType::UserLiquidation as u32), &samwise),
                 false
@@ -1631,7 +1653,8 @@ mod tests {
                 },
             ];
 
-            let (_, user, _) = build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            let _ = build_actions_from_request(&e, &mut pool, &mut user, requests);
             assert_eq!(user.positions.effective_count(), 3)
         });
     }
@@ -1688,7 +1711,8 @@ mod tests {
                 },
             ];
 
-            build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            build_actions_from_request(&e, &mut pool, &mut user, requests);
         });
     }
 
@@ -1727,7 +1751,8 @@ mod tests {
             storage::set_pool_config(&e, &pool_config);
             let mut pool = Pool::load(&e);
 
-            build_actions_from_request(&e, &mut pool, &samwise, requests);
+            let mut user = User::load(&e, &samwise);
+            build_actions_from_request(&e, &mut pool, &mut user, requests);
         });
     }
 }

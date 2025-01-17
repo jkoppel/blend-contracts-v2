@@ -4,11 +4,11 @@ use soroban_sdk::{vec, Vec};
 use test_suites::{create_fixture_with_data, moderc3156::create_flashloan_receiver, test_fixture::{TokenIndex, SCALAR_7}};
 
 #[test]
-fn test_liquidations() {
+fn test_flashloan() {
     let fixture = create_fixture_with_data(false);
     let frodo = fixture.users.get(0).unwrap();
     let pool_fixture = &fixture.pools[0];
-    let (receiver_address, receiver_client) = create_flashloan_receiver(&fixture.env, true);
+    let (receiver_address, receiver_client) = create_flashloan_receiver(&fixture.env);
     receiver_client.init(frodo);
     
     // reset frodo's health. 
