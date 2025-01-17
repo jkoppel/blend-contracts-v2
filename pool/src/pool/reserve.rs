@@ -93,7 +93,7 @@ impl Reserve {
             .unwrap_optimized();
         let accrued_interest = reserve.total_liabilities() - pre_update_liabilities;
 
-        reserve.gulp(pool_config, accrued_interest);
+        reserve.gulp(pool_config.bstop_rate, accrued_interest);
 
         reserve.last_time = e.ledger().timestamp();
         reserve
@@ -113,21 +113,25 @@ impl Reserve {
         storage::set_res_data(e, &self.asset, &reserve_data);
     }
 
-    /// Update the reserve's b_rate and the pool's backstop rate based on the difference in the pools token balance and the reserves stored balance.
-    pub fn gulp(&mut self, pool_config: &PoolConfig, delta_balance: i128) {
+    /// Accrue tokens to the reserve supply. This issues any `backstop_credit` required and updates the reserve's bRate to account for the additional tokens.
+    ///
+    /// ### Arguments
+    /// * bstop_rate - The backstop take rate for the pool
+    /// * accrued - The amount of additional underlying tokens
+    pub fn gulp(&mut self, bstop_rate: u32, accrued: i128) {
         let pre_update_supply = self.total_supply();
 
-        if delta_balance > 0 {
+        if accrued > 0 {
             // credit the backstop underlying from the accrued interest based on the backstop rate
             // update the accrued interest to reflect the amount the pool accrued
             let mut new_backstop_credit: i128 = 0;
-            if pool_config.bstop_rate > 0 {
-                new_backstop_credit = (delta_balance)
-                    .fixed_mul_floor(i128(pool_config.bstop_rate), SCALAR_7)
+            if bstop_rate > 0 {
+                new_backstop_credit = accrued
+                    .fixed_mul_floor(i128(bstop_rate), SCALAR_7)
                     .unwrap_optimized();
                 self.backstop_credit += new_backstop_credit;
             }
-            self.b_rate = (pre_update_supply + delta_balance - new_backstop_credit)
+            self.b_rate = (pre_update_supply + accrued - new_backstop_credit)
                 .fixed_div_floor(self.b_supply, SCALAR_9)
                 .unwrap_optimized();
         }
@@ -694,17 +698,10 @@ mod tests {
             max_entry_ttl: 3110400,
         });
 
-        let oracle = Address::generate(&e);
-        let pool_config = PoolConfig {
-            oracle,
-            bstop_rate: 0_2000000,
-            status: 0,
-            max_positions: 5,
-        };
         let mut reserve = testutils::default_reserve(&e);
         reserve.backstop_credit = 0_1234567;
 
-        reserve.gulp(&pool_config, 100_0000000);
+        reserve.gulp(0_2000000, 100_0000000);
         assert_eq!(reserve.backstop_credit, 20_0000000 + 0_1234567);
         assert_eq!(reserve.b_rate, 1_800000000);
         assert_eq!(reserve.last_time, 0);
@@ -726,17 +723,10 @@ mod tests {
             max_entry_ttl: 3110400,
         });
 
-        let oracle = Address::generate(&e);
-        let pool_config = PoolConfig {
-            oracle,
-            bstop_rate: 0_2000000,
-            status: 0,
-            max_positions: 5,
-        };
         let mut reserve = testutils::default_reserve(&e);
         reserve.backstop_credit = 0_1234567;
 
-        reserve.gulp(&pool_config, -10_0000000);
+        reserve.gulp(0_2000000, -10_0000000);
         assert_eq!(reserve.backstop_credit, 0_1234567);
         assert_eq!(reserve.b_rate, 1000000000);
         assert_eq!(reserve.last_time, 0);

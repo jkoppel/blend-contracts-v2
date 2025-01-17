@@ -21,7 +21,7 @@ pub fn execute_gulp(e: &Env, asset: &Address) -> (i128, i128) {
     let token_balance_delta = pool_token_balance - reserve_token_balance;
     let pre_gulp_b_rate = reserve.b_rate;
 
-    reserve.gulp(&pool_config, token_balance_delta);
+    reserve.gulp(pool_config.bstop_rate, token_balance_delta);
 
     // If the reserve's b_rate hasn't changed the token delta is not significant
     if pre_gulp_b_rate == reserve.b_rate {
@@ -34,8 +34,6 @@ pub fn execute_gulp(e: &Env, asset: &Address) -> (i128, i128) {
 
 #[cfg(test)]
 mod tests {
-    use std::println;
-
     use crate::constants::SCALAR_7;
     use crate::pool::execute_gulp;
     use crate::storage::{self, PoolConfig};
@@ -162,7 +160,6 @@ mod tests {
             storage::set_pool_config(&e, &pool_config);
             let pre_gulp_reserve = storage::get_res_data(&e, &underlying);
             let (token_delta_result, new_b_rate) = execute_gulp(&e, &underlying);
-            println!("token_delta_result: {}", token_delta_result);
             let reserve = storage::get_res_data(&e, &underlying);
             assert_eq!(token_delta_result, 0);
             assert_eq!(new_b_rate, 1623456943); // Increase of 145 from interest
