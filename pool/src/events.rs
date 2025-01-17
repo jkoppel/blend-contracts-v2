@@ -274,7 +274,7 @@ impl PoolEvents {
         e.events().publish(topics, (tokens_in, d_tokens_burnt));
     }
 
-    /// Emitted when a reserve updates its supply to its token balance
+    /// Emitted when a reserve updates its bToken rate
     ///
     /// - topics - `["gulp", asset: Address]`
     /// - data - `[token_delta: i128, new_b_rate: i128]`

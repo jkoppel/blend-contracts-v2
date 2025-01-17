@@ -195,7 +195,8 @@ pub trait Pool {
     /// If the specified conditions are not met for the status to be set
     fn set_status(e: Env, pool_status: u32);
 
-    /// Updates the reserve's B token supply to match the pool's asset balance
+    /// Update the reserve's bToken rate based on the pool's balance. This is useful for tokens where
+    ///  a holder's balance can increase outside of a direct transfer.
     ///
     /// ### Arguments
     /// * `asset` - The address of the asset to gulp

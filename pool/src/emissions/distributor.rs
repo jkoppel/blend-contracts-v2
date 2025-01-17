@@ -145,7 +145,7 @@ fn claim_emissions(
 ///
 /// ### Panics
 /// If the reserve update failed
-pub fn update_emission_data(
+pub(super) fn update_emission_data(
     e: &Env,
     res_token_id: u32,
     supply: i128,
