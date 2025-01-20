@@ -4,8 +4,8 @@ use crate::{
     storage::{self, PoolInitMeta},
 };
 use soroban_sdk::{
-    contract, contractclient, contractimpl, panic_with_error, vec, Address, Bytes, BytesN, Env,
-    IntoVal, String, Symbol, Val, Vec,
+    contract, contractclient, contractimpl, panic_with_error, Address, Bytes, BytesN, Env, IntoVal,
+    String,
 };
 
 const SCALAR_7: u32 = 1_0000000;
@@ -15,12 +15,6 @@ pub struct PoolFactoryContract;
 
 #[contractclient(name = "PoolFactoryClient")]
 pub trait PoolFactory {
-    /// Setup the pool factory
-    ///
-    /// ### Arguments
-    /// * `pool_init_meta` - The pool initialization metadata
-    fn initialize(e: Env, pool_init_meta: PoolInitMeta);
-
     /// Deploys and initializes a lending pool
     ///
     /// ### Arguments
@@ -50,18 +44,18 @@ pub trait PoolFactory {
 }
 
 #[contractimpl]
-impl PoolFactory for PoolFactoryContract {
-    fn initialize(e: Env, pool_init_meta: PoolInitMeta) {
-        storage::extend_instance(&e);
-        if storage::get_is_init(&e) {
-            panic_with_error!(&e, PoolFactoryError::AlreadyInitializedError);
-        }
-
+impl PoolFactoryContract {
+    /// Construct the pool factory contract
+    ///
+    /// ### Arguments
+    /// * `pool_init_meta` - The pool initialization metadata    
+    pub fn __constructor(e: Env, pool_init_meta: PoolInitMeta) {
         storage::set_pool_init_meta(&e, &pool_init_meta);
-
-        storage::set_is_init(&e);
     }
+}
 
+#[contractimpl]
+impl PoolFactory for PoolFactoryContract {
     fn deploy(
         e: Env,
         admin: Address,
@@ -91,19 +85,18 @@ impl PoolFactory for PoolFactoryContract {
         salt_as_bytes.extend_from_array(&as_u8s);
         let new_salt = e.crypto().keccak256(&salt_as_bytes);
 
-        let mut init_args: Vec<Val> = vec![&e];
-        init_args.push_back(admin.to_val());
-        init_args.push_back(name.to_val());
-        init_args.push_back(oracle.to_val());
-        init_args.push_back(backstop_take_rate.into_val(&e));
-        init_args.push_back(max_positions.into_val(&e));
-        init_args.push_back(pool_init_meta.backstop.to_val());
-        init_args.push_back(pool_init_meta.blnd_id.to_val());
-        let pool_address = e
-            .deployer()
-            .with_current_contract(new_salt)
-            .deploy_v2(pool_init_meta.pool_hash, ());
-        e.invoke_contract::<Val>(&pool_address, &Symbol::new(&e, "initialize"), init_args);
+        let pool_address = e.deployer().with_current_contract(new_salt).deploy_v2(
+            pool_init_meta.pool_hash,
+            (
+                admin,
+                name,
+                oracle,
+                backstop_take_rate,
+                max_positions,
+                pool_init_meta.backstop,
+                pool_init_meta.blnd_id,
+            ),
+        );
 
         storage::set_deployed(&e, &pool_address);
 

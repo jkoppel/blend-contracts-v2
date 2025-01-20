@@ -52,7 +52,6 @@ pub struct UserEmissionData {
 
 /********** Storage Key Types **********/
 
-const IS_INIT_KEY: &str = "IsInit";
 const EMITTER_KEY: &str = "Emitter";
 const BACKSTOP_TOKEN_KEY: &str = "BToken";
 const POOL_FACTORY_KEY: &str = "PoolFact";
@@ -63,6 +62,8 @@ const REWARD_ZONE_KEY: &str = "RZ";
 const DROP_LIST_KEY: &str = "DropList";
 const LP_TOKEN_VAL_KEY: &str = "LPTknVal";
 const RZ_EMISSION_INDEX_KEY: &str = "RZEmissionIndex";
+const BACKFILL_EMISSIONS_KEY: &str = "BackfillEmis";
+const BACKFILL_STATUS_KEY: &str = "Backfill";
 
 #[derive(Clone)]
 #[contracttype]
@@ -112,18 +113,6 @@ fn get_persistent_default<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>, F: FnOn
 }
 
 /********** Instance Storage **********/
-
-/// Check if the contract has been initialized
-pub fn get_is_init(e: &Env) -> bool {
-    e.storage().instance().has(&Symbol::new(e, IS_INIT_KEY))
-}
-
-/// Set the contract as initialized
-pub fn set_is_init(e: &Env) {
-    e.storage()
-        .instance()
-        .set::<Symbol, bool>(&Symbol::new(e, IS_INIT_KEY), &true);
-}
 
 /// Fetch the pool factory id
 pub fn get_emitter(e: &Env) -> Address {
@@ -345,6 +334,60 @@ pub fn set_reward_zone(e: &Env, reward_zone: &Vec<Address>) {
     );
 }
 
+/// Get the current total backfill emissions
+pub fn get_backfill_emissions(e: &Env) -> i128 {
+    get_persistent_default(
+        e,
+        &Symbol::new(e, BACKFILL_EMISSIONS_KEY),
+        || 0i128,
+        LEDGER_THRESHOLD_SHARED,
+        LEDGER_BUMP_SHARED,
+    )
+}
+
+/// Set the current total backfill emissions
+///
+/// ### Arguments
+/// * `emissions` - The total emissions currently needed to fulfill all backfilled emissions
+pub fn set_backfill_emissions(e: &Env, emissions: &i128) {
+    e.storage()
+        .persistent()
+        .set::<Symbol, i128>(&Symbol::new(e, BACKFILL_EMISSIONS_KEY), emissions);
+    e.storage().persistent().extend_ttl(
+        &Symbol::new(e, BACKFILL_EMISSIONS_KEY),
+        LEDGER_THRESHOLD_SHARED,
+        LEDGER_BUMP_SHARED,
+    );
+}
+
+/// Get the current total backfill status
+///
+/// None if no status has been recorded, otherwise the current status
+pub fn get_backfill_status(e: &Env) -> Option<bool> {
+    get_persistent_default(
+        e,
+        &Symbol::new(e, BACKFILL_STATUS_KEY),
+        || None,
+        LEDGER_THRESHOLD_SHARED,
+        LEDGER_BUMP_SHARED,
+    )
+}
+
+/// Set the current backfill status
+///
+/// ### Arguments
+/// * `status` - True if the backfill emissions are currently active, false otherwise
+pub fn set_backfill_status(e: &Env, status: &bool) {
+    e.storage()
+        .persistent()
+        .set::<Symbol, bool>(&Symbol::new(e, BACKFILL_STATUS_KEY), status);
+    e.storage().persistent().extend_ttl(
+        &Symbol::new(e, BACKFILL_STATUS_KEY),
+        LEDGER_THRESHOLD_SHARED,
+        LEDGER_BUMP_SHARED,
+    );
+}
+
 /********** Backstop Depositor Emissions **********/
 
 /// Get the reward zone emission index
@@ -471,7 +514,7 @@ pub fn set_user_emis_data(
 /// Get the current pool addresses that are in the drop list and the amount of the initial distribution they receive
 pub fn get_drop_list(e: &Env) -> Vec<(Address, i128)> {
     e.storage()
-        .temporary()
+        .persistent()
         .get::<Symbol, Vec<(Address, i128)>>(&Symbol::new(&e, DROP_LIST_KEY))
         .unwrap_optimized()
 }
@@ -482,9 +525,9 @@ pub fn get_drop_list(e: &Env) -> Vec<(Address, i128)> {
 /// * `drop_list` - The map of pool addresses to the amount of the initial distribution they receive
 pub fn set_drop_list(e: &Env, drop_list: &Vec<(Address, i128)>) {
     e.storage()
-        .temporary()
+        .persistent()
         .set::<Symbol, Vec<(Address, i128)>>(&Symbol::new(&e, DROP_LIST_KEY), drop_list);
-    e.storage().temporary().extend_ttl(
+    e.storage().persistent().extend_ttl(
         &Symbol::new(&e, DROP_LIST_KEY),
         LEDGER_THRESHOLD_USER,
         LEDGER_BUMP_USER,

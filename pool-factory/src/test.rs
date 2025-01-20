@@ -11,17 +11,11 @@ mod pool {
     soroban_sdk::contractimport!(file = "../target/wasm32-unknown-unknown/optimized/pool.wasm");
 }
 
-fn create_pool_factory(e: &Env) -> (Address, PoolFactoryClient) {
-    let contract_id = e.register(PoolFactoryContract {}, ());
-    (contract_id.clone(), PoolFactoryClient::new(e, &contract_id))
-}
-
 #[test]
 fn test_pool_factory() {
     let e = Env::default();
     e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths_allowing_non_root_auth();
-    let (pool_factory_address, pool_factory_client) = create_pool_factory(&e);
 
     let wasm_hash = e.deployer().upload_contract_wasm(pool::WASM);
 
@@ -38,11 +32,8 @@ fn test_pool_factory() {
         pool_hash: wasm_hash.clone(),
         blnd_id: blnd_id.clone(),
     };
-    pool_factory_client.initialize(&pool_init_meta);
-
-    // verify initialize can't be run twice
-    let result = pool_factory_client.try_initialize(&pool_init_meta);
-    assert!(result.is_err());
+    let pool_factory_address = e.register(PoolFactoryContract {}, (pool_init_meta,));
+    let pool_factory_client = PoolFactoryClient::new(&e, &pool_factory_address);
 
     let name1 = String::from_str(&e, "pool1");
     let name2 = String::from_str(&e, "pool2");
@@ -127,7 +118,6 @@ fn test_pool_factory_invalid_pool_init_args_backstop_rate() {
     let e = Env::default();
     e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths_allowing_non_root_auth();
-    let (_, pool_factory_client) = create_pool_factory(&e);
 
     let wasm_hash = e.deployer().upload_contract_wasm(pool::WASM);
 
@@ -139,7 +129,8 @@ fn test_pool_factory_invalid_pool_init_args_backstop_rate() {
         pool_hash: wasm_hash.clone(),
         blnd_id: blnd_id.clone(),
     };
-    pool_factory_client.initialize(&pool_init_meta);
+    let pool_factory_address = e.register(PoolFactoryContract {}, (pool_init_meta,));
+    let pool_factory_client = PoolFactoryClient::new(&e, &pool_factory_address);
 
     let bombadil = Address::generate(&e);
     let oracle = Address::generate(&e);
@@ -165,8 +156,6 @@ fn test_pool_factory_invalid_pool_init_args_max_positions() {
     let e = Env::default();
     e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths_allowing_non_root_auth();
-    let (_, pool_factory_client) = create_pool_factory(&e);
-
     let wasm_hash = e.deployer().upload_contract_wasm(pool::WASM);
 
     let backstop_id = Address::generate(&e);
@@ -177,7 +166,8 @@ fn test_pool_factory_invalid_pool_init_args_max_positions() {
         pool_hash: wasm_hash.clone(),
         blnd_id: blnd_id.clone(),
     };
-    pool_factory_client.initialize(&pool_init_meta);
+    let pool_factory_address = e.register(PoolFactoryContract {}, (pool_init_meta,));
+    let pool_factory_client = PoolFactoryClient::new(&e, &pool_factory_address);
 
     let bombadil = Address::generate(&e);
     let oracle = Address::generate(&e);
@@ -203,8 +193,6 @@ fn test_pool_factory_frontrun_protection() {
     e.cost_estimate().budget().reset_unlimited();
     e.mock_all_auths();
 
-    let (_, pool_factory_client) = create_pool_factory(&e);
-
     let wasm_hash = e.deployer().upload_contract_wasm(pool::WASM);
 
     let bombadil = Address::generate(&e);
@@ -221,7 +209,8 @@ fn test_pool_factory_frontrun_protection() {
         pool_hash: wasm_hash.clone(),
         blnd_id: blnd_id.clone(),
     };
-    pool_factory_client.initialize(&pool_init_meta);
+    let pool_factory_address = e.register(PoolFactoryContract {}, (pool_init_meta,));
+    let pool_factory_client = PoolFactoryClient::new(&e, &pool_factory_address);
 
     let name1 = String::from_str(&e, "pool1");
     let name2 = String::from_str(&e, "pool_front_run");

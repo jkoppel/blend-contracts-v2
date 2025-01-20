@@ -3,7 +3,7 @@ use crate::{
     dependencies::BackstopClient,
     errors::PoolError,
     events::PoolEvents,
-    storage::{self, ReserveEmissionData},
+    storage::{self, ReserveConfig, ReserveEmissionData},
 };
 use cast::{i128, u64};
 use soroban_fixed_point_math::FixedPoint;
@@ -35,20 +35,17 @@ pub struct ReserveEmissionMetadata {
 /// If the total share of the pool eps from the reserves is over 1
 pub fn set_pool_emissions(e: &Env, res_emission_metadata: Vec<ReserveEmissionMetadata>) {
     let mut pool_emissions: Map<u32, u64> = map![e];
-    let mut total_share = 0;
 
     let reserve_list = storage::get_res_list(e);
     for metadata in res_emission_metadata {
         let key = metadata.res_index * 2 + metadata.res_type;
-        if metadata.res_type > 1 || reserve_list.get(metadata.res_index).is_none() {
+        if metadata.res_type > 1
+            || reserve_list.get(metadata.res_index).is_none()
+            || metadata.share == 0
+        {
             panic_with_error!(e, PoolError::BadRequest);
         }
         pool_emissions.set(key, metadata.share);
-        total_share += metadata.share;
-    }
-
-    if total_share > SCALAR_7 as u64 {
-        panic_with_error!(e, PoolError::BadRequest);
     }
 
     storage::set_pool_emissions(e, &pool_emissions);
@@ -75,24 +72,49 @@ fn do_gulp_emissions(e: &Env, new_emissions: i128) {
     }
     let pool_emissions = storage::get_pool_emissions(e);
     let reserve_list = storage::get_res_list(e);
+    let mut pool_emis_enabled: Vec<(ReserveConfig, Address, u32, u64)> = Vec::new(e);
+
+    let mut total_share: i128 = 0;
     for (res_token_id, res_eps_share) in pool_emissions.iter() {
         let reserve_index = res_token_id / 2;
         let res_asset_address = reserve_list.get_unchecked(reserve_index);
+        let res_config = storage::get_res_config(e, &res_asset_address);
+
+        if res_config.enabled {
+            pool_emis_enabled.push_back((
+                res_config,
+                res_asset_address,
+                res_token_id,
+                res_eps_share,
+            ));
+            total_share += i128(res_eps_share);
+        }
+    }
+    for (res_config, res_asset_address, res_token_id, res_eps_share) in pool_emis_enabled {
         let new_reserve_emissions = i128(res_eps_share)
+            .fixed_div_floor(total_share, SCALAR_7)
+            .unwrap_optimized()
             .fixed_mul_floor(new_emissions, SCALAR_7)
             .unwrap_optimized();
-        update_reserve_emission_eps(e, &res_asset_address, res_token_id, new_reserve_emissions);
+
+        update_reserve_emission_eps(
+            e,
+            &res_config,
+            &res_asset_address,
+            res_token_id,
+            new_reserve_emissions,
+        );
     }
 }
 
 fn update_reserve_emission_eps(
     e: &Env,
+    reserve_config: &ReserveConfig,
     asset: &Address,
     res_token_id: u32,
     new_reserve_emissions: i128,
 ) {
     let mut tokens_left_to_emit = new_reserve_emissions;
-    let reserve_config = storage::get_res_config(e, asset);
     let reserve_data = storage::get_res_data(e, asset);
     let supply = match res_token_id % 2 {
         0 => reserve_data.d_supply,
@@ -289,6 +311,118 @@ mod tests {
     }
 
     #[test]
+    fn test_gulp_emissions_when_a_reserve_disabled() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.ledger().set(LedgerInfo {
+            timestamp: 1500000000,
+            protocol_version: 22,
+            sequence_number: 20100,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let pool = testutils::create_pool(&e);
+        let bombadil = Address::generate(&e);
+
+        let new_emissions: i128 = 302_400_0000000;
+        let pool_emissions: Map<u32, u64> = map![
+            &e,
+            (0, 0_2000000), // reserve_0 liability
+            (2, 0_5500000), // reserve_1 liability
+            (3, 0_2500000), // reserve_1 supply
+            (4, 0_1000000), // reserve_2 liability
+            (5, 0_1000000), // reserve_2 supply
+        ];
+
+        let (reserve_config, mut reserve_data) = testutils::default_reserve_meta();
+        reserve_data.last_time = 1499900000;
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        let mut reserve_config_disabled = reserve_config.clone();
+        reserve_config_disabled.enabled = false;
+        let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
+        testutils::create_reserve(
+            &e,
+            &pool,
+            &underlying_2,
+            &reserve_config_disabled,
+            &reserve_data,
+        );
+
+        // setup reserve_0 liability to have emissions remaining
+        let old_r_0_l_data = ReserveEmissionData {
+            eps: 0_15000000000000,
+            expiration: 1500000200,
+            index: 999990000000,
+            last_time: 1499980000,
+        };
+
+        // setup reserve_1 liability to have no emissions
+
+        // steup reserve_1 supply to have emissions expired
+        let old_r_1_s_data = ReserveEmissionData {
+            eps: 0_35000000000000,
+            expiration: 1499990000,
+            index: 111110000000,
+            last_time: 1499990000,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_emissions(&e, &pool_emissions);
+            storage::set_res_emis_data(&e, &0, &old_r_0_l_data);
+            storage::set_res_emis_data(&e, &3, &old_r_1_s_data);
+
+            do_gulp_emissions(&e, new_emissions);
+
+            assert!(storage::get_res_emis_data(&e, &1).is_none());
+            assert!(storage::get_res_emis_data(&e, &4).is_none());
+            assert!(storage::get_res_emis_data(&e, &5).is_none());
+
+            // verify reserve_0 liability leftover emissions were carried over
+            let r_0_l_config = storage::get_res_emis_data(&e, &0).unwrap_optimized();
+            let r_0_l_data = storage::get_res_emis_data(&e, &0).unwrap_optimized();
+            assert_eq!(r_0_l_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_0_l_config.eps, 0_10004960317460);
+            assert_eq!(r_0_l_data.index, (99999 + 40 * SCALAR_7) * SCALAR_7);
+            assert_eq!(r_0_l_data.last_time, 1500000000);
+
+            // verify reserve_1 liability initialized emissions
+            let r_1_l_config = storage::get_res_emis_data(&e, &2).unwrap_optimized();
+            let r_1_l_data = storage::get_res_emis_data(&e, &2).unwrap_optimized();
+            assert_eq!(r_1_l_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_1_l_config.eps, 0_27500000000000);
+            assert_eq!(r_1_l_data.index, 0);
+            assert_eq!(r_1_l_data.last_time, 1500000000);
+
+            // verify reserve_1 supply updated reserve data to the correct timestamp
+            let r_1_s_config = storage::get_res_emis_data(&e, &3).unwrap_optimized();
+            let r_1_s_data = storage::get_res_emis_data(&e, &3).unwrap_optimized();
+            assert_eq!(r_1_s_config.expiration, 1500000000 + 7 * 24 * 60 * 60);
+            assert_eq!(r_1_s_config.eps, 0_12500000000000);
+            assert_eq!(r_1_s_data.index, 111110000000);
+            assert_eq!(r_1_s_data.last_time, 1500000000);
+
+            // verify reserve_2 liability is None
+            let r_2_l_config = storage::get_res_emis_data(&e, &4);
+            let r_2_l_data = storage::get_res_emis_data(&e, &4);
+            assert!(r_2_l_config.is_none());
+            assert!(r_2_l_data.is_none());
+
+            // verify reserve_2 supply is None
+            let r_2_s_config = storage::get_res_emis_data(&e, &5);
+            let r_2_s_data = storage::get_res_emis_data(&e, &5);
+            assert!(r_2_s_config.is_none());
+            assert!(r_2_s_data.is_none());
+        });
+    }
+
+    #[test]
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_gulp_emissions_too_small() {
         let e = Env::default();
@@ -355,6 +489,7 @@ mod tests {
     #[test]
     fn test_set_pool_emissions() {
         let e = Env::default();
+        e.mock_all_auths();
         e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {
@@ -410,8 +545,9 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #1200)")]
-    fn test_set_pool_emissions_panics_if_over_100() {
+    fn test_set_pool_emissions_panics_if_anyone_share_equal_0() {
         let e = Env::default();
+        e.mock_all_auths();
         e.ledger().set(LedgerInfo {
             timestamp: 1500000000,
             protocol_version: 22,
@@ -449,6 +585,11 @@ mod tests {
                 res_type: 0,
                 share: 0_6500001,
             },
+            ReserveEmissionMetadata {
+                res_index: 3,
+                res_type: 1,
+                share: 0,
+            },
         ];
 
         e.as_contract(&pool, || {
@@ -461,6 +602,7 @@ mod tests {
     #[test]
     fn test_set_pool_emissions_ok_if_under_100() {
         let e = Env::default();
+        e.mock_all_auths();
         e.cost_estimate().budget().reset_unlimited();
 
         e.ledger().set(LedgerInfo {

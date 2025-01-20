@@ -166,8 +166,8 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 name = "backstop"
 version = "1.0.0"
 dependencies = [
+ "blend-contract-sdk",
  "cast",
- "emitter",
  "mock-pool-factory",
  "sep-41-token",
  "soroban-fixed-point-math",
@@ -505,14 +505,6 @@ dependencies = [
  "sec1",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "emitter"
-version = "1.0.0"
-dependencies = [
- "sep-41-token",
- "soroban-sdk",
 ]
 
 [[package]]
@@ -870,8 +862,8 @@ name = "pool"
 version = "1.0.0"
 dependencies = [
  "backstop",
+ "blend-contract-sdk",
  "cast",
- "emitter",
  "mock-pool-factory",
  "moderc3156",
  "sep-40-oracle",
@@ -1447,8 +1439,8 @@ name = "test-suites"
 version = "0.0.0"
 dependencies = [
  "backstop",
+ "blend-contract-sdk",
  "cast",
- "emitter",
  "mock-pool-factory",
  "moderc3156-example",
  "pool",

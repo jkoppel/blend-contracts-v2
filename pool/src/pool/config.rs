@@ -23,10 +23,6 @@ pub fn execute_initialize(
     backstop_address: &Address,
     blnd_id: &Address,
 ) {
-    if storage::get_is_init(e) {
-        panic_with_error!(e, PoolError::AlreadyInitializedError);
-    }
-
     // ensure backstop is [0,1)
     if *bstop_rate >= SCALAR_7 as u32 {
         panic_with_error!(e, PoolError::InvalidPoolInitArgs);
@@ -50,8 +46,6 @@ pub fn execute_initialize(
         },
     );
     storage::set_blnd_token(e, blnd_id);
-
-    storage::set_is_init(e);
 }
 
 /// Update the pool
@@ -159,6 +153,7 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
         r_three: config.r_three,
         reactivity: config.reactivity,
         collateral_cap: config.collateral_cap,
+        enabled: config.enabled,
     };
     storage::set_res_config(e, asset, &reserve_config);
 
@@ -193,6 +188,7 @@ mod tests {
     #[test]
     fn test_execute_initialize() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
 
         let admin = Address::generate(&e);
@@ -226,48 +222,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #3)")]
-    fn test_execute_initialize_already_initialized() {
-        let e = Env::default();
-        let pool = testutils::create_pool(&e);
-
-        let admin = Address::generate(&e);
-        let name = String::from_str(&e, "pool_name");
-        let oracle = Address::generate(&e);
-        let bstop_rate: u32 = 0_1000000;
-        let max_positions = 3;
-        let backstop_address = Address::generate(&e);
-        let blnd_id = Address::generate(&e);
-
-        e.as_contract(&pool, || {
-            execute_initialize(
-                &e,
-                &admin,
-                &name,
-                &oracle,
-                &bstop_rate,
-                &max_positions,
-                &backstop_address,
-                &blnd_id,
-            );
-
-            execute_initialize(
-                &e,
-                &Address::generate(&e),
-                &name,
-                &oracle,
-                &bstop_rate,
-                &max_positions,
-                &backstop_address,
-                &blnd_id,
-            );
-        });
-    }
-
-    #[test]
     #[should_panic(expected = "Error(Contract, #1201)")]
     fn test_execute_initialize_bad_take_rate() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
 
         let admin = Address::generate(&e);
@@ -296,6 +254,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1201)")]
     fn test_execute_initialize_bad_max_positions() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
 
         let admin = Address::generate(&e);
@@ -323,6 +282,7 @@ mod tests {
     #[test]
     fn test_execute_update_pool() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
 
         let pool_config = PoolConfig {
@@ -348,6 +308,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_execute_update_pool_validates() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
 
         let pool_config = PoolConfig {
@@ -366,6 +327,7 @@ mod tests {
     #[test]
     fn test_queue_set_reserve_status_6() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
 
@@ -384,6 +346,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
@@ -414,6 +377,7 @@ mod tests {
     #[test]
     fn test_queue_set_reserve() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
 
@@ -432,6 +396,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
@@ -465,6 +430,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1200)")]
     fn test_queue_set_reserve_duplicate() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
 
@@ -483,6 +449,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
@@ -506,6 +473,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1202)")]
     fn test_queue_set_reserve_validates_metadata() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
         let (asset_id, _) = testutils::create_token_contract(&e, &bombadil);
@@ -523,6 +491,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
@@ -539,6 +508,7 @@ mod tests {
     #[test]
     fn test_execute_cancel_queued_reserve_initialization() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
 
@@ -557,6 +527,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         e.as_contract(&pool, || {
             storage::set_queued_reserve_set(
@@ -577,6 +548,7 @@ mod tests {
     #[test]
     fn test_execute_set_reserve_first_reserve() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
 
@@ -595,6 +567,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         e.as_contract(&pool, || {
             storage::set_queued_reserve_set(
@@ -624,6 +597,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1203)")]
     fn test_execute_set_reserve_requires_block_passed() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
 
@@ -642,6 +616,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         e.as_contract(&pool, || {
             storage::set_queued_reserve_set(
@@ -849,6 +824,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 105,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
 
         let pool_config = PoolConfig {
@@ -875,6 +851,7 @@ mod tests {
     #[test]
     fn test_initialize_reserve_sets_index() {
         let e = Env::default();
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let bombadil = Address::generate(&e);
 
@@ -894,6 +871,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         e.as_contract(&pool, || {
             initialize_reserve(&e, &asset_id_0, &metadata);
@@ -933,6 +911,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
         // no panic
@@ -957,6 +936,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -979,6 +959,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1001,6 +982,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1023,6 +1005,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1045,6 +1028,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1067,6 +1051,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1089,6 +1074,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1111,6 +1097,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 100,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }
@@ -1133,6 +1120,7 @@ mod tests {
             r_three: 1_5000000,
             reactivity: 0_0001001,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
     }

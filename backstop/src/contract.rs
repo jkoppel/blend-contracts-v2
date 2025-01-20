@@ -1,5 +1,6 @@
 use crate::{
     backstop::{self, load_pool_backstop_data, PoolBackstopData, UserBalance, Q4W},
+    constants::{MAX_BACKFILLED_EMISSIONS, SCALAR_7},
     dependencies::EmitterClient,
     emissions,
     errors::BackstopError,
@@ -16,30 +17,6 @@ pub struct BackstopContract;
 
 #[contractclient(name = "BackstopClient")]
 pub trait Backstop {
-    /// Initialize the backstop
-    ///
-    /// This function requires that the Emitter has already been initialized
-    ///
-    /// ### Arguments
-    /// * `backstop_token` - The backstop token ID - an LP token with the pair BLND:USDC
-    /// * `emitter` - The Emitter contract ID
-    /// * `blnd_token` - The BLND token ID
-    /// * `usdc_token` - The USDC token ID
-    /// * `pool_factory` - The pool factory ID
-    /// * `drop_list` - The list of addresses to distribute initial BLND to and the percent of the distribution they should receive
-    ///
-    /// ### Errors
-    /// If initialize has already been called
-    fn initialize(
-        e: Env,
-        backstop_token: Address,
-        emitter: Address,
-        blnd_token: Address,
-        usdc_token: Address,
-        pool_factory: Address,
-        drop_list: Vec<(Address, i128)>,
-    );
-
     /********** Core **********/
 
     /// Deposit backstop tokens from "from" into the backstop of a pool
@@ -190,44 +167,47 @@ pub trait Backstop {
     fn update_tkn_val(e: Env) -> (i128, i128);
 }
 
+#[contractimpl]
+impl BackstopContract {
+    /// Construct the backstop contract
+    ///
+    /// ### Arguments
+    /// * `backstop_token` - The backstop token ID - an LP token with the pair BLND:USDC
+    /// * `emitter` - The Emitter contract ID
+    /// * `blnd_token` - The BLND token ID
+    /// * `usdc_token` - The USDC token ID
+    /// * `pool_factory` - The pool factory ID
+    /// * `drop_list` - The list of addresses to distribute initial BLND to and the percent of the distribution they should receive
+    pub fn __constructor(
+        e: Env,
+        backstop_token: Address,
+        emitter: Address,
+        blnd_token: Address,
+        usdc_token: Address,
+        pool_factory: Address,
+        drop_list: Vec<(Address, i128)>,
+    ) {
+        storage::set_backstop_token(&e, &backstop_token);
+        storage::set_blnd_token(&e, &blnd_token);
+        storage::set_usdc_token(&e, &usdc_token);
+        storage::set_pool_factory(&e, &pool_factory);
+        let mut drop_total: i128 = 0;
+        for (_, amount) in drop_list.iter() {
+            drop_total += amount;
+        }
+        if drop_total + MAX_BACKFILLED_EMISSIONS > 50_000_000 * SCALAR_7 {
+            panic_with_error!(&e, BackstopError::BadRequest);
+        }
+        storage::set_drop_list(&e, &drop_list);
+        storage::set_emitter(&e, &emitter);
+    }
+}
+
 /// @dev
 /// The contract implementation only manages the authorization / authentication required from the caller(s), and
 /// utilizes other modules to carry out contract functionality.
 #[contractimpl]
 impl Backstop for BackstopContract {
-    fn initialize(
-        e: Env,
-        backstop_token: Address,
-        emitter: Address,
-        usdc_token: Address,
-        blnd_token: Address,
-        pool_factory: Address,
-        drop_list: Vec<(Address, i128)>,
-    ) {
-        storage::extend_instance(&e);
-        if storage::get_is_init(&e) {
-            panic_with_error!(e, BackstopError::AlreadyInitializedError);
-        }
-
-        storage::set_backstop_token(&e, &backstop_token);
-        storage::set_blnd_token(&e, &blnd_token);
-        storage::set_usdc_token(&e, &usdc_token);
-        storage::set_pool_factory(&e, &pool_factory);
-        // NOTE: For a replacement backstop, this value likely needs to be stored in persistent storage to avoid
-        //       an expiration occuring before a backstop swap is finalized.
-        storage::set_drop_list(&e, &drop_list);
-        storage::set_emitter(&e, &emitter);
-
-        // fetch last distribution time from emitter
-        // NOTE: For a replacement backstop, this must be fetched after the swap is completed, but this is
-        //       a shortcut for the first backstop.
-        let last_distribution_time =
-            EmitterClient::new(&e, &emitter).get_last_distro(&e.current_contract_address());
-        storage::set_last_distribution_time(&e, &last_distribution_time);
-
-        storage::set_is_init(&e);
-    }
-
     /********** Core **********/
 
     fn deposit(e: Env, from: Address, pool_address: Address, amount: i128) -> i128 {
@@ -325,7 +305,11 @@ impl Backstop for BackstopContract {
     }
 
     fn drop(e: Env) {
-        EmitterClient::new(&e, &storage::get_emitter(&e)).drop(&storage::get_drop_list(&e))
+        let mut drop_list = storage::get_drop_list(&e);
+        let backfilled_emissions = storage::get_backfill_emissions(&e);
+        drop_list.push_back((e.current_contract_address(), backfilled_emissions));
+        let emitter_client = EmitterClient::new(&e, &storage::get_emitter(&e));
+        emitter_client.drop(&drop_list)
     }
 
     /********** Fund Management *********/

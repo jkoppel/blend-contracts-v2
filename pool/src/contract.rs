@@ -16,31 +16,6 @@ pub struct PoolContract;
 
 #[contractclient(name = "PoolClient")]
 pub trait Pool {
-    /// Initialize the pool
-    ///
-    /// ### Arguments
-    /// Creator supplied:
-    /// * `admin` - The Address for the admin
-    /// * `name` - The name of the pool
-    /// * `oracle` - The contract address of the oracle
-    /// * `backstop_take_rate` - The take rate for the backstop (7 decimals)
-    /// * `max_positions` - The maximum number of positions a user is permitted to have
-    ///
-    /// Pool Factory supplied:
-    /// * `backstop_id` - The contract address of the pool's backstop module
-    /// * `blnd_id` - The contract ID of the BLND token
-    #[allow(clippy::too_many_arguments)]
-    fn initialize(
-        e: Env,
-        admin: Address,
-        name: String,
-        oracle: Address,
-        bstop_rate: u32,
-        max_positions: u32,
-        backstop_id: Address,
-        blnd_id: Address,
-    );
-
     /// (Admin only) Set a new address as the admin of this pool
     ///
     /// ### Arguments
@@ -215,6 +190,15 @@ pub trait Pool {
     /// If the specified conditions are not met for the status to be set
     fn set_status(e: Env, pool_status: u32);
 
+    /// Update the reserve's bToken rate based on the pool's balance. This is useful for tokens where
+    ///  a holder's balance can increase outside of a direct transfer.
+    ///
+    /// ### Arguments
+    /// * `asset` - The address of the asset to gulp
+    ///
+    /// Returns the amount of tokens gulped
+    fn gulp(e: Env, asset: Address) -> i128;
+
     /********* Emission Functions **********/
 
     /// Consume emissions from the backstop and distribute to the reserves based
@@ -293,19 +277,30 @@ pub trait Pool {
 }
 
 #[contractimpl]
-impl Pool for PoolContract {
-    #[allow(clippy::too_many_arguments)]
-    fn initialize(
+impl PoolContract {
+    /// Initialize the pool
+    ///
+    /// ### Arguments
+    /// Creator supplied:
+    /// * `admin` - The Address for the admin
+    /// * `name` - The name of the pool
+    /// * `oracle` - The contract address of the oracle
+    /// * `backstop_take_rate` - The take rate for the backstop (7 decimals)
+    /// * `max_positions` - The maximum number of positions a user is permitted to have
+    ///
+    /// Pool Factory supplied:
+    /// * `backstop_id` - The contract address of the pool's backstop module
+    /// * `blnd_id` - The contract ID of the BLND token
+    pub fn __constructor(
         e: Env,
         admin: Address,
         name: String,
         oracle: Address,
         bstop_rate: u32,
-        max_postions: u32,
+        max_positions: u32,
         backstop_id: Address,
         blnd_id: Address,
     ) {
-        storage::extend_instance(&e);
         admin.require_auth();
 
         pool::execute_initialize(
@@ -314,12 +309,15 @@ impl Pool for PoolContract {
             &name,
             &oracle,
             &bstop_rate,
-            &max_postions,
+            &max_positions,
             &backstop_id,
             &blnd_id,
         );
     }
+}
 
+#[contractimpl]
+impl Pool for PoolContract {
     fn set_admin(e: Env, new_admin: Address) {
         storage::extend_instance(&e);
         let admin = storage::get_admin(&e);
@@ -448,6 +446,14 @@ impl Pool for PoolContract {
         pool::execute_set_pool_status(&e, pool_status);
 
         PoolEvents::set_status_admin(&e, admin, pool_status);
+    }
+
+    fn gulp(e: Env, asset: Address) -> i128 {
+        storage::extend_instance(&e);
+        let (token_delta, b_rate) = pool::execute_gulp(&e, &asset);
+
+        PoolEvents::gulp(&e, asset, token_delta, b_rate);
+        token_delta
     }
 
     /********* Emission Functions **********/

@@ -4,7 +4,7 @@ use pool::{Request, RequestType, ReserveEmissionMetadata};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events},
-    vec, Address, IntoVal, String, Symbol, Val,
+    vec, Address, IntoVal, Symbol, Val,
 };
 use test_suites::{
     assertions::assert_approx_eq_abs,
@@ -536,18 +536,6 @@ fn test_pool_config() {
     let fixture = create_fixture_with_data(false);
 
     let pool_fixture = &fixture.pools[0];
-
-    // Verify initialize can't be run again
-    let result = pool_fixture.pool.try_initialize(
-        &Address::generate(&fixture.env),
-        &String::from_str(&fixture.env, "Teapot"),
-        &Address::generate(&fixture.env),
-        &10000,
-        &4,
-        &Address::generate(&fixture.env),
-        &Address::generate(&fixture.env),
-    );
-    assert!(result.is_err());
 
     // Update pool config (admin only)
     let backstop_take_rate: u32 = 0_0500000;

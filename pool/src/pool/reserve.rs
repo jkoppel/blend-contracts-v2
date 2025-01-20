@@ -5,6 +5,7 @@ use soroban_sdk::{contracttype, panic_with_error, unwrap::UnwrapOptimized, Addre
 use crate::{
     constants::{SCALAR_7, SCALAR_9},
     errors::PoolError,
+    pool::actions::RequestType,
     storage::{self, PoolConfig, ReserveData},
 };
 
@@ -27,6 +28,7 @@ pub struct Reserve {
     pub d_supply: i128,        // the total supply of d tokens
     pub backstop_credit: i128, // the total amount of underlying tokens owed to the backstop
     pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
+    pub enabled: bool,        // is the reserve enabled
 }
 
 impl Reserve {
@@ -59,6 +61,7 @@ impl Reserve {
             d_supply: reserve_data.d_supply,
             backstop_credit: reserve_data.backstop_credit,
             collateral_cap: reserve_config.collateral_cap,
+            enabled: reserve_config.enabled,
         };
 
         // short circuit if the reserve has already been updated this ledger
@@ -87,28 +90,13 @@ impl Reserve {
         );
         reserve.ir_mod = new_ir_mod;
 
-        let pre_update_supply = reserve.total_supply();
         let pre_update_liabilities = reserve.total_liabilities();
-
         reserve.d_rate = loan_accrual
             .fixed_mul_ceil(reserve.d_rate, SCALAR_9)
             .unwrap_optimized();
-
         let accrued_interest = reserve.total_liabilities() - pre_update_liabilities;
-        if accrued_interest > 0 {
-            // credit the backstop underlying from the accrued interest based on the backstop rate
-            // update the accrued interest to reflect the amount the pool accrued
-            let mut new_backstop_credit: i128 = 0;
-            if pool_config.bstop_rate > 0 {
-                new_backstop_credit = accrued_interest
-                    .fixed_mul_floor(i128(pool_config.bstop_rate), SCALAR_7)
-                    .unwrap_optimized();
-                reserve.backstop_credit += new_backstop_credit;
-            }
-            reserve.b_rate = (pre_update_supply + accrued_interest - new_backstop_credit)
-                .fixed_div_floor(reserve.b_supply, SCALAR_9)
-                .unwrap_optimized();
-        }
+
+        reserve.gulp(pool_config.bstop_rate, accrued_interest);
 
         reserve.last_time = e.ledger().timestamp();
         reserve
@@ -128,6 +116,30 @@ impl Reserve {
         storage::set_res_data(e, &self.asset, &reserve_data);
     }
 
+    /// Accrue tokens to the reserve supply. This issues any `backstop_credit` required and updates the reserve's bRate to account for the additional tokens.
+    ///
+    /// ### Arguments
+    /// * bstop_rate - The backstop take rate for the pool
+    /// * accrued - The amount of additional underlying tokens
+    pub fn gulp(&mut self, bstop_rate: u32, accrued: i128) {
+        let pre_update_supply = self.total_supply();
+
+        if accrued > 0 {
+            // credit the backstop underlying from the accrued interest based on the backstop rate
+            // update the accrued interest to reflect the amount the pool accrued
+            let mut new_backstop_credit: i128 = 0;
+            if bstop_rate > 0 {
+                new_backstop_credit = accrued
+                    .fixed_mul_floor(i128(bstop_rate), SCALAR_7)
+                    .unwrap_optimized();
+                self.backstop_credit += new_backstop_credit;
+            }
+            self.b_rate = (pre_update_supply + accrued - new_backstop_credit)
+                .fixed_div_floor(self.b_supply, SCALAR_9)
+                .unwrap_optimized();
+        }
+    }
+
     /// Fetch the current utilization rate for the reserve normalized to 7 decimals
     pub fn utilization(&self) -> i128 {
         self.total_liabilities()
@@ -139,6 +151,22 @@ impl Reserve {
     pub fn require_utilization_below_max(&self, e: &Env) {
         if self.utilization() > i128(self.max_util) {
             panic_with_error!(e, PoolError::InvalidUtilRate)
+        }
+    }
+
+    /// Check the action is allowed according to the reserve status, or panic.
+    ///
+    /// ### Arguments
+    /// * `action_type` - The type of action being performed
+    pub fn require_action_allowed(&self, e: &Env, action_type: u32) {
+        // disable borrowing or auction cancellation for any non-active pool and disable supplying for any frozen pool
+        if !self.enabled {
+            if action_type == RequestType::Supply as u32
+                || action_type == RequestType::SupplyCollateral as u32
+                || action_type == RequestType::Borrow as u32
+            {
+                panic_with_error!(e, PoolError::ReserveDisabled);
+            }
         }
     }
 
@@ -244,7 +272,6 @@ mod tests {
     use super::*;
     use crate::testutils;
     use soroban_sdk::testutils::{Address as _, Ledger, LedgerInfo};
-
     #[test]
     fn test_load_reserve() {
         let e = Env::default();
@@ -672,5 +699,89 @@ mod tests {
         let result = reserve.to_b_token_down(1_4850243);
 
         assert_eq!(result, 1_1234566);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_require_action_allowed_panics_if_supply_disabled_asset() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.enabled = false;
+
+        reserve.require_action_allowed(&e, RequestType::SupplyCollateral as u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_require_action_allowed_panics_if_borrow_disabled_asset() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.enabled = false;
+
+        reserve.require_action_allowed(&e, RequestType::Borrow as u32);
+    }
+
+    #[test]
+    fn test_require_action_allowed_passed_if_withdraw_or_repay() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.enabled = false;
+
+        reserve.require_action_allowed(&e, RequestType::Withdraw as u32);
+        reserve.require_action_allowed(&e, RequestType::WithdrawCollateral as u32);
+        reserve.require_action_allowed(&e, RequestType::Repay as u32);
+    }
+
+    #[test]
+    fn test_gulp() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 123456 * 5,
+            protocol_version: 22,
+            sequence_number: 123456,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.backstop_credit = 0_1234567;
+
+        reserve.gulp(0_2000000, 100_0000000);
+        assert_eq!(reserve.backstop_credit, 20_0000000 + 0_1234567);
+        assert_eq!(reserve.b_rate, 1_800000000);
+        assert_eq!(reserve.last_time, 0);
+    }
+
+    #[test]
+    fn test_gulp_negative_delta_no_change() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 123456 * 5,
+            protocol_version: 22,
+            sequence_number: 123456,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.backstop_credit = 0_1234567;
+
+        reserve.gulp(0_2000000, -10_0000000);
+        assert_eq!(reserve.backstop_credit, 0_1234567);
+        assert_eq!(reserve.b_rate, 1000000000);
+        assert_eq!(reserve.last_time, 0);
     }
 }

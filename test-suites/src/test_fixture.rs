@@ -9,12 +9,12 @@ use crate::pool::POOL_WASM;
 use crate::pool_factory::create_pool_factory;
 use crate::token::{create_stellar_token, create_token};
 use backstop::BackstopClient;
-use emitter::EmitterClient;
+use blend_contract_sdk::emitter::Client as EmitterClient;
 use pool::{PoolClient, PoolConfig, PoolDataKey, ReserveConfig, ReserveData, ReserveEmissionData};
 use pool_factory::{PoolFactoryClient, PoolInitMeta};
 use sep_40_oracle::testutils::{Asset, MockPriceOracleClient};
 use sep_41_token::testutils::MockTokenClient;
-use soroban_sdk::testutils::{Address as _, BytesN as _, Ledger, LedgerInfo};
+use soroban_sdk::testutils::{Address as _, BytesN as _, EnvTestConfig, Ledger, LedgerInfo};
 use soroban_sdk::{vec as svec, Address, BytesN, Env, Map, String, Symbol};
 
 pub const SCALAR_7: i128 = 1_000_0000;
@@ -61,7 +61,9 @@ impl TestFixture<'_> {
     /// Deploys BLND (0), USDC (1), wETH (2), XLM (3), and STABLE (4) test tokens, alongside all required
     /// Blend Protocol contracts, including a BLND-USDC LP.
     pub fn create<'a>(wasm: bool) -> TestFixture<'a> {
-        let e = Env::default();
+        let e = Env::new_with_config(EnvTestConfig {
+            capture_snapshot_at_drop: false,
+        });
         e.mock_all_auths();
         e.cost_estimate().budget().reset_unlimited();
 
@@ -86,44 +88,45 @@ impl TestFixture<'_> {
         let (xlm_id, xlm_client) = create_stellar_token(&e, &bombadil);
         let (stable_id, stable_client) = create_token(&e, &bombadil, 6, "STABLE");
 
-        // deploy Blend Protocol contracts
-        let (backstop_id, backstop_client) = create_backstop(&e, wasm);
-        let (emitter_id, emitter_client) = create_emitter(&e, wasm);
-        let (pool_factory_id, _) = create_pool_factory(&e, wasm);
-
         // deploy external contracts
         let (lp, lp_client) = create_lp_pool(&e, &bombadil, &blnd_id, &usdc_id);
 
-        // initialize emitter
+        // generate Blend Protocol contract IDs
+        let backstop_id = Address::generate(&e);
+        let pool_factory_id = Address::generate(&e);
+
+        let (emitter_id, emitter_client) = create_emitter(&e);
         blnd_client.set_admin(&emitter_id);
         emitter_client.initialize(&blnd_id, &backstop_id, &lp);
 
-        // initialize backstop
-        backstop_client.initialize(
+        let backstop_client = create_backstop(
+            &e,
+            &backstop_id,
+            wasm,
             &lp,
             &emitter_id,
-            &usdc_id,
             &blnd_id,
+            &usdc_id,
             &pool_factory_id,
             &svec![
                 &e,
                 (bombadil.clone(), 10_000_000 * SCALAR_7),
-                (frodo.clone(), 40_000_000 * SCALAR_7)
+                (frodo.clone(), 30_000_000 * SCALAR_7)
             ],
         );
-
-        // initialize pool factory
         let pool_hash = e.deployer().upload_contract_wasm(POOL_WASM);
         let pool_init_meta = PoolInitMeta {
             backstop: backstop_id.clone(),
             pool_hash: pool_hash.clone(),
             blnd_id: blnd_id.clone(),
         };
-        let pool_factory_client = PoolFactoryClient::new(&e, &pool_factory_id);
-        pool_factory_client.initialize(&pool_init_meta);
+        let pool_factory_client = create_pool_factory(&e, &pool_factory_id, wasm, pool_init_meta);
 
         // drop tokens to bombadil
         backstop_client.drop();
+
+        // start distribution period
+        backstop_client.distribute();
 
         // initialize oracle
         let (_, mock_oracle_client) = create_mock_oracle(&e);

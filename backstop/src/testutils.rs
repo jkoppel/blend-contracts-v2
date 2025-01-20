@@ -10,16 +10,30 @@ use crate::{
 use soroban_sdk::{
     testutils::{Address as _, Ledger, LedgerInfo},
     unwrap::UnwrapOptimized,
-    vec, Address, Env, IntoVal, Vec,
+    vec, Address, BytesN, Env, IntoVal, Vec,
 };
 
 use sep_41_token::testutils::{MockTokenClient, MockTokenWASM};
 
-use emitter::{EmitterClient, EmitterContract};
-use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient};
+use blend_contract_sdk::emitter::{Client as EmitterClient, WASM as EmitterWASM};
+use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient, PoolInitMeta};
 
+/// Create a backstop contract.
+///
+/// This sets random data in the constructor, so unit tests that
+/// rely on any constructor data need to reset it.
 pub(crate) fn create_backstop(e: &Env) -> Address {
-    e.register(BackstopContract {}, ())
+    e.register(
+        BackstopContract {},
+        (
+            Address::generate(e),
+            Address::generate(e),
+            Address::generate(e),
+            Address::generate(e),
+            Address::generate(e),
+            Vec::<(Address, i128)>::new(e),
+        ),
+    )
 }
 
 pub(crate) fn create_token<'a>(e: &Env, admin: &Address) -> (Address, MockTokenClient<'a>) {
@@ -69,11 +83,17 @@ pub(crate) fn create_backstop_token<'a>(
     (contract_address, client)
 }
 
+// Not used to deploy pools in tests - filled with mock data
 pub(crate) fn create_mock_pool_factory<'a>(
     e: &Env,
     backstop: &Address,
 ) -> (Address, MockPoolFactoryClient<'a>) {
-    let contract_address = e.register(MockPoolFactory {}, ());
+    let pool_init_meta = PoolInitMeta {
+        backstop: backstop.clone(),
+        pool_hash: BytesN::<32>::from_array(&e, &[0u8; 32]),
+        blnd_id: Address::generate(e),
+    };
+    let contract_address = e.register(MockPoolFactory {}, (pool_init_meta,));
     e.as_contract(backstop, || {
         storage::set_pool_factory(e, &contract_address);
     });
@@ -90,7 +110,7 @@ pub(crate) fn create_emitter<'a>(
     blnd_token: &Address,
     emitter_last_distro: u64,
 ) -> (Address, EmitterClient<'a>) {
-    let contract_address = e.register(EmitterContract {}, ());
+    let contract_address = e.register(EmitterWASM, ());
 
     let prev_timestamp = e.ledger().timestamp();
     e.ledger().set(LedgerInfo {

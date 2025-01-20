@@ -3,8 +3,8 @@ use crate::{
     PoolFactoryError,
 };
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, testutils::Address as _, vec, Address, BytesN, Env,
-    IntoVal, String, Symbol, Val, Vec,
+    contract, contractimpl, panic_with_error, testutils::Address as _, Address, BytesN, Env,
+    String, Symbol,
 };
 
 use pool::PoolContract;
@@ -13,12 +13,6 @@ use pool::PoolContract;
 pub struct MockPoolFactory;
 
 pub trait MockPoolFactoryTrait {
-    /// Setup the pool factory
-    ///
-    /// ### Arguments
-    /// * `pool_init_meta` - The pool initialization metadata
-    fn initialize(e: Env, pool_init_meta: PoolInitMeta);
-
     /// Deploys and initializes a lending pool
     ///
     /// # Arguments
@@ -52,14 +46,18 @@ pub trait MockPoolFactoryTrait {
 }
 
 #[contractimpl]
-impl MockPoolFactoryTrait for MockPoolFactory {
-    fn initialize(e: Env, pool_init_meta: PoolInitMeta) {
-        if storage::has_pool_init_meta(&e) {
-            panic_with_error!(&e, PoolFactoryError::AlreadyInitialized);
-        }
+impl MockPoolFactory {
+    /// Construct the pool factory contract
+    ///
+    /// ### Arguments
+    /// * `pool_init_meta` - The pool initialization metadata    
+    pub fn __constructor(e: Env, pool_init_meta: PoolInitMeta) {
         storage::set_pool_init_meta(&e, &pool_init_meta);
     }
+}
 
+#[contractimpl]
+impl MockPoolFactoryTrait for MockPoolFactory {
     fn deploy(
         e: Env,
         admin: Address,
@@ -78,18 +76,20 @@ impl MockPoolFactoryTrait for MockPoolFactory {
             panic_with_error!(&e, PoolFactoryError::InvalidPoolInitArgs);
         }
 
-        let mut init_args: Vec<Val> = vec![&e];
-        init_args.push_back(admin.to_val());
-        init_args.push_back(name.to_val());
-        init_args.push_back(oracle.to_val());
-        init_args.push_back(backstop_take_rate.into_val(&e));
-        init_args.push_back(max_positions.into_val(&e));
-        init_args.push_back(pool_init_meta.backstop.to_val());
-        init_args.push_back(pool_init_meta.blnd_id.to_val());
-
         let pool_address = Address::generate(&e);
-        e.register_at(&pool_address, PoolContract {}, ());
-        e.invoke_contract::<Val>(&pool_address, &Symbol::new(&e, "initialize"), init_args);
+        e.register_at(
+            &pool_address,
+            PoolContract {},
+            (
+                admin,
+                name,
+                oracle,
+                backstop_take_rate,
+                max_positions,
+                pool_init_meta.backstop,
+                pool_init_meta.blnd_id,
+            ),
+        );
 
         storage::set_deployed(&e, &pool_address);
 
