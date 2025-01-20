@@ -16,6 +16,9 @@ use soroban_sdk::{
 
 use backstop::{BackstopClient, BackstopContract};
 use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient, PoolInitMeta};
+use moderc3156_example::{
+    FlashLoanReceiverModifiedERC3156, FlashLoanReceiverModifiedERC3156Client,
+};
 
 /// Create a pool contract.
 ///
@@ -171,6 +174,24 @@ pub(crate) fn create_comet_lp_pool<'a>(
     );
 
     (contract_address, client)
+}
+
+//***** Flash Loan *****
+
+/// Create a flash loan receiver contract.
+///
+/// This returns the tokens received from the flash loan to the "caller" for
+/// test purposes.
+pub fn create_flashloan_receiver<'a>(
+    e: &Env,
+) -> (Address, FlashLoanReceiverModifiedERC3156Client<'a>) {
+    let contract_id = Address::generate(e);
+    e.register_at(&contract_id, FlashLoanReceiverModifiedERC3156 {}, ());
+
+    (
+        contract_id.clone(),
+        FlashLoanReceiverModifiedERC3156Client::new(e, &contract_id),
+    )
 }
 
 //************************************************

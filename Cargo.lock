@@ -866,6 +866,7 @@ dependencies = [
  "cast",
  "mock-pool-factory",
  "moderc3156",
+ "moderc3156-example",
  "sep-40-oracle",
  "sep-41-token",
  "soroban-fixed-point-math",
