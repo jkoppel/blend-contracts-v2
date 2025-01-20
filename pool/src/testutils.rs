@@ -6,17 +6,34 @@ use crate::{
     storage::{self, ReserveConfig, ReserveData},
     PoolContract,
 };
-use emitter::{EmitterClient, EmitterContract};
+use blend_contract_sdk::emitter::{Client as EmitterClient, WASM as EmitterWASM};
 use sep_40_oracle::testutils::{MockPriceOracleClient, MockPriceOracleWASM};
 use sep_41_token::testutils::{MockTokenClient, MockTokenWASM};
 use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{testutils::Address as _, unwrap::UnwrapOptimized, vec, Address, Env, IntoVal};
+use soroban_sdk::{
+    testutils::Address as _, unwrap::UnwrapOptimized, vec, Address, BytesN, Env, IntoVal, String,
+};
 
 use backstop::{BackstopClient, BackstopContract};
-use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient};
+use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient, PoolInitMeta};
 
+/// Create a pool contract.
+///
+/// This sets random data in the constructor, so unit tests that
+/// rely on any constructor data need to reset it.
 pub(crate) fn create_pool(e: &Env) -> Address {
-    e.register(PoolContract {}, ())
+    e.register(
+        PoolContract {},
+        (
+            Address::generate(e),
+            String::from_str(e, "teapot"),
+            Address::generate(e),
+            0_1000000u32,
+            4u32,
+            Address::generate(e),
+            Address::generate(e),
+        ),
+    )
 }
 
 //************************************************
@@ -62,7 +79,12 @@ pub(crate) fn create_mock_oracle(e: &Env) -> (Address, MockPriceOracleClient) {
 //***** Pool Factory ******
 
 pub(crate) fn create_mock_pool_factory(e: &Env) -> (Address, MockPoolFactoryClient) {
-    let contract_address = e.register(MockPoolFactory {}, ());
+    let pool_init_meta = PoolInitMeta {
+        backstop: Address::generate(e),
+        pool_hash: BytesN::<32>::from_array(&e, &[0u8; 32]),
+        blnd_id: Address::generate(e),
+    };
+    let contract_address = e.register(MockPoolFactory {}, (pool_init_meta,));
     (
         contract_address.clone(),
         MockPoolFactoryClient::new(e, &contract_address),
@@ -77,7 +99,7 @@ pub(crate) fn create_emitter<'a>(
     backstop_token: &Address,
     blnd_token: &Address,
 ) -> (Address, EmitterClient<'a>) {
-    let contract_address = e.register(EmitterContract {}, ());
+    let contract_address = e.register(EmitterWASM, ());
     let client = EmitterClient::new(e, &contract_address);
     client.initialize(blnd_token, backstop_id, backstop_token);
     (contract_address.clone(), client)
@@ -89,37 +111,33 @@ mod comet {
     soroban_sdk::contractimport!(file = "../comet.wasm");
 }
 
-pub(crate) fn create_backstop(e: &Env) -> (Address, BackstopClient) {
-    let contract_address = e.register(BackstopContract {}, ());
-    (
-        contract_address.clone(),
-        BackstopClient::new(e, &contract_address),
-    )
-}
-
-pub(crate) fn setup_backstop(
+pub(crate) fn create_backstop<'a>(
     e: &Env,
     pool_address: &Address,
-    backstop_id: &Address,
     backstop_token: &Address,
     usdc_token: &Address,
     blnd_token: &Address,
-) {
+) -> (Address, BackstopClient<'a>) {
+    let backstop_id = Address::generate(e);
     let (pool_factory, mock_pool_factory_client) = create_mock_pool_factory(e);
     mock_pool_factory_client.set_pool(pool_address);
-    let (emitter, _) = create_emitter(e, backstop_id, backstop_token, blnd_token);
-    let backstop_client: BackstopClient = BackstopClient::new(e, backstop_id);
-    backstop_client.initialize(
-        backstop_token,
-        &emitter,
-        usdc_token,
-        blnd_token,
-        &pool_factory,
-        &vec![e, (pool_address.clone(), 50_000_000 * SCALAR_7)],
+    let (emitter, _) = create_emitter(e, &backstop_id, backstop_token, blnd_token);
+    e.register_at(
+        &backstop_id,
+        BackstopContract {},
+        (
+            backstop_token,
+            emitter,
+            blnd_token,
+            usdc_token,
+            pool_factory,
+            vec![e, (pool_address.clone(), 50_000_000 * SCALAR_7)],
+        ),
     );
     e.as_contract(pool_address, || {
-        storage::set_backstop(e, backstop_id);
+        storage::set_backstop(e, &backstop_id);
     });
+    (backstop_id.clone(), BackstopClient::new(e, &backstop_id))
 }
 
 /// Deploy a test Comet LP pool of 80% BLND / 20% USDC and set it as the backstop token.
@@ -177,6 +195,7 @@ pub(crate) fn default_reserve(e: &Env) -> Reserve {
         d_supply: 75_0000000,
         backstop_credit: 0,
         collateral_cap: 1000000000000000000,
+        enabled: true,
     }
 }
 
@@ -195,6 +214,7 @@ pub(crate) fn default_reserve_meta() -> (ReserveConfig, ReserveData) {
             reactivity: 0_0000020, // 2e-6
             index: 0,
             collateral_cap: 1000000000000000000,
+            enabled: true,
         },
         ReserveData {
             b_rate: 1_000_000_000,

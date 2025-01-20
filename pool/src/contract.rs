@@ -16,31 +16,6 @@ pub struct PoolContract;
 
 #[contractclient(name = "PoolClient")]
 pub trait Pool {
-    /// Initialize the pool
-    ///
-    /// ### Arguments
-    /// Creator supplied:
-    /// * `admin` - The Address for the admin
-    /// * `name` - The name of the pool
-    /// * `oracle` - The contract address of the oracle
-    /// * `backstop_take_rate` - The take rate for the backstop (7 decimals)
-    /// * `max_positions` - The maximum number of positions a user is permitted to have
-    ///
-    /// Pool Factory supplied:
-    /// * `backstop_id` - The contract address of the pool's backstop module
-    /// * `blnd_id` - The contract ID of the BLND token
-    #[allow(clippy::too_many_arguments)]
-    fn initialize(
-        e: Env,
-        admin: Address,
-        name: String,
-        oracle: Address,
-        bstop_rate: u32,
-        max_positions: u32,
-        backstop_id: Address,
-        blnd_id: Address,
-    );
-
     /// (Admin only) Set a new address as the admin of this pool
     ///
     /// ### Arguments
@@ -282,19 +257,30 @@ pub trait Pool {
 }
 
 #[contractimpl]
-impl Pool for PoolContract {
-    #[allow(clippy::too_many_arguments)]
-    fn initialize(
+impl PoolContract {
+    /// Initialize the pool
+    ///
+    /// ### Arguments
+    /// Creator supplied:
+    /// * `admin` - The Address for the admin
+    /// * `name` - The name of the pool
+    /// * `oracle` - The contract address of the oracle
+    /// * `backstop_take_rate` - The take rate for the backstop (7 decimals)
+    /// * `max_positions` - The maximum number of positions a user is permitted to have
+    ///
+    /// Pool Factory supplied:
+    /// * `backstop_id` - The contract address of the pool's backstop module
+    /// * `blnd_id` - The contract ID of the BLND token
+    pub fn __constructor(
         e: Env,
         admin: Address,
         name: String,
         oracle: Address,
         bstop_rate: u32,
-        max_postions: u32,
+        max_positions: u32,
         backstop_id: Address,
         blnd_id: Address,
     ) {
-        storage::extend_instance(&e);
         admin.require_auth();
 
         pool::execute_initialize(
@@ -303,12 +289,15 @@ impl Pool for PoolContract {
             &name,
             &oracle,
             &bstop_rate,
-            &max_postions,
+            &max_positions,
             &backstop_id,
             &blnd_id,
         );
     }
+}
 
+#[contractimpl]
+impl Pool for PoolContract {
     fn set_admin(e: Env, new_admin: Address) {
         storage::extend_instance(&e);
         let admin = storage::get_admin(&e);

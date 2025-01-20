@@ -9,7 +9,7 @@ use crate::pool::POOL_WASM;
 use crate::pool_factory::create_pool_factory;
 use crate::token::{create_stellar_token, create_token};
 use backstop::BackstopClient;
-use emitter::EmitterClient;
+use blend_contract_sdk::emitter::Client as EmitterClient;
 use pool::{PoolClient, PoolConfig, PoolDataKey, ReserveConfig, ReserveData, ReserveEmissionData};
 use pool_factory::{PoolFactoryClient, PoolInitMeta};
 use sep_40_oracle::testutils::{Asset, MockPriceOracleClient};
@@ -86,24 +86,25 @@ impl TestFixture<'_> {
         let (xlm_id, xlm_client) = create_stellar_token(&e, &bombadil);
         let (stable_id, stable_client) = create_token(&e, &bombadil, 6, "STABLE");
 
-        // deploy Blend Protocol contracts
-        let (backstop_id, backstop_client) = create_backstop(&e, wasm);
-        let (emitter_id, emitter_client) = create_emitter(&e, wasm);
-        let (pool_factory_id, _) = create_pool_factory(&e, wasm);
-
         // deploy external contracts
         let (lp, lp_client) = create_lp_pool(&e, &bombadil, &blnd_id, &usdc_id);
 
-        // initialize emitter
+        // generate Blend Protocol contract IDs
+        let backstop_id = Address::generate(&e);
+        let pool_factory_id = Address::generate(&e);
+
+        let (emitter_id, emitter_client) = create_emitter(&e);
         blnd_client.set_admin(&emitter_id);
         emitter_client.initialize(&blnd_id, &backstop_id, &lp);
 
-        // initialize backstop
-        backstop_client.initialize(
+        let backstop_client = create_backstop(
+            &e,
+            &backstop_id,
+            wasm,
             &lp,
             &emitter_id,
-            &usdc_id,
             &blnd_id,
+            &usdc_id,
             &pool_factory_id,
             &svec![
                 &e,
@@ -111,19 +112,19 @@ impl TestFixture<'_> {
                 (frodo.clone(), 40_000_000 * SCALAR_7)
             ],
         );
-
-        // initialize pool factory
         let pool_hash = e.deployer().upload_contract_wasm(POOL_WASM);
         let pool_init_meta = PoolInitMeta {
             backstop: backstop_id.clone(),
             pool_hash: pool_hash.clone(),
             blnd_id: blnd_id.clone(),
         };
-        let pool_factory_client = PoolFactoryClient::new(&e, &pool_factory_id);
-        pool_factory_client.initialize(&pool_init_meta);
+        let pool_factory_client = create_pool_factory(&e, &pool_factory_id, wasm, pool_init_meta);
 
         // drop tokens to bombadil
         backstop_client.drop();
+
+        // start distribution period
+        backstop_client.distribute();
 
         // initialize oracle
         let (_, mock_oracle_client) = create_mock_oracle(&e);

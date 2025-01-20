@@ -1324,8 +1324,14 @@ mod tests {
         let samwise = Address::generate(&e);
         let merry = Address::generate(&e);
 
-        let (_, blnd_token_client) = testutils::create_blnd_token(&e, &pool, &bombadil);
-        let (backstop, _) = testutils::create_backstop(&e);
+        let (blnd, blnd_token_client) = testutils::create_blnd_token(&e, &pool, &bombadil);
+        let (backstop, _) = testutils::create_backstop(
+            &e,
+            &pool,
+            &Address::generate(&e),
+            &Address::generate(&e),
+            &blnd,
+        );
         // mock backstop having emissions for pool
         e.as_contract(&backstop, || {
             blnd_token_client.approve(&backstop, &pool, &100_000_0000000_i128, &1000000);
@@ -1443,8 +1449,14 @@ mod tests {
         let samwise = Address::generate(&e);
         let merry = Address::generate(&e);
 
-        let (_, blnd_token_client) = testutils::create_blnd_token(&e, &pool, &bombadil);
-        let (backstop, _) = testutils::create_backstop(&e);
+        let (blnd, blnd_token_client) = testutils::create_blnd_token(&e, &pool, &bombadil);
+        let (backstop, _) = testutils::create_backstop(
+            &e,
+            &pool,
+            &Address::generate(&e),
+            &Address::generate(&e),
+            &blnd,
+        );
         // mock backstop having emissions for pool
         e.as_contract(&backstop, || {
             blnd_token_client.approve(&backstop, &pool, &100_000_0000000_i128, &1000000);
@@ -1562,10 +1574,15 @@ mod tests {
         let bombadil = Address::generate(&e);
         let samwise = Address::generate(&e);
         let merry = Address::generate(&e);
-        let (backstop, _) = testutils::create_backstop(&e);
+        let (blnd, blnd_token_client) = testutils::create_blnd_token(&e, &pool, &bombadil);
 
-        let (_, blnd_token_client) = testutils::create_blnd_token(&e, &pool, &bombadil);
-
+        let (backstop, _) = testutils::create_backstop(
+            &e,
+            &pool,
+            &Address::generate(&e),
+            &Address::generate(&e),
+            &blnd,
+        );
         // mock backstop having emissions for pool
         e.as_contract(&backstop, || {
             blnd_token_client.approve(&backstop, &pool, &100_000_0000000_i128, &1000000);

@@ -352,7 +352,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1206)")]
     fn test_require_action_allowed_borrow_while_on_ice_panics() {
         let e = Env::default();
-
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let oracle = Address::generate(&e);
         let pool_config = PoolConfig {
@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn test_require_action_allowed_borrow_while_active() {
         let e = Env::default();
-
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let oracle = Address::generate(&e);
         let pool_config = PoolConfig {
@@ -393,7 +393,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1206)")]
     fn test_require_action_allowed_cancel_liquidation_while_on_ice_panics() {
         let e = Env::default();
-
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let oracle = Address::generate(&e);
         let pool_config = PoolConfig {
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn test_require_action_allowed_cancel_liquidation_while_active() {
         let e = Env::default();
-
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let oracle = Address::generate(&e);
         let pool_config = PoolConfig {
@@ -434,7 +434,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1206)")]
     fn test_require_action_allowed_supply_while_frozen() {
         let e = Env::default();
-
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let oracle = Address::generate(&e);
         let pool_config = PoolConfig {
@@ -455,7 +455,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1206)")]
     fn test_require_action_allowed_supply_collateral_while_frozen() {
         let e = Env::default();
-
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let oracle = Address::generate(&e);
         let pool_config = PoolConfig {
@@ -475,7 +475,7 @@ mod tests {
     #[test]
     fn test_require_action_allowed_can_withdrawal_and_repay_while_frozen() {
         let e = Env::default();
-
+        e.mock_all_auths();
         let pool = testutils::create_pool(&e);
         let oracle = Address::generate(&e);
         let pool_config = PoolConfig {
@@ -619,6 +619,7 @@ mod tests {
     #[test]
     fn test_require_under_max_empty() {
         let e = Env::default();
+        e.mock_all_auths();
         let samwise = Address::generate(&e);
         let pool = testutils::create_pool(&e);
 
@@ -648,6 +649,7 @@ mod tests {
     #[test]
     fn test_require_under_max_ignores_supply() {
         let e = Env::default();
+        e.mock_all_auths();
         let samwise = Address::generate(&e);
         let pool = testutils::create_pool(&e);
 
@@ -683,6 +685,7 @@ mod tests {
     #[test]
     fn test_require_under_max_allows_decreasing_change() {
         let e = Env::default();
+        e.mock_all_auths();
         let samwise = Address::generate(&e);
         let pool = testutils::create_pool(&e);
 
@@ -720,6 +723,7 @@ mod tests {
     #[should_panic(expected = "Error(Contract, #1208)")]
     fn test_require_under_max_panics_if_over() {
         let e = Env::default();
+        e.mock_all_auths();
         let samwise = Address::generate(&e);
         let pool = testutils::create_pool(&e);
 
