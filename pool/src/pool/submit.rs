@@ -5,7 +5,10 @@ use soroban_sdk::{panic_with_error, Address, Env, Map, Symbol, Vec};
 use crate::PoolError;
 
 use super::{
-    actions::{build_actions_from_request, Actions, Request}, health_factor::PositionData, pool::Pool, FlashLoan, Positions, User
+    actions::{build_actions_from_request, Actions, Request},
+    health_factor::PositionData,
+    pool::Pool,
+    FlashLoan, Positions, User,
 };
 
 /// Execute a set of updates for a user against the pool.
@@ -35,9 +38,8 @@ pub fn execute_submit(
     }
     let mut pool = Pool::load(e);
     let mut from_state = User::load(e, from);
-    
-    let actions =
-    build_actions_from_request(e, &mut pool, &mut from_state, requests);
+
+    let actions = build_actions_from_request(e, &mut pool, &mut from_state, requests);
 
     // panics if the new positions set does not meet the health factor requirement
     // min is 1.0000100 to prevent rounding errors
@@ -70,8 +72,7 @@ pub fn execute_submit_with_flash_loan(
     flash_loan: FlashLoan,
     requests: Vec<Request>,
 ) -> Positions {
-    if from == &e.current_contract_address()
-    {
+    if from == &e.current_contract_address() {
         panic_with_error!(e, &PoolError::BadRequest);
     }
     let mut pool = Pool::load(e);
@@ -97,9 +98,7 @@ pub fn execute_submit_with_flash_loan(
 
     // note: check_health is omitted since we always will want to check the health
     // if a flash loan is involved.
-    let actions =
-        build_actions_from_request(e, &mut pool, &mut from_state, requests);
-
+    let actions = build_actions_from_request(e, &mut pool, &mut from_state, requests);
 
     // panics if the new positions set does not meet the health factor requirement
     // min is 1.0000100 to prevent rounding errors
@@ -112,7 +111,11 @@ pub fn execute_submit_with_flash_loan(
 
     // we deal with the flashloan transfer before the others to allow the flash
     // loan to yield the repaid or supplied amount in the transfers.
-    TokenClient::new(e, &flash_loan.asset).transfer(&e.current_contract_address(), &flash_loan.contract, &flash_loan.amount); 
+    TokenClient::new(e, &flash_loan.asset).transfer(
+        &e.current_contract_address(),
+        &flash_loan.contract,
+        &flash_loan.amount,
+    );
     // calls the receiver contract.
     FlashLoanClient::new(&e, &flash_loan.contract).exec_op(
         &e.current_contract_address(),
@@ -124,7 +127,7 @@ pub fn execute_submit_with_flash_loan(
     // note: at this point, the pool has sum_by_asset(actions.flash_borrow.1) for each involed asset, but the user also has
     // increased liabilities. These will have to be either fully repaid by now in the requests following the flash borrow
     // or the user needs to have some previously added collateral to cover the borrow, i.e user is already healthy at this point,
-    // we just have to make sure that they have the balances they are claiming to have through the transfers. 
+    // we just have to make sure that they have the balances they are claiming to have through the transfers.
 
     handle_transfer_with_allowance(e, &actions, from, from);
 
@@ -134,7 +137,6 @@ pub fn execute_submit_with_flash_loan(
 
     from_state.positions
 }
-
 
 fn handle_transfer_with_allowance(e: &Env, actions: &Actions, spender: &Address, to: &Address) {
     // map of token -> amount

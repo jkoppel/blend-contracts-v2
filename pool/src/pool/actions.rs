@@ -58,14 +58,14 @@ impl RequestType {
 pub struct FlashLoan {
     pub contract: Address,
     pub asset: Address,
-    pub amount: i128
+    pub amount: i128,
 }
 
 /// Transfer actions to be taken by the sender and pool
 pub struct Actions {
     pub spender_transfer: Map<Address, i128>,
     pub pool_transfer: Map<Address, i128>,
-    pub check_health: bool
+    pub check_health: bool,
 }
 
 impl Actions {
@@ -74,7 +74,7 @@ impl Actions {
         Actions {
             spender_transfer: Map::new(e),
             pool_transfer: Map::new(e),
-            check_health: false
+            check_health: false,
         }
     }
 
@@ -391,10 +391,9 @@ mod tests {
                     amount: 10_1234567,
                 },
             ];
-            
+
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, false);
 
@@ -470,8 +469,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, false);
 
@@ -544,8 +542,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, false);
 
@@ -610,8 +607,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, false);
 
@@ -689,8 +685,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
 
@@ -763,8 +758,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
 
@@ -828,8 +822,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
 
@@ -901,8 +894,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, false);
 
@@ -976,8 +968,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, false);
 
@@ -1078,8 +1069,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
 
@@ -1219,8 +1209,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &frodo);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
             let exp_new_auction = AuctionData {
@@ -1350,8 +1339,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &frodo);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
             assert_eq!(
@@ -1491,8 +1479,7 @@ mod tests {
             ];
             let pre_fill_backstop_token_balance = backstop_token_client.balance(&backstop_address);
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(backstop_token_client.balance(&samwise), 25_0000000);
             assert_eq!(
@@ -1577,8 +1564,7 @@ mod tests {
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions =
-                build_actions_from_request(&e, &mut pool, &mut user, requests);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
             assert_eq!(
@@ -1784,8 +1770,9 @@ mod tests {
         e.as_contract(&pool, || {
             storage::set_pool_config(&e, &pool_config);
             let mut pool = Pool::load(&e);
+            let mut user = User::load(&e, &samwise);
 
-            build_actions_from_request(&e, &mut pool, &samwise, requests);
+            build_actions_from_request(&e, &mut pool, &mut user, requests);
         });
     }
 
@@ -1823,8 +1810,9 @@ mod tests {
         e.as_contract(&pool, || {
             storage::set_pool_config(&e, &pool_config);
             let mut pool = Pool::load(&e);
+            let mut user = User::load(&e, &samwise);
 
-            build_actions_from_request(&e, &mut pool, &samwise, requests);
+            build_actions_from_request(&e, &mut pool, &mut user, requests);
         });
     }
 }

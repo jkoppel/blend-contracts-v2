@@ -110,7 +110,7 @@ pub trait Pool {
     /// Returns the new positions for 'from'
     ///
     /// ### Arguments
-    /// * `from` - The address of the user whose positions are being modified and also the address of 
+    /// * `from` - The address of the user whose positions are being modified and also the address of
     /// the user who is sending and receiving the tokens to the pool.
     /// * `flash_loan` - Arguments relative to the flash loan: receiver contract, asset and borroed amount.
     /// * `requests` - A vec of requests to be processed
@@ -407,7 +407,7 @@ impl Pool for PoolContract {
     ) -> Positions {
         storage::extend_instance(&e);
         from.require_auth();
-        
+
         pool::execute_submit_with_flash_loan(&e, &from, flash_loan, requests)
     }
 
