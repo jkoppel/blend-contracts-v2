@@ -6,7 +6,7 @@ use crate::{
     constants::{SCALAR_7, SCALAR_9},
     errors::PoolError,
     pool::actions::RequestType,
-    storage::{self, PoolConfig, ReserveData},
+    storage::{self, PoolConfig, ReserveConfig, ReserveData},
 };
 
 use super::interest::calc_accrual;
@@ -15,20 +15,9 @@ use super::interest::calc_accrual;
 #[contracttype]
 pub struct Reserve {
     pub asset: Address,        // the underlying asset address
-    pub index: u32,            // the reserve index in the pool
-    pub l_factor: u32,         // the liability factor for the reserve
-    pub c_factor: u32,         // the collateral factor for the reserve
-    pub max_util: u32,         // the maximum utilization rate for the reserve
-    pub last_time: u64,        // the last block the data was updated
-    pub scalar: i128,          // scalar used for positions, b/d token supply, and credit
-    pub d_rate: i128,          // the conversion rate from dToken to underlying (9 decimals)
-    pub b_rate: i128,          // the conversion rate from bToken to underlying (9 decimals)
-    pub ir_mod: i128,          // the interest rate curve modifier (9 decimals)
-    pub b_supply: i128,        // the total supply of b tokens
-    pub d_supply: i128,        // the total supply of d tokens
-    pub backstop_credit: i128, // the total amount of underlying tokens owed to the backstop
-    pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
-    pub enabled: bool,        // is the reserve enabled
+    pub config: ReserveConfig, // the reserve configuration
+    pub data: ReserveData,     // the reserve data
+    pub scalar: i128,
 }
 
 impl Reserve {
@@ -48,72 +37,52 @@ impl Reserve {
         let reserve_data = storage::get_res_data(e, asset);
         let mut reserve = Reserve {
             asset: asset.clone(),
-            index: reserve_config.index,
-            l_factor: reserve_config.l_factor,
-            c_factor: reserve_config.c_factor,
-            max_util: reserve_config.max_util,
-            last_time: reserve_data.last_time,
             scalar: 10i128.pow(reserve_config.decimals),
-            d_rate: reserve_data.d_rate,
-            b_rate: reserve_data.b_rate,
-            ir_mod: reserve_data.ir_mod,
-            b_supply: reserve_data.b_supply,
-            d_supply: reserve_data.d_supply,
-            backstop_credit: reserve_data.backstop_credit,
-            collateral_cap: reserve_config.collateral_cap,
-            enabled: reserve_config.enabled,
+            config: reserve_config,
+            data: reserve_data,
         };
 
         // short circuit if the reserve has already been updated this ledger
-        if e.ledger().timestamp() == reserve.last_time {
+        if e.ledger().timestamp() == reserve.data.last_time {
             return reserve;
         }
 
-        if reserve.b_supply == 0 {
-            reserve.last_time = e.ledger().timestamp();
+        if reserve.data.b_supply == 0 {
+            reserve.data.last_time = e.ledger().timestamp();
             return reserve;
         }
 
         let cur_util = reserve.utilization();
         if cur_util == 0 {
             // if there are no assets borrowed, we don't need to update the reserve
-            reserve.last_time = e.ledger().timestamp();
+            reserve.data.last_time = e.ledger().timestamp();
             return reserve;
         }
 
         let (loan_accrual, new_ir_mod) = calc_accrual(
             e,
-            &reserve_config,
+            &reserve.config,
             cur_util,
-            reserve.ir_mod,
-            reserve.last_time,
+            reserve.data.ir_mod,
+            reserve.data.last_time,
         );
-        reserve.ir_mod = new_ir_mod;
+        reserve.data.ir_mod = new_ir_mod;
 
         let pre_update_liabilities = reserve.total_liabilities();
-        reserve.d_rate = loan_accrual
-            .fixed_mul_ceil(reserve.d_rate, SCALAR_9)
+        reserve.data.d_rate = loan_accrual
+            .fixed_mul_ceil(reserve.data.d_rate, SCALAR_9)
             .unwrap_optimized();
         let accrued_interest = reserve.total_liabilities() - pre_update_liabilities;
 
         reserve.gulp(pool_config.bstop_rate, accrued_interest);
 
-        reserve.last_time = e.ledger().timestamp();
+        reserve.data.last_time = e.ledger().timestamp();
         reserve
     }
 
     /// Store the updated reserve to the ledger.
     pub fn store(&self, e: &Env) {
-        let reserve_data = ReserveData {
-            d_rate: self.d_rate,
-            b_rate: self.b_rate,
-            ir_mod: self.ir_mod,
-            b_supply: self.b_supply,
-            d_supply: self.d_supply,
-            backstop_credit: self.backstop_credit,
-            last_time: self.last_time,
-        };
-        storage::set_res_data(e, &self.asset, &reserve_data);
+        storage::set_res_data(e, &self.asset, &self.data);
     }
 
     /// Accrue tokens to the reserve supply. This issues any `backstop_credit` required and updates the reserve's bRate to account for the additional tokens.
@@ -132,10 +101,10 @@ impl Reserve {
                 new_backstop_credit = accrued
                     .fixed_mul_floor(i128(bstop_rate), SCALAR_7)
                     .unwrap_optimized();
-                self.backstop_credit += new_backstop_credit;
+                self.data.backstop_credit += new_backstop_credit;
             }
-            self.b_rate = (pre_update_supply + accrued - new_backstop_credit)
-                .fixed_div_floor(self.b_supply, SCALAR_9)
+            self.data.b_rate = (pre_update_supply + accrued - new_backstop_credit)
+                .fixed_div_floor(self.data.b_supply, SCALAR_9)
                 .unwrap_optimized();
         }
     }
@@ -149,7 +118,7 @@ impl Reserve {
 
     /// Require that the utilization rate is below the maximum allowed, or panic.
     pub fn require_utilization_below_max(&self, e: &Env) {
-        if self.utilization() > i128(self.max_util) {
+        if self.utilization() > i128(self.config.max_util) {
             panic_with_error!(e, PoolError::InvalidUtilRate)
         }
     }
@@ -160,7 +129,7 @@ impl Reserve {
     /// * `action_type` - The type of action being performed
     pub fn require_action_allowed(&self, e: &Env, action_type: u32) {
         // disable borrowing or auction cancellation for any non-active pool and disable supplying for any frozen pool
-        if !self.enabled {
+        if !self.config.enabled {
             if action_type == RequestType::Supply as u32
                 || action_type == RequestType::SupplyCollateral as u32
                 || action_type == RequestType::Borrow as u32
@@ -172,12 +141,12 @@ impl Reserve {
 
     /// Fetch the total liabilities for the reserve in underlying tokens
     pub fn total_liabilities(&self) -> i128 {
-        self.to_asset_from_d_token(self.d_supply)
+        self.to_asset_from_d_token(self.data.d_supply)
     }
 
     /// Fetch the total supply for the reserve in underlying tokens
     pub fn total_supply(&self) -> i128 {
-        self.to_asset_from_b_token(self.b_supply)
+        self.to_asset_from_b_token(self.data.b_supply)
     }
 
     /********** Conversion Functions **********/
@@ -188,7 +157,7 @@ impl Reserve {
     /// * `d_tokens` - The amount of tokens to convert
     pub fn to_asset_from_d_token(&self, d_tokens: i128) -> i128 {
         d_tokens
-            .fixed_mul_ceil(self.d_rate, SCALAR_9)
+            .fixed_mul_ceil(self.data.d_rate, SCALAR_9)
             .unwrap_optimized()
     }
 
@@ -198,7 +167,7 @@ impl Reserve {
     /// * `b_tokens` - The amount of tokens to convert
     pub fn to_asset_from_b_token(&self, b_tokens: i128) -> i128 {
         b_tokens
-            .fixed_mul_floor(self.b_rate, SCALAR_9)
+            .fixed_mul_floor(self.data.b_rate, SCALAR_9)
             .unwrap_optimized()
     }
 
@@ -210,7 +179,7 @@ impl Reserve {
     pub fn to_effective_asset_from_d_token(&self, d_tokens: i128) -> i128 {
         let assets = self.to_asset_from_d_token(d_tokens);
         assets
-            .fixed_div_ceil(i128(self.l_factor), SCALAR_7)
+            .fixed_div_ceil(i128(self.config.l_factor), SCALAR_7)
             .unwrap_optimized()
     }
 
@@ -222,7 +191,7 @@ impl Reserve {
     pub fn to_effective_asset_from_b_token(&self, b_tokens: i128) -> i128 {
         let assets = self.to_asset_from_b_token(b_tokens);
         assets
-            .fixed_mul_floor(i128(self.c_factor), SCALAR_7)
+            .fixed_mul_floor(i128(self.config.c_factor), SCALAR_7)
             .unwrap_optimized()
     }
 
@@ -232,7 +201,7 @@ impl Reserve {
     /// * `amount` - The amount of tokens to convert
     pub fn to_d_token_up(&self, amount: i128) -> i128 {
         amount
-            .fixed_div_ceil(self.d_rate, SCALAR_9)
+            .fixed_div_ceil(self.data.d_rate, SCALAR_9)
             .unwrap_optimized()
     }
 
@@ -242,7 +211,7 @@ impl Reserve {
     /// * `amount` - The amount of tokens to convert
     pub fn to_d_token_down(&self, amount: i128) -> i128 {
         amount
-            .fixed_div_floor(self.d_rate, SCALAR_9)
+            .fixed_div_floor(self.data.d_rate, SCALAR_9)
             .unwrap_optimized()
     }
 
@@ -252,7 +221,7 @@ impl Reserve {
     /// * `amount` - The amount of tokens to convert
     pub fn to_b_token_up(&self, amount: i128) -> i128 {
         amount
-            .fixed_div_ceil(self.b_rate, SCALAR_9)
+            .fixed_div_ceil(self.data.b_rate, SCALAR_9)
             .unwrap_optimized()
     }
 
@@ -262,7 +231,7 @@ impl Reserve {
     /// * `amount` - The amount of tokens to convert
     pub fn to_b_token_down(&self, amount: i128) -> i128 {
         amount
-            .fixed_div_floor(self.b_rate, SCALAR_9)
+            .fixed_div_floor(self.data.b_rate, SCALAR_9)
             .unwrap_optimized()
     }
 }
@@ -311,13 +280,13 @@ mod tests {
             let reserve = Reserve::load(&e, &pool_config, &underlying);
 
             // (accrual: 1_002_957_369, util: .7864353)
-            assert_eq!(reserve.d_rate, 1_349_657_800);
-            assert_eq!(reserve.b_rate, 1_125_547_124);
-            assert_eq!(reserve.ir_mod, 1_044_981_563);
-            assert_eq!(reserve.d_supply, 65_0000000);
-            assert_eq!(reserve.b_supply, 99_0000000);
-            assert_eq!(reserve.backstop_credit, 0_0517358);
-            assert_eq!(reserve.last_time, 617280);
+            assert_eq!(reserve.data.d_rate, 1_349_657_800);
+            assert_eq!(reserve.data.b_rate, 1_125_547_124);
+            assert_eq!(reserve.data.ir_mod, 1_044_981_563);
+            assert_eq!(reserve.data.d_supply, 65_0000000);
+            assert_eq!(reserve.data.b_supply, 99_0000000);
+            assert_eq!(reserve.data.backstop_credit, 0_0517358);
+            assert_eq!(reserve.data.last_time, 617280);
         });
     }
 
@@ -360,13 +329,13 @@ mod tests {
             let reserve = Reserve::load(&e, &pool_config, &underlying);
 
             // (accrual: 1_002_957_369, util: .7864352)q
-            assert_eq!(reserve.d_rate, 0);
-            assert_eq!(reserve.b_rate, 0);
-            assert_eq!(reserve.ir_mod, 1_000_000_000);
-            assert_eq!(reserve.d_supply, 0);
-            assert_eq!(reserve.b_supply, 0);
-            assert_eq!(reserve.backstop_credit, 0);
-            assert_eq!(reserve.last_time, 617280);
+            assert_eq!(reserve.data.d_rate, 0);
+            assert_eq!(reserve.data.b_rate, 0);
+            assert_eq!(reserve.data.ir_mod, 1_000_000_000);
+            assert_eq!(reserve.data.d_supply, 0);
+            assert_eq!(reserve.data.b_supply, 0);
+            assert_eq!(reserve.data.backstop_credit, 0);
+            assert_eq!(reserve.data.last_time, 617280);
         });
     }
 
@@ -406,13 +375,13 @@ mod tests {
             storage::set_pool_config(&e, &pool_config);
             let reserve = Reserve::load(&e, &pool_config, &underlying);
 
-            assert_eq!(reserve.d_rate, 0);
-            assert_eq!(reserve.b_rate, reserve_data.b_rate);
-            assert_eq!(reserve.ir_mod, reserve_data.ir_mod);
-            assert_eq!(reserve.d_supply, 0);
-            assert_eq!(reserve.b_supply, reserve_data.b_supply);
-            assert_eq!(reserve.backstop_credit, 0);
-            assert_eq!(reserve.last_time, 617280);
+            assert_eq!(reserve.data.d_rate, 0);
+            assert_eq!(reserve.data.b_rate, reserve_data.b_rate);
+            assert_eq!(reserve.data.ir_mod, reserve_data.ir_mod);
+            assert_eq!(reserve.data.d_supply, 0);
+            assert_eq!(reserve.data.b_supply, reserve_data.b_supply);
+            assert_eq!(reserve.data.backstop_credit, 0);
+            assert_eq!(reserve.data.last_time, 617280);
         });
     }
 
@@ -455,13 +424,13 @@ mod tests {
             let reserve = Reserve::load(&e, &pool_config, &underlying);
 
             // (accrual: 1_002_957_369, util: .7864353)
-            assert_eq!(reserve.d_rate, 1_349_657_800);
-            assert_eq!(reserve.b_rate, 1_126_069_708);
-            assert_eq!(reserve.ir_mod, 1_044_981_563);
-            assert_eq!(reserve.d_supply, 65_0000000);
-            assert_eq!(reserve.b_supply, 99_0000000);
-            assert_eq!(reserve.backstop_credit, 0);
-            assert_eq!(reserve.last_time, 617280);
+            assert_eq!(reserve.data.d_rate, 1_349_657_800);
+            assert_eq!(reserve.data.b_rate, 1_126_069_708);
+            assert_eq!(reserve.data.ir_mod, 1_044_981_563);
+            assert_eq!(reserve.data.d_supply, 65_0000000);
+            assert_eq!(reserve.data.b_supply, 99_0000000);
+            assert_eq!(reserve.data.backstop_credit, 0);
+            assert_eq!(reserve.data.last_time, 617280);
         });
     }
 
@@ -522,10 +491,10 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.d_rate = 1_345_678_123;
-        reserve.b_rate = 1_123_456_789;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.d_rate = 1_345_678_123;
+        reserve.data.b_rate = 1_123_456_789;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.utilization();
 
@@ -537,8 +506,8 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         reserve.require_utilization_below_max(&e);
         // no panic
@@ -551,8 +520,8 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.b_supply = 100_0000000;
-        reserve.d_supply = 95_0000100;
+        reserve.data.b_supply = 100_0000000;
+        reserve.data.d_supply = 95_0000100;
 
         reserve.require_utilization_below_max(&e);
     }
@@ -564,9 +533,9 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.d_rate = 1_321_834_961;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.d_rate = 1_321_834_961;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.to_asset_from_d_token(1_1234567);
 
@@ -578,9 +547,9 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.b_rate = 1_321_834_961;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.b_rate = 1_321_834_961;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.to_asset_from_b_token(1_1234567);
 
@@ -592,10 +561,10 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.d_rate = 1_321_834_961;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
-        reserve.l_factor = 1_1000000;
+        reserve.data.d_rate = 1_321_834_961;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
+        reserve.config.l_factor = 1_1000000;
 
         let result = reserve.to_effective_asset_from_d_token(1_1234567);
 
@@ -607,10 +576,10 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.b_rate = 1_321_834_961;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
-        reserve.c_factor = 0_8500000;
+        reserve.data.b_rate = 1_321_834_961;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
+        reserve.config.c_factor = 0_8500000;
 
         let result = reserve.to_effective_asset_from_b_token(1_1234567);
 
@@ -622,9 +591,9 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.d_rate = 1_823_912_692;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.d_rate = 1_823_912_692;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.total_liabilities();
 
@@ -636,9 +605,9 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.b_rate = 1_823_912_692;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.b_rate = 1_823_912_692;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.total_supply();
 
@@ -650,9 +619,9 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.d_rate = 1_321_834_961;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.d_rate = 1_321_834_961;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.to_d_token_up(1_4850243);
 
@@ -664,9 +633,9 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.d_rate = 1_321_834_961;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.d_rate = 1_321_834_961;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.to_d_token_down(1_4850243);
 
@@ -678,9 +647,9 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.b_rate = 1_321_834_961;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.b_rate = 1_321_834_961;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.to_b_token_up(1_4850243);
 
@@ -692,9 +661,9 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.b_rate = 1_321_834_961;
-        reserve.b_supply = 99_0000000;
-        reserve.d_supply = 65_0000000;
+        reserve.data.b_rate = 1_321_834_961;
+        reserve.data.b_supply = 99_0000000;
+        reserve.data.d_supply = 65_0000000;
 
         let result = reserve.to_b_token_down(1_4850243);
 
@@ -707,7 +676,7 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.enabled = false;
+        reserve.config.enabled = false;
 
         reserve.require_action_allowed(&e, RequestType::SupplyCollateral as u32);
     }
@@ -718,7 +687,7 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.enabled = false;
+        reserve.config.enabled = false;
 
         reserve.require_action_allowed(&e, RequestType::Borrow as u32);
     }
@@ -728,7 +697,7 @@ mod tests {
         let e = Env::default();
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.enabled = false;
+        reserve.config.enabled = false;
 
         reserve.require_action_allowed(&e, RequestType::Withdraw as u32);
         reserve.require_action_allowed(&e, RequestType::WithdrawCollateral as u32);
@@ -752,12 +721,12 @@ mod tests {
         });
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.backstop_credit = 0_1234567;
+        reserve.data.backstop_credit = 0_1234567;
 
         reserve.gulp(0_2000000, 100_0000000);
-        assert_eq!(reserve.backstop_credit, 20_0000000 + 0_1234567);
-        assert_eq!(reserve.b_rate, 1_800000000);
-        assert_eq!(reserve.last_time, 0);
+        assert_eq!(reserve.data.backstop_credit, 20_0000000 + 0_1234567);
+        assert_eq!(reserve.data.b_rate, 1_800000000);
+        assert_eq!(reserve.data.last_time, 0);
     }
 
     #[test]
@@ -777,11 +746,11 @@ mod tests {
         });
 
         let mut reserve = testutils::default_reserve(&e);
-        reserve.backstop_credit = 0_1234567;
+        reserve.data.backstop_credit = 0_1234567;
 
         reserve.gulp(0_2000000, -10_0000000);
-        assert_eq!(reserve.backstop_credit, 0_1234567);
-        assert_eq!(reserve.b_rate, 1000000000);
-        assert_eq!(reserve.last_time, 0);
+        assert_eq!(reserve.data.backstop_credit, 0_1234567);
+        assert_eq!(reserve.data.b_rate, 1000000000);
+        assert_eq!(reserve.data.last_time, 0);
     }
 }

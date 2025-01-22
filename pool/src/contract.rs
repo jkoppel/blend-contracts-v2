@@ -71,11 +71,19 @@ pub trait Pool {
     /// Fetch the admin address of the pool
     fn get_admin(e: Env) -> Address;
 
-    /// Fetch information about a reserve
+    /// Fetch information about a reserve, updated to the current ledger
     ///
     /// ### Arguments
     /// * `asset` - The address of the reserve asset
     fn get_reserve(e: Env, asset: Address) -> Reserve;
+
+    /// Fetch data about the pool and its reserves.
+    ///
+    /// Useful for external integrations that need to load all data about the pool
+    ///
+    /// Returns a tuple with the pool configuration and a vector of reserves, where each reserve
+    /// is updated to the current ledger.
+    fn get_market(e: Env) -> (PoolConfig, Vec<Reserve>);
 
     /// Fetch the positions for an address
     ///
@@ -84,7 +92,7 @@ pub trait Pool {
     fn get_positions(e: Env, address: Address) -> Positions;
 
     /// Submit a set of requests to the pool where 'from' takes on the position, 'sender' sends any
-    /// required tokens to the pool and 'to' receives any tokens sent from the pool
+    /// required tokens to the pool and 'to' receives any tokens sent from the pool.
     ///
     /// Returns the new positions for 'from'
     ///
@@ -104,28 +112,8 @@ pub trait Pool {
         requests: Vec<Request>,
     ) -> Positions;
 
-    /// Submit a set of requests to the pool where 'from' takes on the position, 'sender' sends any
-    /// required tokens to the pool and 'to' receives any tokens sent from the pool
-    ///
-    /// Returns the new positions for 'from'
-    ///
-    /// ### Arguments
-    /// * `from` - The address of the user whose positions are being modified and also the address of
-    /// the user who is sending and receiving the tokens to the pool.
-    /// * `flash_loan` - Arguments relative to the flash loan: receiver contract, asset and borroed amount.
-    /// * `requests` - A vec of requests to be processed
-    ///
-    /// ### Panics
-    /// If the request is not able to be completed for cases like insufficient funds or invalid health factor
-    fn flash_loan(
-        e: Env,
-        from: Address,
-        flash_loan: FlashLoan,
-        requests: Vec<Request>,
-    ) -> Positions;
-
     /// Submit a set of requests to the pool where 'from' takes on the position, 'spender' sends any
-    /// required tokens to the pool USING transfer_from and 'to' receives any tokens sent from the pool.
+    /// required tokens to the pool using transfer_from and 'to' receives any tokens sent from the pool.
     ///
     /// Returns the new positions for 'from'
     ///
@@ -144,6 +132,28 @@ pub trait Pool {
         to: Address,
         requests: Vec<Request>,
     ) -> Positions;
+
+    /// Submit flash loan and a set of requests to the pool where 'from' takes on the position. The flash loan will be invoked using
+    /// the 'flash_loan' arguments and 'from' as the caller. For the requests, 'from' sends any required tokens to the pool
+    /// using transfer_from and receives any tokens sent from the pool.
+    ///
+    /// Returns the new positions for 'from'
+    ///
+    /// ### Arguments
+    /// * `from` - The address of the user whose positions are being modified and also the address of
+    /// the user who is sending and receiving the tokens to the pool.
+    /// * `flash_loan` - Arguments relative to the flash loan: receiver contract, asset and borroed amount.
+    /// * `requests` - A vec of requests to be processed
+    ///
+    /// ### Panics
+    /// If the request is not able to be completed for cases like insufficient funds ,insufficient allowance, or invalid health factor
+    fn flash_loan(
+        e: Env,
+        from: Address,
+        flash_loan: FlashLoan,
+        requests: Vec<Request>,
+    ) -> Positions;
+
     /// Manage bad debt. Debt is considered "bad" if there is no longer has any collateral posted.
     ///
     /// To manage a user's bad debt, all collateralized reserves for the user must be liquidated
@@ -229,12 +239,12 @@ pub trait Pool {
     /// * `to` - The Address to send the claimed tokens to
     fn claim(e: Env, from: Address, reserve_token_ids: Vec<u32>, to: Address) -> i128;
 
-    /// Get the emissions data for a reserve
+    /// Get the emissions data for a reserve token
     ///
     /// ### Arguments
     /// * `reserve_token_id` - The reserve token id. This is a unique identifier for the type of position in a pool. For
     ///                        dTokens, a reserve token id (reserve_index * 2). For bTokens, a reserve token id (reserve_index * 2) + 1.
-    fn get_reserve_emissions(e: Env, reserve_token_id: u32) -> ReserveEmissionData;
+    fn get_reserve_emissions(e: Env, reserve_token_id: u32) -> Option<ReserveEmissionData>;
 
     /// Get the emissions data for a user
     ///
@@ -242,7 +252,8 @@ pub trait Pool {
     /// * `user` - The address of the user
     /// * `reserve_token_id` - The reserve token id. This is a unique identifier for the type of position in a pool. For
     ///                        dTokens, a reserve token id (reserve_index * 2). For bTokens, a reserve token id (reserve_index * 2) + 1.
-    fn get_user_emissions(e: Env, user: Address, reserve_token_id: u32) -> UserEmissionData;
+    fn get_user_emissions(e: Env, user: Address, reserve_token_id: u32)
+        -> Option<UserEmissionData>;
 
     /***** Auction / Liquidation Functions *****/
 
@@ -379,6 +390,17 @@ impl Pool for PoolContract {
         Reserve::load(&e, &pool_config, &asset)
     }
 
+    fn get_market(e: Env) -> (PoolConfig, Vec<Reserve>) {
+        let pool_config = storage::get_pool_config(&e);
+        let res_list = storage::get_res_list(&e);
+        let mut reserves = Vec::<Reserve>::new(&e);
+        for res_address in res_list.iter() {
+            let res = Reserve::load(&e, &pool_config, &res_address);
+            reserves.push_back(res);
+        }
+        (pool_config, reserves)
+    }
+
     fn get_positions(e: Env, address: Address) -> Positions {
         storage::get_user_positions(&e, &address)
     }
@@ -399,18 +421,6 @@ impl Pool for PoolContract {
         pool::execute_submit(&e, &from, &spender, &to, requests, false)
     }
 
-    fn flash_loan(
-        e: Env,
-        from: Address,
-        flash_loan: FlashLoan,
-        requests: Vec<Request>,
-    ) -> Positions {
-        storage::extend_instance(&e);
-        from.require_auth();
-
-        pool::execute_submit_with_flash_loan(&e, &from, flash_loan, requests)
-    }
-
     fn submit_with_allowance(
         e: Env,
         from: Address,
@@ -425,6 +435,18 @@ impl Pool for PoolContract {
         }
 
         pool::execute_submit(&e, &from, &spender, &to, requests, true)
+    }
+
+    fn flash_loan(
+        e: Env,
+        from: Address,
+        flash_loan: FlashLoan,
+        requests: Vec<Request>,
+    ) -> Positions {
+        storage::extend_instance(&e);
+        from.require_auth();
+
+        pool::execute_submit_with_flash_loan(&e, &from, flash_loan, requests)
     }
 
     fn bad_debt(e: Env, user: Address) {
@@ -484,20 +506,16 @@ impl Pool for PoolContract {
         amount_claimed
     }
 
-    fn get_reserve_emissions(e: Env, reserve_token_index: u32) -> ReserveEmissionData {
-        storage::get_res_emis_data(&e, &reserve_token_index).unwrap_or(ReserveEmissionData {
-            expiration: 0,
-            eps: 0,
-            index: 0,
-            last_time: 0,
-        })
+    fn get_reserve_emissions(e: Env, reserve_token_index: u32) -> Option<ReserveEmissionData> {
+        storage::get_res_emis_data(&e, &reserve_token_index)
     }
 
-    fn get_user_emissions(e: Env, user: Address, reserve_token_index: u32) -> UserEmissionData {
-        storage::get_user_emissions(&e, &user, &reserve_token_index).unwrap_or(UserEmissionData {
-            index: 0,
-            accrued: 0,
-        })
+    fn get_user_emissions(
+        e: Env,
+        user: Address,
+        reserve_token_index: u32,
+    ) -> Option<UserEmissionData> {
+        storage::get_user_emissions(&e, &user, &reserve_token_index)
     }
 
     /***** Auction / Liquidation Functions *****/

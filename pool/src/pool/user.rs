@@ -70,12 +70,12 @@ impl User {
         if amount == 0 {
             panic_with_error!(e, PoolError::InvalidDTokenMintAmount)
         }
-        let balance = self.get_liabilities(reserve.index);
+        let balance = self.get_liabilities(reserve.config.index);
         self.update_d_emissions(e, reserve, balance);
         self.positions
             .liabilities
-            .set(reserve.index, balance + amount);
-        reserve.d_supply += amount;
+            .set(reserve.config.index, balance + amount);
+        reserve.data.d_supply += amount;
     }
 
     /// Remove liabilities from the position expressed in debtTokens. Accrues emissions
@@ -84,16 +84,18 @@ impl User {
         if amount == 0 {
             panic_with_error!(e, PoolError::InvalidDTokenBurnAmount)
         }
-        let balance = self.get_liabilities(reserve.index);
+        let balance = self.get_liabilities(reserve.config.index);
         self.update_d_emissions(e, reserve, balance);
         let new_balance = balance - amount;
         require_nonnegative(e, &new_balance);
         if new_balance == 0 {
-            self.positions.liabilities.remove(reserve.index);
+            self.positions.liabilities.remove(reserve.config.index);
         } else {
-            self.positions.liabilities.set(reserve.index, new_balance);
+            self.positions
+                .liabilities
+                .set(reserve.config.index, new_balance);
         }
-        reserve.d_supply -= amount;
+        reserve.data.d_supply -= amount;
     }
 
     /// Default on liabilities from the position expressed in debtTokens. Accrues emissions
@@ -106,10 +108,10 @@ impl User {
         // determine amount of funds in underlying that have defaulted
         // and deduct them from the b_rate
         let default_amount = reserve.to_asset_from_d_token(amount);
-        let b_rate_loss = default_amount.fixed_div_floor(&e, &reserve.b_supply, &SCALAR_9);
-        reserve.b_rate -= b_rate_loss;
-        if reserve.b_rate < 0 {
-            reserve.b_rate = 0;
+        let b_rate_loss = default_amount.fixed_div_floor(&e, &reserve.data.b_supply, &SCALAR_9);
+        reserve.data.b_rate -= b_rate_loss;
+        if reserve.data.b_rate < 0 {
+            reserve.data.b_rate = 0;
         }
     }
 
@@ -124,12 +126,12 @@ impl User {
         if amount == 0 {
             panic_with_error!(e, PoolError::InvalidBTokenMintAmount)
         }
-        let balance = self.get_collateral(reserve.index);
-        self.update_b_emissions(e, reserve, self.get_total_supply(reserve.index));
+        let balance = self.get_collateral(reserve.config.index);
+        self.update_b_emissions(e, reserve, self.get_total_supply(reserve.config.index));
         self.positions
             .collateral
-            .set(reserve.index, balance + amount);
-        reserve.b_supply += amount;
+            .set(reserve.config.index, balance + amount);
+        reserve.data.b_supply += amount;
     }
 
     /// Remove collateral from the position expressed in blendTokens. Accrues emissions
@@ -138,16 +140,18 @@ impl User {
         if amount == 0 {
             panic_with_error!(e, PoolError::InvalidBTokenBurnAmount)
         }
-        let balance = self.get_collateral(reserve.index);
-        self.update_b_emissions(e, reserve, self.get_total_supply(reserve.index));
+        let balance = self.get_collateral(reserve.config.index);
+        self.update_b_emissions(e, reserve, self.get_total_supply(reserve.config.index));
         let new_balance = balance - amount;
         require_nonnegative(e, &new_balance);
         if new_balance == 0 {
-            self.positions.collateral.remove(reserve.index);
+            self.positions.collateral.remove(reserve.config.index);
         } else {
-            self.positions.collateral.set(reserve.index, new_balance);
+            self.positions
+                .collateral
+                .set(reserve.config.index, new_balance);
         }
-        reserve.b_supply -= amount;
+        reserve.data.b_supply -= amount;
     }
 
     /// Get the uncollateralized blendToken position for the reserve at the given index
@@ -161,10 +165,12 @@ impl User {
         if amount == 0 {
             panic_with_error!(e, PoolError::InvalidBTokenMintAmount)
         }
-        let balance = self.get_supply(reserve.index);
-        self.update_b_emissions(e, reserve, self.get_total_supply(reserve.index));
-        self.positions.supply.set(reserve.index, balance + amount);
-        reserve.b_supply += amount;
+        let balance = self.get_supply(reserve.config.index);
+        self.update_b_emissions(e, reserve, self.get_total_supply(reserve.config.index));
+        self.positions
+            .supply
+            .set(reserve.config.index, balance + amount);
+        reserve.data.b_supply += amount;
     }
 
     /// Remove supply from the position expressed in blendTokens. Accrues emissions
@@ -173,16 +179,16 @@ impl User {
         if amount == 0 {
             panic_with_error!(e, PoolError::InvalidBTokenBurnAmount)
         }
-        let balance = self.get_supply(reserve.index);
-        self.update_b_emissions(e, reserve, self.get_total_supply(reserve.index));
+        let balance = self.get_supply(reserve.config.index);
+        self.update_b_emissions(e, reserve, self.get_total_supply(reserve.config.index));
         let new_balance = balance - amount;
         require_nonnegative(e, &new_balance);
         if new_balance == 0 {
-            self.positions.supply.remove(reserve.index);
+            self.positions.supply.remove(reserve.config.index);
         } else {
-            self.positions.supply.set(reserve.index, new_balance);
+            self.positions.supply.set(reserve.config.index, new_balance);
         }
-        reserve.b_supply -= amount;
+        reserve.data.b_supply -= amount;
     }
 
     /// Get the total supply and collateral of blendTokens for the user at the given index
@@ -233,8 +239,8 @@ impl User {
     fn update_d_emissions(&self, e: &Env, reserve: &Reserve, amount: i128) {
         emissions::update_emissions(
             e,
-            reserve.index * 2,
-            reserve.d_supply,
+            reserve.config.index * 2,
+            reserve.data.d_supply,
             reserve.scalar,
             &self.address,
             amount,
@@ -244,8 +250,8 @@ impl User {
     fn update_b_emissions(&self, e: &Env, reserve: &Reserve, amount: i128) {
         emissions::update_emissions(
             e,
-            reserve.index * 2 + 1,
-            reserve.b_supply,
+            reserve.config.index * 2 + 1,
+            reserve.data.b_supply,
             reserve.scalar,
             &self.address,
             amount,
@@ -297,11 +303,11 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_d_supply_0 = reserve_0.d_supply;
+        let starting_d_supply_0 = reserve_0.data.d_supply;
 
         let mut reserve_1 = testutils::default_reserve(&e);
-        reserve_1.index = 1;
-        let starting_d_supply_1 = reserve_1.d_supply;
+        reserve_1.config.index = 1;
+        let starting_d_supply_1 = reserve_1.data.d_supply;
 
         let mut user = User {
             address: samwise.clone(),
@@ -313,27 +319,27 @@ mod tests {
 
             user.add_liabilities(&e, &mut reserve_0, 123);
             assert_eq!(user.get_liabilities(0), 123);
-            assert_eq!(reserve_0.d_supply, starting_d_supply_0 + 123);
+            assert_eq!(reserve_0.data.d_supply, starting_d_supply_0 + 123);
             assert_eq!(user.has_liabilities(), true);
 
             user.add_liabilities(&e, &mut reserve_1, 456);
             assert_eq!(user.get_liabilities(0), 123);
             assert_eq!(user.get_liabilities(1), 456);
-            assert_eq!(reserve_1.d_supply, starting_d_supply_1 + 456);
+            assert_eq!(reserve_1.data.d_supply, starting_d_supply_1 + 456);
 
             user.remove_liabilities(&e, &mut reserve_1, 100);
             assert_eq!(user.get_liabilities(1), 356);
-            assert_eq!(reserve_1.d_supply, starting_d_supply_1 + 356);
+            assert_eq!(reserve_1.data.d_supply, starting_d_supply_1 + 356);
 
             user.remove_liabilities(&e, &mut reserve_1, 356);
             assert_eq!(user.get_liabilities(1), 0);
             assert_eq!(user.positions.liabilities.len(), 1);
-            assert_eq!(reserve_1.d_supply, starting_d_supply_1);
+            assert_eq!(reserve_1.data.d_supply, starting_d_supply_1);
 
             user.remove_liabilities(&e, &mut reserve_0, 123);
             assert_eq!(user.get_liabilities(0), 0);
             assert_eq!(user.positions.liabilities.len(), 0);
-            assert_eq!(reserve_0.d_supply, starting_d_supply_0);
+            assert_eq!(reserve_0.data.d_supply, starting_d_supply_0);
             assert_eq!(user.has_liabilities(), false);
         });
     }
@@ -378,7 +384,7 @@ mod tests {
         });
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_d_supply_0 = reserve_0.d_supply;
+        let starting_d_supply_0 = reserve_0.data.d_supply;
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
@@ -394,20 +400,20 @@ mod tests {
         let mut user = User {
             address: samwise.clone(),
             positions: Positions {
-                liabilities: map![&e, (reserve_0.index, 1000)],
+                liabilities: map![&e, (reserve_0.config.index, 1000)],
                 collateral: map![&e],
                 supply: map![&e],
             },
         };
 
         e.as_contract(&pool, || {
-            let res_0_d_token_index = reserve_0.index * 2 + 0;
+            let res_0_d_token_index = reserve_0.config.index * 2 + 0;
             storage::set_res_emis_data(&e, &res_0_d_token_index, &emis_res_data);
             storage::set_user_emissions(&e, &samwise, &res_0_d_token_index, &emis_user_data);
 
             user.add_liabilities(&e, &mut reserve_0, 123);
             assert_eq!(user.get_liabilities(0), 1123);
-            assert_eq!(reserve_0.d_supply, starting_d_supply_0 + 123);
+            assert_eq!(reserve_0.data.d_supply, starting_d_supply_0 + 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
             let new_index = 10000000000
@@ -469,7 +475,7 @@ mod tests {
         });
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_d_supply_0 = reserve_0.d_supply;
+        let starting_d_supply_0 = reserve_0.data.d_supply;
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
@@ -484,19 +490,19 @@ mod tests {
         let mut user = User {
             address: samwise.clone(),
             positions: Positions {
-                liabilities: map![&e, (reserve_0.index, 1000)],
+                liabilities: map![&e, (reserve_0.config.index, 1000)],
                 collateral: map![&e],
                 supply: map![&e],
             },
         };
         e.as_contract(&pool, || {
-            let res_0_d_token_index = reserve_0.index * 2 + 0;
+            let res_0_d_token_index = reserve_0.config.index * 2 + 0;
             storage::set_res_emis_data(&e, &res_0_d_token_index, &emis_res_data);
             storage::set_user_emissions(&e, &samwise, &res_0_d_token_index, &emis_user_data);
 
             user.remove_liabilities(&e, &mut reserve_0, 123);
             assert_eq!(user.get_liabilities(0), 877);
-            assert_eq!(reserve_0.d_supply, starting_d_supply_0 - 123);
+            assert_eq!(reserve_0.data.d_supply, starting_d_supply_0 - 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
             let new_index = 10000000000
@@ -544,10 +550,10 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        reserve_0.d_rate = 1_500_000_000;
-        reserve_0.d_supply = 500_0000000;
-        reserve_0.b_rate = 1_250_000_000;
-        reserve_0.b_supply = 750_0000000;
+        reserve_0.data.d_rate = 1_500_000_000;
+        reserve_0.data.d_supply = 500_0000000;
+        reserve_0.data.b_rate = 1_250_000_000;
+        reserve_0.data.b_supply = 750_0000000;
 
         let mut user = User {
             address: samwise.clone(),
@@ -559,19 +565,19 @@ mod tests {
             user.add_liabilities(&e, &mut reserve_0, 20_0000000);
             assert_eq!(user.get_liabilities(0), 20_0000000);
 
-            let d_supply = reserve_0.d_supply;
+            let d_supply = reserve_0.data.d_supply;
             let total_supply = reserve_0.total_supply();
             let underlying_default_amount = reserve_0.to_asset_from_d_token(20_0000000);
             user.default_liabilities(&e, &mut reserve_0, 20_0000000);
 
             assert_eq!(user.get_liabilities(0), 0);
-            assert_eq!(reserve_0.d_supply, d_supply - 20_0000000);
+            assert_eq!(reserve_0.data.d_supply, d_supply - 20_0000000);
             assert_eq!(
                 reserve_0.total_supply(),
                 total_supply - underlying_default_amount
             );
-            assert_eq!(reserve_0.b_rate, 1_210_000_000);
-            assert_eq!(reserve_0.b_supply, 750_0000000);
+            assert_eq!(reserve_0.data.b_rate, 1_210_000_000);
+            assert_eq!(reserve_0.data.b_supply, 750_0000000);
         });
     }
 
@@ -583,10 +589,10 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        reserve_0.d_rate = 1_500_000_000;
-        reserve_0.d_supply = 500_0000000;
-        reserve_0.b_rate = 0_100_000_000;
-        reserve_0.b_supply = 750_0000000;
+        reserve_0.data.d_rate = 1_500_000_000;
+        reserve_0.data.d_supply = 500_0000000;
+        reserve_0.data.b_rate = 0_100_000_000;
+        reserve_0.data.b_supply = 750_0000000;
 
         let mut user = User {
             address: samwise.clone(),
@@ -598,14 +604,14 @@ mod tests {
             user.add_liabilities(&e, &mut reserve_0, 100_0000000);
             assert_eq!(user.get_liabilities(0), 100_0000000);
 
-            let d_supply = reserve_0.d_supply;
+            let d_supply = reserve_0.data.d_supply;
             user.default_liabilities(&e, &mut reserve_0, 100_0000000);
 
             assert_eq!(user.get_liabilities(0), 0);
-            assert_eq!(reserve_0.d_supply, d_supply - 100_0000000);
+            assert_eq!(reserve_0.data.d_supply, d_supply - 100_0000000);
             assert_eq!(reserve_0.total_supply(), 0);
-            assert_eq!(reserve_0.b_rate, 0);
-            assert_eq!(reserve_0.b_supply, 750_0000000);
+            assert_eq!(reserve_0.data.b_rate, 0);
+            assert_eq!(reserve_0.data.b_supply, 750_0000000);
         });
     }
 
@@ -617,11 +623,11 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_b_supply_0 = reserve_0.b_supply;
+        let starting_b_supply_0 = reserve_0.data.b_supply;
 
         let mut reserve_1 = testutils::default_reserve(&e);
-        reserve_1.index = 1;
-        let starting_b_supply_1 = reserve_1.b_supply;
+        reserve_1.config.index = 1;
+        let starting_b_supply_1 = reserve_1.data.b_supply;
 
         let mut user = User {
             address: samwise.clone(),
@@ -632,21 +638,21 @@ mod tests {
 
             user.add_collateral(&e, &mut reserve_0, 123);
             assert_eq!(user.get_collateral(0), 123);
-            assert_eq!(reserve_0.b_supply, starting_b_supply_0 + 123);
+            assert_eq!(reserve_0.data.b_supply, starting_b_supply_0 + 123);
 
             user.add_collateral(&e, &mut reserve_1, 456);
             assert_eq!(user.get_collateral(0), 123);
             assert_eq!(user.get_collateral(1), 456);
-            assert_eq!(reserve_1.b_supply, starting_b_supply_1 + 456);
+            assert_eq!(reserve_1.data.b_supply, starting_b_supply_1 + 456);
 
             user.remove_collateral(&e, &mut reserve_1, 100);
             assert_eq!(user.get_collateral(1), 356);
-            assert_eq!(reserve_1.b_supply, starting_b_supply_1 + 356);
+            assert_eq!(reserve_1.data.b_supply, starting_b_supply_1 + 356);
 
             user.remove_collateral(&e, &mut reserve_1, 356);
             assert_eq!(user.get_collateral(1), 0);
             assert_eq!(user.positions.collateral.len(), 1);
-            assert_eq!(reserve_1.b_supply, starting_b_supply_1);
+            assert_eq!(reserve_1.data.b_supply, starting_b_supply_1);
         });
     }
 
@@ -690,7 +696,7 @@ mod tests {
         });
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_b_token_supply = reserve_0.b_supply;
+        let starting_b_token_supply = reserve_0.data.b_supply;
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
@@ -707,18 +713,18 @@ mod tests {
             address: samwise.clone(),
             positions: Positions {
                 liabilities: map![&e],
-                collateral: map![&e, (reserve_0.index, 700)],
-                supply: map![&e, (reserve_0.index, 300)],
+                collateral: map![&e, (reserve_0.config.index, 700)],
+                supply: map![&e, (reserve_0.config.index, 300)],
             },
         };
         e.as_contract(&pool, || {
-            let res_0_d_token_index = reserve_0.index * 2 + 1;
+            let res_0_d_token_index = reserve_0.config.index * 2 + 1;
             storage::set_res_emis_data(&e, &res_0_d_token_index, &emis_res_data);
             storage::set_user_emissions(&e, &samwise, &res_0_d_token_index, &emis_user_data);
 
             user.add_collateral(&e, &mut reserve_0, 123);
             assert_eq!(user.get_collateral(0), 823);
-            assert_eq!(reserve_0.b_supply, starting_b_token_supply + 123);
+            assert_eq!(reserve_0.data.b_supply, starting_b_token_supply + 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
             let new_index = 10000000000
@@ -780,7 +786,7 @@ mod tests {
         });
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_b_token_supply = reserve_0.b_supply;
+        let starting_b_token_supply = reserve_0.data.b_supply;
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
@@ -797,18 +803,18 @@ mod tests {
             address: samwise.clone(),
             positions: Positions {
                 liabilities: map![&e],
-                collateral: map![&e, (reserve_0.index, 700)],
-                supply: map![&e, (reserve_0.index, 300)],
+                collateral: map![&e, (reserve_0.config.index, 700)],
+                supply: map![&e, (reserve_0.config.index, 300)],
             },
         };
         e.as_contract(&pool, || {
-            let res_0_d_token_index = reserve_0.index * 2 + 1;
+            let res_0_d_token_index = reserve_0.config.index * 2 + 1;
             storage::set_res_emis_data(&e, &res_0_d_token_index, &emis_res_data);
             storage::set_user_emissions(&e, &samwise, &res_0_d_token_index, &emis_user_data);
 
             user.remove_collateral(&e, &mut reserve_0, 123);
             assert_eq!(user.get_collateral(0), 577);
-            assert_eq!(reserve_0.b_supply, starting_b_token_supply - 123);
+            assert_eq!(reserve_0.data.b_supply, starting_b_token_supply - 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
             let new_index = 10000000000
@@ -857,11 +863,11 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_b_supply_0 = reserve_0.b_supply;
+        let starting_b_supply_0 = reserve_0.data.b_supply;
 
         let mut reserve_1 = testutils::default_reserve(&e);
-        reserve_1.index = 1;
-        let starting_b_supply_1 = reserve_1.b_supply;
+        reserve_1.config.index = 1;
+        let starting_b_supply_1 = reserve_1.data.b_supply;
 
         let mut user = User {
             address: samwise.clone(),
@@ -872,21 +878,21 @@ mod tests {
 
             user.add_supply(&e, &mut reserve_0, 123);
             assert_eq!(user.get_supply(0), 123);
-            assert_eq!(reserve_0.b_supply, starting_b_supply_0 + 123);
+            assert_eq!(reserve_0.data.b_supply, starting_b_supply_0 + 123);
 
             user.add_supply(&e, &mut reserve_1, 456);
             assert_eq!(user.get_supply(0), 123);
             assert_eq!(user.get_supply(1), 456);
-            assert_eq!(reserve_1.b_supply, starting_b_supply_1 + 456);
+            assert_eq!(reserve_1.data.b_supply, starting_b_supply_1 + 456);
 
             user.remove_supply(&e, &mut reserve_1, 100);
             assert_eq!(user.get_supply(1), 356);
-            assert_eq!(reserve_1.b_supply, starting_b_supply_1 + 356);
+            assert_eq!(reserve_1.data.b_supply, starting_b_supply_1 + 356);
 
             user.remove_supply(&e, &mut reserve_1, 356);
             assert_eq!(user.get_supply(2), 0);
             assert_eq!(user.positions.supply.len(), 1);
-            assert_eq!(reserve_1.b_supply, starting_b_supply_1);
+            assert_eq!(reserve_1.data.b_supply, starting_b_supply_1);
         });
     }
 
@@ -930,7 +936,7 @@ mod tests {
         });
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_b_token_supply = reserve_0.b_supply;
+        let starting_b_token_supply = reserve_0.data.b_supply;
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
@@ -947,18 +953,18 @@ mod tests {
             address: samwise.clone(),
             positions: Positions {
                 liabilities: map![&e],
-                collateral: map![&e, (reserve_0.index, 700)],
-                supply: map![&e, (reserve_0.index, 300)],
+                collateral: map![&e, (reserve_0.config.index, 700)],
+                supply: map![&e, (reserve_0.config.index, 300)],
             },
         };
         e.as_contract(&pool, || {
-            let res_0_d_token_index = reserve_0.index * 2 + 1;
+            let res_0_d_token_index = reserve_0.config.index * 2 + 1;
             storage::set_res_emis_data(&e, &res_0_d_token_index, &emis_res_data);
             storage::set_user_emissions(&e, &samwise, &res_0_d_token_index, &emis_user_data);
 
             user.add_supply(&e, &mut reserve_0, 123);
             assert_eq!(user.get_supply(0), 423);
-            assert_eq!(reserve_0.b_supply, starting_b_token_supply + 123);
+            assert_eq!(reserve_0.data.b_supply, starting_b_token_supply + 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
             let new_index = 10000000000
@@ -1020,7 +1026,7 @@ mod tests {
         });
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        let starting_b_token_supply = reserve_0.b_supply;
+        let starting_b_token_supply = reserve_0.data.b_supply;
 
         let emis_res_data = ReserveEmissionData {
             expiration: 20000000,
@@ -1037,18 +1043,18 @@ mod tests {
             address: samwise.clone(),
             positions: Positions {
                 liabilities: map![&e],
-                collateral: map![&e, (reserve_0.index, 700)],
-                supply: map![&e, (reserve_0.index, 300)],
+                collateral: map![&e, (reserve_0.config.index, 700)],
+                supply: map![&e, (reserve_0.config.index, 300)],
             },
         };
         e.as_contract(&pool, || {
-            let res_0_d_token_index = reserve_0.index * 2 + 1;
+            let res_0_d_token_index = reserve_0.config.index * 2 + 1;
             storage::set_res_emis_data(&e, &res_0_d_token_index, &emis_res_data);
             storage::set_user_emissions(&e, &samwise, &res_0_d_token_index, &emis_user_data);
 
             user.remove_supply(&e, &mut reserve_0, 123);
             assert_eq!(user.get_supply(0), 177);
-            assert_eq!(reserve_0.b_supply, starting_b_token_supply - 123);
+            assert_eq!(reserve_0.data.b_supply, starting_b_token_supply - 123);
 
             let new_emis_res_data = storage::get_res_emis_data(&e, &res_0_d_token_index).unwrap();
             let new_index = 10000000000
@@ -1099,7 +1105,7 @@ mod tests {
         let mut reserve_0 = testutils::default_reserve(&e);
 
         let mut reserve_1 = testutils::default_reserve(&e);
-        reserve_1.index = 1;
+        reserve_1.config.index = 1;
 
         let mut user = User {
             address: samwise.clone(),

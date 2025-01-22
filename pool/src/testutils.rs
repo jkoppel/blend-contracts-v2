@@ -203,20 +203,31 @@ pub fn create_flashloan_receiver<'a>(
 pub(crate) fn default_reserve(e: &Env) -> Reserve {
     Reserve {
         asset: Address::generate(e),
-        index: 0,
-        l_factor: 0_7500000,
-        c_factor: 0_7500000,
-        max_util: 0_9500000,
-        last_time: 0,
-        scalar: 1_0000000,
-        d_rate: 1_000_000_000,
-        b_rate: 1_000_000_000,
-        ir_mod: 1_000_000_000,
-        b_supply: 100_0000000,
-        d_supply: 75_0000000,
-        backstop_credit: 0,
-        collateral_cap: 1000000000000000000,
-        enabled: true,
+        config: ReserveConfig {
+            decimals: 7,
+            c_factor: 0_7500000,
+            l_factor: 0_7500000,
+            util: 0_7500000,
+            max_util: 0_9500000,
+            r_base: 0_0100000,
+            r_one: 0_0500000,
+            r_two: 0_5000000,
+            r_three: 1_5000000,
+            reactivity: 0_0000020, // 2e-6
+            index: 0,
+            collateral_cap: 1000000000000000000,
+            enabled: true,
+        },
+        data: ReserveData {
+            b_rate: 1_000_000_000,
+            d_rate: 1_000_000_000,
+            ir_mod: 1_000_000_000,
+            b_supply: 100_0000000,
+            d_supply: 75_0000000,
+            last_time: 0,
+            backstop_credit: 0,
+        },
+        scalar: SCALAR_7,
     }
 }
 

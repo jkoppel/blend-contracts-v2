@@ -43,12 +43,14 @@ pub fn create_interest_auction_data(
         // don't store updated reserve data back to ledger. This will occur on the the auction's fill.
         // `load_reserve` will panic if the reserve does not exist
         let reserve = pool.load_reserve(e, &lot_asset, false);
-        if reserve.backstop_credit > 0 {
+        if reserve.data.backstop_credit > 0 {
             let asset_to_base = pool.load_price(e, &reserve.asset);
             interest_value += i128(asset_to_base)
-                .fixed_mul_floor(reserve.backstop_credit, reserve.scalar)
+                .fixed_mul_floor(reserve.data.backstop_credit, reserve.scalar)
                 .unwrap_optimized();
-            auction_data.lot.set(reserve.asset, reserve.backstop_credit);
+            auction_data
+                .lot
+                .set(reserve.asset, reserve.data.backstop_credit);
         }
     }
 
@@ -110,7 +112,7 @@ pub fn fill_interest_auction(
     // lot contains underlying tokens, but the backstop credit must be updated on the reserve
     for (res_asset_address, lot_amount) in auction_data.lot.iter() {
         let mut reserve = pool.load_reserve(e, &res_asset_address, true);
-        reserve.backstop_credit -= lot_amount;
+        reserve.data.backstop_credit -= lot_amount;
         pool.cache_reserve(reserve);
         TokenClient::new(e, &res_asset_address).transfer(
             &e.current_contract_address(),
