@@ -113,7 +113,7 @@ pub trait Pool {
     ) -> Positions;
 
     /// Submit a set of requests to the pool where 'from' takes on the position, 'spender' sends any
-    /// required tokens to the pool USING transfer_from and 'to' receives any tokens sent from the pool.
+    /// required tokens to the pool using transfer_from and 'to' receives any tokens sent from the pool.
     ///
     /// Returns the new positions for 'from'
     ///
@@ -133,8 +133,9 @@ pub trait Pool {
         requests: Vec<Request>,
     ) -> Positions;
 
-    /// Submit flash loan and set of requests to the pool where 'from' takes on the position. 'from' is also
-    /// the caller of the flash laon, and for typical flash loan receivers, the receiver of the tokens.
+    /// Submit flash loan and a set of requests to the pool where 'from' takes on the position. The flash loan will be invoked using
+    /// the 'flash_loan' arguments and 'from' as the caller. For the requests, 'from' sends any required tokens to the pool
+    /// using transfer_from and receives any tokens sent from the pool.
     ///
     /// Returns the new positions for 'from'
     ///
@@ -145,7 +146,7 @@ pub trait Pool {
     /// * `requests` - A vec of requests to be processed
     ///
     /// ### Panics
-    /// If the request is not able to be completed for cases like insufficient funds or invalid health factor
+    /// If the request is not able to be completed for cases like insufficient funds ,insufficient allowance, or invalid health factor
     fn flash_loan(
         e: Env,
         from: Address,
