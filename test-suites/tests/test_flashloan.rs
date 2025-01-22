@@ -114,7 +114,7 @@ fn test_flashloan() {
     let flash_loan_events = vec![&fixture.env, events.get_unchecked(0)];
     let flash_loan_d_tokens_minted = flash_loan
         .amount
-        .fixed_div_ceil(xlm_res_data.d_rate, SCALAR_9)
+        .fixed_div_ceil(xlm_res_data.data.d_rate, SCALAR_9)
         .unwrap();
     let flash_loan_event_data: soroban_sdk::Vec<Val> = vec![
         &fixture.env,
@@ -141,7 +141,7 @@ fn test_flashloan() {
 
     let supply_event = vec![&fixture.env, events.get_unchecked(1)];
     let supply_b_tokens_minted = supply_amount
-        .fixed_div_floor(stable_res_data.b_rate, SCALAR_9)
+        .fixed_div_floor(stable_res_data.data.b_rate, SCALAR_9)
         .unwrap();
     let supply_event_data: soroban_sdk::Vec<Val> = vec![
         &fixture.env,
@@ -167,7 +167,7 @@ fn test_flashloan() {
 
     let repay_event = vec![&fixture.env, events.get_unchecked(2)];
     let repay_d_tokens_burned = repay_amount
-        .fixed_div_floor(xlm_res_data.d_rate, SCALAR_9)
+        .fixed_div_floor(xlm_res_data.data.d_rate, SCALAR_9)
         .unwrap();
     let repay_event_data: soroban_sdk::Vec<Val> = vec![
         &fixture.env,

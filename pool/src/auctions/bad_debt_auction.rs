@@ -48,7 +48,7 @@ pub fn create_bad_debt_auction_data(
         let reserve = pool.load_reserve(e, &bid_asset, false);
         let liability_balance = backstop_positions
             .liabilities
-            .get(reserve.index)
+            .get(reserve.config.index)
             .unwrap_or(0);
         if liability_balance > 0 {
             let asset_to_base = pool.load_price(e, &reserve.asset);

@@ -110,7 +110,7 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
         let mut pool = Pool::load(e);
         // @dev: Store the reserve to ledger manually
         let mut reserve = pool.load_reserve(e, asset, false);
-        index = reserve.index;
+        index = reserve.config.index;
         let reserve_config = storage::get_res_config(e, asset);
         // decimals cannot change
         if reserve_config.decimals != config.decimals {
@@ -123,7 +123,7 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
             || reserve_config.r_three != config.r_three
             || reserve_config.util != config.util
         {
-            reserve.ir_mod = SCALAR_9;
+            reserve.data.ir_mod = SCALAR_9;
         }
         reserve.store(e);
     } else {

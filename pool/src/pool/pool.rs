@@ -195,12 +195,12 @@ mod tests {
             );
 
             let new_reserve = pool.load_reserve(&e, &underlying, true);
-            assert_eq!(new_reserve.d_rate, reserve.d_rate);
+            assert_eq!(new_reserve.data.d_rate, reserve.data.d_rate);
 
             // store all cached reserves and verify the data is updated
             pool.store_cached_reserves(&e);
             let new_reserve_data = storage::get_res_data(&e, &underlying);
-            assert_eq!(new_reserve_data.d_rate, reserve.d_rate);
+            assert_eq!(new_reserve_data.d_rate, reserve.data.d_rate);
         });
     }
 
@@ -250,13 +250,13 @@ mod tests {
             let reserve_0 = pool.load_reserve(&e, &underlying_0, false);
             let mut reserve_1 = pool.load_reserve(&e, &underlying_1, true);
             let mut reserve_2 = pool.load_reserve(&e, &underlying_2, true);
-            reserve_2.d_rate = 456;
+            reserve_2.data.d_rate = 456;
             pool.cache_reserve(reserve_0.clone());
             pool.cache_reserve(reserve_1.clone());
             pool.cache_reserve(reserve_2.clone());
 
             // verify a duplicate cache takes the most recently cached
-            reserve_1.d_rate = 123;
+            reserve_1.data.d_rate = 123;
             pool.cache_reserve(reserve_1.clone());
 
             // verify reloading without store flag still stores reserve
@@ -278,7 +278,7 @@ mod tests {
             );
 
             let new_reserve = pool.load_reserve(&e, &underlying_0, false);
-            assert_eq!(new_reserve.d_rate, reserve_0.d_rate);
+            assert_eq!(new_reserve.data.d_rate, reserve_0.data.d_rate);
 
             // store all cached reserves and verify the temp one was not stored
             pool.store_cached_reserves(&e);
@@ -338,8 +338,8 @@ mod tests {
             let reserve_0 = pool.load_reserve(&e, &underlying_0, false);
             let mut reserve_1 = pool.load_reserve(&e, &underlying_1, true);
             let mut reserve_2 = pool.load_reserve(&e, &underlying_2, true);
-            reserve_1.b_rate = 123;
-            reserve_2.d_rate = 456;
+            reserve_1.data.b_rate = 123;
+            reserve_2.data.d_rate = 456;
             pool.cache_reserve(reserve_0.clone());
             pool.cache_reserve(reserve_1.clone());
             // pool.cache_reserve(reserve_2.clone());
@@ -655,7 +655,7 @@ mod tests {
 
         let mut reserve_0 = testutils::default_reserve(&e);
         let mut reserve_1 = testutils::default_reserve(&e);
-        reserve_1.index = 1;
+        reserve_1.config.index = 1;
 
         let (oracle, _) = testutils::create_mock_oracle(&e);
         let mut user = User {
@@ -691,7 +691,7 @@ mod tests {
 
         let mut reserve_0 = testutils::default_reserve(&e);
         let mut reserve_1 = testutils::default_reserve(&e);
-        reserve_1.index = 1;
+        reserve_1.config.index = 1;
 
         let (oracle, _) = testutils::create_mock_oracle(&e);
         let mut user = User {
@@ -729,7 +729,7 @@ mod tests {
 
         let mut reserve_0 = testutils::default_reserve(&e);
         let mut reserve_1 = testutils::default_reserve(&e);
-        reserve_1.index = 1;
+        reserve_1.config.index = 1;
 
         let mut user = User {
             address: samwise.clone(),

@@ -57,9 +57,11 @@ pub fn create_user_liq_auction_data(
     for bid_asset in bid {
         // these will be cached if the bid is valid
         let reserve = pool.load_reserve(e, &bid_asset, false);
-        match user_state.positions.liabilities.get(reserve.index) {
+        match user_state.positions.liabilities.get(reserve.config.index) {
             Some(amount) => {
-                positions_auctioned.liabilities.set(reserve.index, amount);
+                positions_auctioned
+                    .liabilities
+                    .set(reserve.config.index, amount);
             }
             None => {
                 panic_with_error!(e, PoolError::InvalidBid);
@@ -72,9 +74,11 @@ pub fn create_user_liq_auction_data(
     for lot_asset in lot {
         // these will be cached if the lot is valid
         let reserve = pool.load_reserve(e, &lot_asset, false);
-        match user_state.positions.collateral.get(reserve.index) {
+        match user_state.positions.collateral.get(reserve.config.index) {
             Some(amount) => {
-                positions_auctioned.collateral.set(reserve.index, amount);
+                positions_auctioned
+                    .collateral
+                    .set(reserve.config.index, amount);
             }
             None => {
                 panic_with_error!(e, PoolError::InvalidLot);

@@ -147,7 +147,7 @@ pub fn build_actions_from_request(
             }
             RequestType::Withdraw => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
-                let cur_b_tokens = from_state.get_supply(reserve.index);
+                let cur_b_tokens = from_state.get_supply(reserve.config.index);
                 let mut to_burn = reserve.to_b_token_up(request.amount);
                 let mut tokens_out = request.amount;
                 if to_burn > cur_b_tokens {
@@ -171,7 +171,9 @@ pub fn build_actions_from_request(
                 let b_tokens_minted = reserve.to_b_token_down(request.amount);
                 from_state.add_collateral(e, &mut reserve, b_tokens_minted);
                 actions.add_for_spender_transfer(&reserve.asset, request.amount);
-                if reserve.to_asset_from_b_token(reserve.b_supply) > reserve.collateral_cap {
+                if reserve.to_asset_from_b_token(reserve.data.b_supply)
+                    > reserve.config.collateral_cap
+                {
                     panic_with_error!(e, PoolError::ExceededCollateralCap);
                 }
                 pool.cache_reserve(reserve);
@@ -185,7 +187,7 @@ pub fn build_actions_from_request(
             }
             RequestType::WithdrawCollateral => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
-                let cur_b_tokens = from_state.get_collateral(reserve.index);
+                let cur_b_tokens = from_state.get_collateral(reserve.config.index);
                 let mut to_burn = reserve.to_b_token_up(request.amount);
                 let mut tokens_out = request.amount;
                 if to_burn > cur_b_tokens {
@@ -223,7 +225,7 @@ pub fn build_actions_from_request(
             }
             RequestType::Repay => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
-                let cur_d_tokens = from_state.get_liabilities(reserve.index);
+                let cur_d_tokens = from_state.get_liabilities(reserve.config.index);
                 let d_tokens_burnt = reserve.to_d_token_down(request.amount);
                 if d_tokens_burnt > cur_d_tokens {
                     let cur_underlying_borrowed = reserve.to_asset_from_d_token(cur_d_tokens);
@@ -413,7 +415,10 @@ mod tests {
             assert_eq!(user.get_supply(0), 10_1234488);
 
             let reserve = pool.load_reserve(&e, &underlying, false);
-            assert_eq!(reserve.b_supply, reserve_data.b_supply + user.get_supply(0));
+            assert_eq!(
+                reserve.data.b_supply,
+                reserve_data.b_supply + user.get_supply(0)
+            );
         });
     }
 
@@ -487,7 +492,7 @@ mod tests {
 
             let reserve = pool.load_reserve(&e, &underlying, false);
             assert_eq!(
-                reserve.b_supply,
+                reserve.data.b_supply,
                 reserve_data.b_supply - (20_0000000 - 9_8765502)
             );
         });
@@ -558,7 +563,7 @@ mod tests {
             assert_eq!(positions.supply.len(), 0);
 
             let reserve = pool.load_reserve(&e, &underlying.clone(), false);
-            assert_eq!(reserve.b_supply, reserve_data.b_supply - 20_0000000);
+            assert_eq!(reserve.data.b_supply, reserve_data.b_supply - 20_0000000);
         });
     }
 
@@ -628,7 +633,7 @@ mod tests {
 
             let reserve = pool.load_reserve(&e, &underlying.clone(), false);
             assert_eq!(
-                reserve.b_supply,
+                reserve.data.b_supply,
                 reserve_data.b_supply + user.get_collateral(0)
             );
         });
@@ -703,7 +708,7 @@ mod tests {
 
             let reserve = pool.load_reserve(&e, &underlying, false);
             assert_eq!(
-                reserve.b_supply,
+                reserve.data.b_supply,
                 reserve_data.b_supply - (20_0000000 - 9_8765502)
             );
         });
@@ -774,7 +779,7 @@ mod tests {
             assert_eq!(positions.supply.len(), 0);
 
             let reserve = pool.load_reserve(&e, &underlying, false);
-            assert_eq!(reserve.b_supply, reserve_data.b_supply - 20_0000000);
+            assert_eq!(reserve.data.b_supply, reserve_data.b_supply - 20_0000000);
         });
     }
 
@@ -839,7 +844,7 @@ mod tests {
             assert_eq!(user.get_liabilities(0), 10_1234452);
 
             let reserve = pool.load_reserve(&e, &underlying, false);
-            assert_eq!(reserve.d_supply, reserve_data.d_supply + 10_1234452);
+            assert_eq!(reserve.data.d_supply, reserve_data.d_supply + 10_1234452);
         });
     }
 
@@ -915,7 +920,10 @@ mod tests {
             assert_eq!(user.get_liabilities(0), 20_0000000 - d_tokens_repaid);
 
             let reserve = pool.load_reserve(&e, &underlying, false);
-            assert_eq!(reserve.d_supply, reserve_data.d_supply - d_tokens_repaid);
+            assert_eq!(
+                reserve.data.d_supply,
+                reserve_data.d_supply - d_tokens_repaid
+            );
         });
     }
 
@@ -988,7 +996,7 @@ mod tests {
             assert_eq!(positions.supply.len(), 0);
 
             let reserve = pool.load_reserve(&e, &underlying, false);
-            assert_eq!(reserve.d_supply, reserve_data.d_supply - 20_0000000);
+            assert_eq!(reserve.data.d_supply, reserve_data.d_supply - 20_0000000);
         });
     }
 

@@ -17,19 +17,19 @@ pub fn execute_gulp(e: &Env, asset: &Address) -> (i128, i128) {
     let mut reserve = Reserve::load(e, &pool_config, asset);
     let pool_token_balance = TokenClient::new(e, asset).balance(&e.current_contract_address());
     let reserve_token_balance =
-        reserve.total_supply() + reserve.backstop_credit - reserve.total_liabilities();
+        reserve.total_supply() + reserve.data.backstop_credit - reserve.total_liabilities();
     let token_balance_delta = pool_token_balance - reserve_token_balance;
-    let pre_gulp_b_rate = reserve.b_rate;
+    let pre_gulp_b_rate = reserve.data.b_rate;
 
     reserve.gulp(pool_config.bstop_rate, token_balance_delta);
 
     // If the reserve's b_rate hasn't changed the token delta is not significant
-    if pre_gulp_b_rate == reserve.b_rate {
+    if pre_gulp_b_rate == reserve.data.b_rate {
         return (0, pre_gulp_b_rate);
     }
 
     reserve.store(e);
-    return (token_balance_delta, reserve.b_rate);
+    return (token_balance_delta, reserve.data.b_rate);
 }
 
 #[cfg(test)]
