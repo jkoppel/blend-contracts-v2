@@ -274,6 +274,29 @@ impl PoolEvents {
         e.events().publish(topics, (tokens_in, d_tokens_burnt));
     }
 
+    /// Emitted during a flash loan
+    ///
+    /// - topics - `["flash_loan", asset: Address, from: Address]`
+    /// - data - `[tokens_out: i128, d_tokens_minted: i128]`
+    ///
+    /// ### Arguments
+    /// * asset - The asset
+    /// * from - The address whose position is being modified
+    /// * contract - The address of the flash loan contract
+    /// * tokens_out - The amount of tokens sent from the pool
+    /// * d_tokens_burnt - The amount of d_tokens burnt
+    pub fn flash_loan(
+        e: &Env,
+        asset: Address,
+        from: Address,
+        contract: Address,
+        tokens_out: i128,
+        d_tokens_minted: i128,
+    ) {
+        let topics = (Symbol::new(e, "flash_loan"), asset, from, contract);
+        e.events().publish(topics, (tokens_out, d_tokens_minted));
+    }
+
     /// Emitted when a reserve updates its bToken rate
     ///
     /// - topics - `["gulp", asset: Address]`
