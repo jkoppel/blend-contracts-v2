@@ -128,8 +128,6 @@ pub enum PoolDataKey {
     ResInit(Address),
     // A map of underlying asset's contract address to reserve data
     ResData(Address),
-    // The reserve's emission config
-    EmisConfig(u32),
     // The reserve's emission data
     EmisData(u32),
     // Map of positions in the pool for a user
@@ -138,8 +136,6 @@ pub enum PoolDataKey {
     UserEmis(UserReserveKey),
     // The auction's data
     Auction(AuctionKey),
-    // A list of auctions and their associated data
-    AuctData(Address),
 }
 
 /********** Storage **********/
