@@ -114,7 +114,7 @@ impl PoolEvents {
 
     /// Emitted when emissions are gulped
     ///
-    /// - topics - `["update_emissions"]`
+    /// - topics - `["gulp_emissions"]`
     /// - data - `emissions: i128`
     ///
     /// ### Arguments
