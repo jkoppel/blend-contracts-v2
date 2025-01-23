@@ -7,5 +7,4 @@ pub use comet::Client as CometClient;
 #[cfg(test)]
 pub use comet::WASM as COMET_WASM;
 
-mod emitter;
-pub use emitter::Client as EmitterClient;
+pub use blend_contract_sdk::emitter::Client as EmitterClient;

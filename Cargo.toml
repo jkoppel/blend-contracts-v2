@@ -3,7 +3,6 @@ resolver = "2"
 
 members = [
     "backstop",
-    "blend-contract-sdk",
     "pool",
     "mocks/mock-pool-factory",
     "mocks/moderc3156",
@@ -41,6 +40,8 @@ version = "1.2.0"
 [workspace.dependencies.sep-41-token]
 version = "1.2.0"
 
+[workspace.dependencies.blend-contract-sdk]
+version = "1.22.0"
 
 [workspace.dependencies.moderc3156]
 git = "https://github.com/xycloo/xycloans"
