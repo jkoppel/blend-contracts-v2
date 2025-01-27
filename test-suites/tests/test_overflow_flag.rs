@@ -1,31 +1,86 @@
 #![cfg(test)]
+use std::i128;
+
 use pool::{Request, RequestType};
 use soroban_sdk::{testutils::Address as AddressTestTrait, vec, Address, Vec};
 use test_suites::{
     create_fixture_with_data,
-    test_fixture::{TokenIndex, SCALAR_7},
+    test_fixture::{TokenIndex, SCALAR_7, SCALAR_9},
 };
 
 #[test]
-#[should_panic(expected = "Error(WasmVm, InvalidAction)")]
-fn test_pool_deposit_overflow_panics() {
-    let fixture = create_fixture_with_data(true);
+fn test_pool_overflow() {
+    let fixture = create_fixture_with_data(false);
     let pool_fixture = &fixture.pools[0];
-    let pool_balance = fixture.tokens[TokenIndex::STABLE].balance(&pool_fixture.pool.address);
-    fixture.tokens[TokenIndex::STABLE].burn(&pool_fixture.pool.address, &pool_balance);
+
+    // overflow can occur when a user's oracle balance is >i128::MAX
+    // during a health check
+
+    let weth = &fixture.tokens[TokenIndex::WETH];
+    let stable = &fixture.tokens[TokenIndex::STABLE];
+
+    // check pool balance to ensure balance does not overflow first
+    // 50% util, leave some room for interest accumulation
+    let pool_weth_balance = weth.balance(&pool_fixture.pool.address);
+    let max_weth_deposit = i128::MAX - 2 * pool_weth_balance - 5 * SCALAR_9;
+
+    // under collateral cap for stable
+    let max_stable_deposit = 999_000_000_000_000000;
 
     // Create a user
     let samwise = Address::generate(&fixture.env);
-    fixture.tokens[TokenIndex::STABLE].mint(&samwise, &(i128::MAX));
-    let request = Request {
-        request_type: RequestType::Supply as u32,
-        address: fixture.tokens[TokenIndex::STABLE].address.clone(),
-        amount: i128::MAX - 10,
-    };
+    weth.mint(&samwise, &max_weth_deposit);
+    stable.mint(&samwise, &(2 * max_stable_deposit));
 
+    // deposit tokens into large deposit
+    let deposit_requests = vec![
+        &fixture.env,
+        Request {
+            request_type: RequestType::SupplyCollateral as u32,
+            address: weth.address.clone(),
+            amount: max_weth_deposit,
+        },
+        Request {
+            request_type: RequestType::SupplyCollateral as u32,
+            address: stable.address.clone(),
+            amount: max_stable_deposit,
+        },
+    ];
     pool_fixture
         .pool
-        .submit(&samwise, &samwise, &samwise, &vec![&fixture.env, request]);
+        .submit(&samwise, &samwise, &samwise, &deposit_requests);
+
+    // allow some time to pass
+    fixture.jump_with_sequence(60 * 60 * 24);
+
+    // validate a health check would overflow if it is >i128::MAX
+    let borrow_request = vec![
+        &fixture.env,
+        Request {
+            request_type: RequestType::Borrow as u32,
+            address: stable.address.clone(),
+            amount: SCALAR_7,
+        },
+    ];
+    let borrow_res = pool_fixture
+        .pool
+        .try_submit(&samwise, &samwise, &samwise, &borrow_request);
+    assert_eq!(borrow_res.is_err(), true);
+
+    // validate the funds can still be withdrawn
+    let withdraw_requests = vec![
+        &fixture.env,
+        Request {
+            request_type: RequestType::WithdrawCollateral as u32,
+            address: weth.address.clone(),
+            amount: i128::MAX,
+        },
+    ];
+    pool_fixture
+        .pool
+        .submit(&samwise, &samwise, &samwise, &withdraw_requests);
+    // util is ~=0% so assert at most 1 stroop was lost to rounding
+    assert!(weth.balance(&samwise) >= max_weth_deposit - 1);
 }
 
 // This test ensures that an accessible underflow in the auction flow cannot be hit due to the overflow-checks flag being set

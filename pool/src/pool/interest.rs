@@ -1,6 +1,6 @@
 use cast::i128;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{unwrap::UnwrapOptimized, Env};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::Env;
 
 use crate::{
     constants::{SCALAR_7, SCALAR_9, SECONDS_PER_YEAR},
@@ -29,41 +29,28 @@ pub fn calc_accrual(
     let cur_ir: i128;
     let target_util: i128 = i128(config.util);
     if cur_util <= target_util {
-        let util_scalar = cur_util
-            .fixed_div_ceil(target_util, SCALAR_7)
-            .unwrap_optimized();
-        let base_rate = util_scalar
-            .fixed_mul_ceil(i128(config.r_one), SCALAR_7)
-            .unwrap_optimized()
-            + i128(config.r_base);
+        let util_scalar = cur_util.fixed_div_ceil(e, &target_util, &SCALAR_7);
+        let base_rate =
+            util_scalar.fixed_mul_ceil(e, &i128(config.r_one), &SCALAR_7) + i128(config.r_base);
 
-        cur_ir = base_rate
-            .fixed_mul_ceil(ir_mod, SCALAR_9)
-            .unwrap_optimized();
+        cur_ir = base_rate.fixed_mul_ceil(e, &ir_mod, &SCALAR_9);
     } else if cur_util <= 0_9500000 {
-        let util_scalar = (cur_util - target_util)
-            .fixed_div_ceil(0_9500000 - target_util, SCALAR_7)
-            .unwrap_optimized();
-        let base_rate = util_scalar
-            .fixed_mul_ceil(i128(config.r_two), SCALAR_7)
-            .unwrap_optimized()
+        let util_scalar =
+            (cur_util - target_util).fixed_div_ceil(e, &(0_9500000 - target_util), &SCALAR_7);
+        let base_rate = util_scalar.fixed_mul_ceil(e, &i128(config.r_two), &SCALAR_7)
             + i128(config.r_one)
             + i128(config.r_base);
 
-        cur_ir = base_rate
-            .fixed_mul_ceil(ir_mod, SCALAR_9)
-            .unwrap_optimized();
+        cur_ir = base_rate.fixed_mul_ceil(e, &ir_mod, &SCALAR_9);
     } else {
-        let util_scalar = (cur_util - 0_9500000)
-            .fixed_div_ceil(0_0500000, SCALAR_7)
-            .unwrap_optimized();
-        let extra_rate = util_scalar
-            .fixed_mul_ceil(i128(config.r_three), SCALAR_7)
-            .unwrap_optimized();
+        let util_scalar = (cur_util - 0_9500000).fixed_div_ceil(e, &0_0500000, &SCALAR_7);
+        let extra_rate = util_scalar.fixed_mul_ceil(e, &i128(config.r_three), &SCALAR_7);
 
-        let intersection = ir_mod
-            .fixed_mul_ceil(i128(config.r_two + config.r_one + config.r_base), SCALAR_9)
-            .unwrap_optimized();
+        let intersection = ir_mod.fixed_mul_ceil(
+            e,
+            &i128(config.r_two + config.r_one + config.r_base),
+            &SCALAR_9,
+        );
         cur_ir = extra_rate + intersection;
     }
 
@@ -74,12 +61,8 @@ pub fn calc_accrual(
     let new_ir_mod: i128;
     if util_dif_scaled >= 0 {
         // rate modifier increasing
-        let util_error = delta_time_scaled
-            .fixed_mul_floor(util_dif_scaled, SCALAR_9)
-            .unwrap_optimized();
-        let rate_dif = util_error
-            .fixed_mul_floor(i128(config.reactivity), SCALAR_7)
-            .unwrap_optimized();
+        let util_error = delta_time_scaled.fixed_mul_floor(e, &util_dif_scaled, &SCALAR_9);
+        let rate_dif = util_error.fixed_mul_floor(e, &i128(config.reactivity), &SCALAR_7);
         let next_ir_mod = ir_mod + rate_dif;
         let ir_mod_max = 10 * SCALAR_9;
         if next_ir_mod > ir_mod_max {
@@ -89,12 +72,8 @@ pub fn calc_accrual(
         }
     } else {
         // rate modifier decreasing
-        let util_error = delta_time_scaled
-            .fixed_mul_ceil(util_dif_scaled, SCALAR_9)
-            .unwrap_optimized();
-        let rate_dif = util_error
-            .fixed_mul_ceil(i128(config.reactivity), SCALAR_7)
-            .unwrap_optimized();
+        let util_error = delta_time_scaled.fixed_mul_ceil(e, &util_dif_scaled, &SCALAR_9);
+        let rate_dif = util_error.fixed_mul_ceil(e, &i128(config.reactivity), &SCALAR_7);
         let next_ir_mod = ir_mod + rate_dif;
         let ir_mod_min = SCALAR_9 / 10;
         if next_ir_mod < ir_mod_min {
@@ -107,10 +86,7 @@ pub fn calc_accrual(
     // calc accrual amount over blocks
     let time_weight = delta_time_scaled / SECONDS_PER_YEAR;
     (
-        SCALAR_9
-            + time_weight
-                .fixed_mul_ceil(cur_ir * 100, SCALAR_9)
-                .unwrap_optimized(),
+        SCALAR_9 + time_weight.fixed_mul_ceil(e, &(cur_ir * 100), &SCALAR_9),
         new_ir_mod,
     )
 }

@@ -3,8 +3,8 @@ use crate::{
 };
 use cast::i128;
 use sep_41_token::TokenClient;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Vec};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::{map, panic_with_error, Address, Env, Vec};
 
 use super::{AuctionData, AuctionType};
 
@@ -45,9 +45,11 @@ pub fn create_interest_auction_data(
         let reserve = pool.load_reserve(e, &lot_asset, false);
         if reserve.data.backstop_credit > 0 {
             let asset_to_base = pool.load_price(e, &reserve.asset);
-            interest_value += i128(asset_to_base)
-                .fixed_mul_floor(reserve.data.backstop_credit, reserve.scalar)
-                .unwrap_optimized();
+            interest_value += i128(asset_to_base).fixed_mul_floor(
+                e,
+                &reserve.data.backstop_credit,
+                &reserve.scalar,
+            );
             auction_data
                 .lot
                 .set(reserve.asset, reserve.data.backstop_credit);
@@ -71,18 +73,15 @@ pub fn create_interest_auction_data(
     }
 
     let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
-    let backstop_token_value_base = (pool_backstop_data
-        .usdc
-        .fixed_mul_floor(oracle_scalar, SCALAR_7)
-        .unwrap_optimized()
-        * 5)
-    .fixed_div_floor(pool_backstop_data.tokens, SCALAR_7)
-    .unwrap_optimized();
+    let backstop_token_value_base =
+        (pool_backstop_data
+            .usdc
+            .fixed_mul_floor(e, &oracle_scalar, &SCALAR_7)
+            * 5)
+        .fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
     let bid_amount = interest_value
-        .fixed_mul_floor(1_4000000, SCALAR_7)
-        .unwrap_optimized()
-        .fixed_div_floor(backstop_token_value_base, SCALAR_7)
-        .unwrap_optimized();
+        .fixed_mul_floor(e, &1_4000000, &SCALAR_7)
+        .fixed_div_floor(e, &backstop_token_value_base, &SCALAR_7);
     auction_data.bid.set(backstop_token, bid_amount);
 
     auction_data

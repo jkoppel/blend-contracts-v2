@@ -5,10 +5,8 @@ use crate::{
     storage,
 };
 use cast::i128;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{
-    contracttype, map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Map, Vec,
-};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::{contracttype, map, panic_with_error, Address, Env, Map, Vec};
 
 use super::{
     backstop_interest_auction::{create_interest_auction_data, fill_interest_auction},
@@ -213,17 +211,13 @@ fn scale_auction(
     for (asset, amount) in auction_data.bid.iter() {
         // apply percent scalar and store remainder to base auction
         // round up to avoid rounding exploits
-        let to_fill_base = amount
-            .fixed_mul_ceil(percent_filled_i128, SCALAR_7)
-            .unwrap_optimized();
+        let to_fill_base = amount.fixed_mul_ceil(e, &percent_filled_i128, &SCALAR_7);
         let remaining_base = amount - to_fill_base;
         if remaining_base > 0 {
             remaining_auction.bid.set(asset.clone(), remaining_base);
         }
         // apply block scalar to to_fill auction and don't store if 0
-        let to_fill_scaled = to_fill_base
-            .fixed_mul_ceil(bid_modifier, SCALAR_7)
-            .unwrap_optimized();
+        let to_fill_scaled = to_fill_base.fixed_mul_ceil(e, &bid_modifier, &SCALAR_7);
         if to_fill_scaled > 0 {
             to_fill_auction.bid.set(asset, to_fill_scaled);
         }
@@ -231,17 +225,13 @@ fn scale_auction(
     for (asset, amount) in auction_data.lot.iter() {
         // apply percent scalar and store remainder to base auction
         // round down to avoid rounding exploits
-        let to_fill_base = amount
-            .fixed_mul_floor(percent_filled_i128, SCALAR_7)
-            .unwrap_optimized();
+        let to_fill_base = amount.fixed_mul_floor(e, &percent_filled_i128, &SCALAR_7);
         let remaining_base = amount - to_fill_base;
         if remaining_base > 0 {
             remaining_auction.lot.set(asset.clone(), remaining_base);
         }
         // apply block scalar to to_fill auction and don't store if 0
-        let to_fill_scaled = to_fill_base
-            .fixed_mul_floor(lot_modifier, SCALAR_7)
-            .unwrap_optimized();
+        let to_fill_scaled = to_fill_base.fixed_mul_floor(e, &lot_modifier, &SCALAR_7);
         if to_fill_scaled > 0 {
             to_fill_auction.lot.set(asset, to_fill_scaled);
         }
@@ -267,6 +257,7 @@ mod tests {
     use soroban_sdk::{
         map,
         testutils::{Address as _, Ledger, LedgerInfo},
+        unwrap::UnwrapOptimized,
         vec, Symbol,
     };
 

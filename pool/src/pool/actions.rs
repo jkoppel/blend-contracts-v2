@@ -133,7 +133,7 @@ pub fn build_actions_from_request(
             RequestType::Supply => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
                 reserve.require_action_allowed(e, request.request_type);
-                let b_tokens_minted = reserve.to_b_token_down(request.amount);
+                let b_tokens_minted = reserve.to_b_token_down(e, request.amount);
                 from_state.add_supply(e, &mut reserve, b_tokens_minted);
                 actions.add_for_spender_transfer(&reserve.asset, request.amount);
                 pool.cache_reserve(reserve);
@@ -148,11 +148,11 @@ pub fn build_actions_from_request(
             RequestType::Withdraw => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
                 let cur_b_tokens = from_state.get_supply(reserve.config.index);
-                let mut to_burn = reserve.to_b_token_up(request.amount);
+                let mut to_burn = reserve.to_b_token_up(e, request.amount);
                 let mut tokens_out = request.amount;
                 if to_burn > cur_b_tokens {
                     to_burn = cur_b_tokens;
-                    tokens_out = reserve.to_asset_from_b_token(cur_b_tokens);
+                    tokens_out = reserve.to_asset_from_b_token(e, cur_b_tokens);
                 }
                 from_state.remove_supply(e, &mut reserve, to_burn);
                 actions.add_for_pool_transfer(&reserve.asset, tokens_out);
@@ -168,12 +168,10 @@ pub fn build_actions_from_request(
             RequestType::SupplyCollateral => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
                 reserve.require_action_allowed(e, request.request_type);
-                let b_tokens_minted = reserve.to_b_token_down(request.amount);
+                let b_tokens_minted = reserve.to_b_token_down(e, request.amount);
                 from_state.add_collateral(e, &mut reserve, b_tokens_minted);
                 actions.add_for_spender_transfer(&reserve.asset, request.amount);
-                if reserve.to_asset_from_b_token(reserve.data.b_supply)
-                    > reserve.config.collateral_cap
-                {
+                if reserve.total_supply(e) > reserve.config.collateral_cap {
                     panic_with_error!(e, PoolError::ExceededCollateralCap);
                 }
                 pool.cache_reserve(reserve);
@@ -188,11 +186,11 @@ pub fn build_actions_from_request(
             RequestType::WithdrawCollateral => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
                 let cur_b_tokens = from_state.get_collateral(reserve.config.index);
-                let mut to_burn = reserve.to_b_token_up(request.amount);
+                let mut to_burn = reserve.to_b_token_up(e, request.amount);
                 let mut tokens_out = request.amount;
                 if to_burn > cur_b_tokens {
                     to_burn = cur_b_tokens;
-                    tokens_out = reserve.to_asset_from_b_token(cur_b_tokens);
+                    tokens_out = reserve.to_asset_from_b_token(e, cur_b_tokens);
                 }
                 from_state.remove_collateral(e, &mut reserve, to_burn);
                 actions.add_for_pool_transfer(&reserve.asset, tokens_out);
@@ -209,7 +207,7 @@ pub fn build_actions_from_request(
             RequestType::Borrow => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
                 reserve.require_action_allowed(e, request.request_type);
-                let d_tokens_minted = reserve.to_d_token_up(request.amount);
+                let d_tokens_minted = reserve.to_d_token_up(e, request.amount);
                 from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
                 reserve.require_utilization_below_max(e);
                 actions.add_for_pool_transfer(&reserve.asset, request.amount);
@@ -226,9 +224,9 @@ pub fn build_actions_from_request(
             RequestType::Repay => {
                 let mut reserve = pool.load_reserve(e, &request.address, true);
                 let cur_d_tokens = from_state.get_liabilities(reserve.config.index);
-                let d_tokens_burnt = reserve.to_d_token_down(request.amount);
+                let d_tokens_burnt = reserve.to_d_token_down(e, request.amount);
                 if d_tokens_burnt > cur_d_tokens {
-                    let cur_underlying_borrowed = reserve.to_asset_from_d_token(cur_d_tokens);
+                    let cur_underlying_borrowed = reserve.to_asset_from_d_token(e, cur_d_tokens);
                     let amount_to_refund = request.amount - cur_underlying_borrowed;
                     require_nonnegative(e, &amount_to_refund);
                     actions.add_for_spender_transfer(&reserve.asset, request.amount);

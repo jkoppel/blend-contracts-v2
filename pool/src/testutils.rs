@@ -9,10 +9,8 @@ use crate::{
 use blend_contract_sdk::emitter::{Client as EmitterClient, WASM as EmitterWASM};
 use sep_40_oracle::testutils::{MockPriceOracleClient, MockPriceOracleWASM};
 use sep_41_token::testutils::{MockTokenClient, MockTokenWASM};
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{
-    testutils::Address as _, unwrap::UnwrapOptimized, vec, Address, BytesN, Env, IntoVal, String,
-};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env, IntoVal, String};
 
 use backstop::{BackstopClient, BackstopContract};
 use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient, PoolInitMeta};
@@ -285,12 +283,11 @@ pub(crate) fn create_reserve(
     // mint pool assets to set expected b_rate
     let total_supply = reserve_data
         .b_supply
-        .fixed_mul_floor(reserve_data.b_rate, SCALAR_9)
-        .unwrap_optimized();
-    let total_liabilities = reserve_data
-        .d_supply
-        .fixed_mul_floor(reserve_data.d_rate, SCALAR_9)
-        .unwrap_optimized();
+        .fixed_mul_floor(e, &reserve_data.b_rate, &SCALAR_9);
+    let total_liabilities =
+        reserve_data
+            .d_supply
+            .fixed_mul_floor(e, &reserve_data.d_rate, &SCALAR_9);
     let to_mint_pool = total_supply - total_liabilities + reserve_data.backstop_credit;
     underlying_client
         .mock_all_auths()

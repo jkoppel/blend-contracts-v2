@@ -1,6 +1,5 @@
 use cast::i128;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::unwrap::UnwrapOptimized;
+use soroban_fixed_point_math::SorobanFixedPoint;
 use soroban_sdk::{map, panic_with_error, Address, Env, Vec};
 
 use crate::auctions::auction::AuctionData;
@@ -106,32 +105,38 @@ pub fn create_user_liq_auction_data(
         i128(percent_liquidated_to_check) * position_data.scalar / 100; // scale to decimal form with scalar decimals
 
     // ensure liquidation size is fair and the collateral is large enough to allow for the auction to price the liquidation
-    let avg_cf = position_data_inc
-        .collateral_base
-        .fixed_div_floor(position_data_inc.collateral_raw, position_data_inc.scalar)
-        .unwrap_optimized();
+    let avg_cf = position_data_inc.collateral_base.fixed_div_floor(
+        e,
+        &position_data_inc.collateral_raw,
+        &position_data_inc.scalar,
+    );
     // avg_lf is the inverse of the average liability factor
-    let avg_lf = position_data_inc
-        .liability_base
-        .fixed_div_floor(position_data_inc.liability_raw, position_data_inc.scalar)
-        .unwrap_optimized();
+    let avg_lf = position_data_inc.liability_base.fixed_div_floor(
+        e,
+        &position_data_inc.liability_raw,
+        &position_data_inc.scalar,
+    );
     let est_incentive = (position_data_inc.scalar
-        - avg_cf
-            .fixed_div_ceil(avg_lf, position_data_inc.scalar)
-            .unwrap_optimized())
-    .fixed_div_ceil(2 * position_data_inc.scalar, position_data_inc.scalar)
-    .unwrap_optimized()
-        + position_data_inc.scalar;
+        - avg_cf.fixed_div_ceil(e, &avg_lf, &position_data_inc.scalar))
+    .fixed_div_ceil(
+        e,
+        &(2 * position_data_inc.scalar),
+        &position_data_inc.scalar,
+    ) + position_data_inc.scalar;
 
     let est_withdrawn_collateral = position_data_inc
         .liability_raw
-        .fixed_mul_floor(percent_liquidated_i128_scaled, position_data_inc.scalar)
-        .unwrap_optimized()
-        .fixed_mul_floor(est_incentive, position_data_inc.scalar)
-        .unwrap_optimized();
-    let mut est_withdrawn_collateral_pct = est_withdrawn_collateral
-        .fixed_div_ceil(position_data_inc.collateral_raw, position_data_inc.scalar)
-        .unwrap_optimized();
+        .fixed_mul_floor(
+            e,
+            &percent_liquidated_i128_scaled,
+            &position_data_inc.scalar,
+        )
+        .fixed_mul_floor(e, &est_incentive, &position_data_inc.scalar);
+    let mut est_withdrawn_collateral_pct = est_withdrawn_collateral.fixed_div_ceil(
+        e,
+        &position_data_inc.collateral_raw,
+        &position_data_inc.scalar,
+    );
 
     // estimated lot exceedes the collateral available in the included positions
     if est_withdrawn_collateral_pct > position_data_inc.scalar {
@@ -146,9 +151,8 @@ pub fn create_user_liq_auction_data(
 
     for (asset, amount) in positions_auctioned.collateral.iter() {
         let res_asset_address = reserve_list.get_unchecked(asset);
-        let b_tokens_removed = amount
-            .fixed_mul_ceil(est_withdrawn_collateral_pct, position_data.scalar)
-            .unwrap_optimized();
+        let b_tokens_removed =
+            amount.fixed_mul_ceil(e, &est_withdrawn_collateral_pct, &position_data.scalar);
         liquidation_quote
             .lot
             .set(res_asset_address.clone(), b_tokens_removed);
@@ -157,9 +161,8 @@ pub fn create_user_liq_auction_data(
 
     for (asset, amount) in positions_auctioned.liabilities.iter() {
         let res_asset_address = reserve_list.get_unchecked(asset);
-        let d_tokens_removed = amount
-            .fixed_mul_ceil(percent_liquidated_i128_scaled, position_data.scalar)
-            .unwrap_optimized();
+        let d_tokens_removed =
+            amount.fixed_mul_ceil(e, &percent_liquidated_i128_scaled, &position_data.scalar);
         liquidation_quote
             .bid
             .set(res_asset_address.clone(), d_tokens_removed);
@@ -180,19 +183,20 @@ pub fn create_user_liq_auction_data(
         // 95% liquidation is not too large. That is, if a user can be liquidated to 95%, they can
         // be liquidated fully. This helps prevent edge cases due to liquidation percentages
         // being harder to calculate between as it approaches 100.
-        if est_withdrawn_collateral < position_data.collateral_raw && new_data.is_hf_over(1_1500000)
+        if est_withdrawn_collateral < position_data.collateral_raw
+            && new_data.is_hf_over(e, 1_1500000)
         {
             panic_with_error!(e, PoolError::InvalidLiqTooLarge)
         };
         full_liquidation_quote
     } else {
         // Post-liq health factor must be under 1.15
-        if new_data.is_hf_over(1_1500000) {
+        if new_data.is_hf_over(e, 1_1500000) {
             panic_with_error!(e, PoolError::InvalidLiqTooLarge)
         };
 
         // Post-liq heath factor must be over 1.03
-        if new_data.is_hf_under(1_0300000) {
+        if new_data.is_hf_under(e, 1_0300000) {
             panic_with_error!(e, PoolError::InvalidLiqTooSmall)
         };
         liquidation_quote
@@ -2513,21 +2517,21 @@ mod tests {
                 frodo_positions
                     .collateral
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 30_5595329
             );
             assert_eq!(
                 frodo_positions
                     .collateral
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 1_5395739
             );
             assert_eq!(
                 frodo_positions
                     .liabilities
                     .get(reserve_config_2.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 1_2375000
             );
             let samwise_positions = storage::get_user_positions(&e, &samwise);
@@ -2535,21 +2539,21 @@ mod tests {
                 samwise_positions
                     .collateral
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 90_9100000 - 30_5595329
             );
             assert_eq!(
                 samwise_positions
                     .collateral
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 04_5800000 - 1_5395739
             );
             assert_eq!(
                 samwise_positions
                     .liabilities
                     .get(reserve_config_2.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 02_7500000 - 1_2375000
             );
         });
@@ -2685,7 +2689,7 @@ mod tests {
             let samwise_positions = storage::get_user_positions(&e, &samwise);
             let samwise_hf =
                 PositionData::calculate_from_positions(&e, &mut pool, &samwise_positions)
-                    .as_health_factor();
+                    .as_health_factor(&e);
             assert_eq!(samwise_hf, 1_1458977);
         });
     }
@@ -2822,14 +2826,14 @@ mod tests {
                 frodo_positions
                     .collateral
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 30_5595329
             );
             assert_eq!(
                 frodo_positions
                     .collateral
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 1_5395739
             );
             assert_eq!(frodo_positions.liabilities.len(), 0);
@@ -2838,21 +2842,21 @@ mod tests {
                 samwise_positions
                     .collateral
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 90_9100000 - 30_5595329
             );
             assert_eq!(
                 samwise_positions
                     .collateral
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 04_5800000 - 1_5395739
             );
             assert_eq!(
                 samwise_positions
                     .liabilities
                     .get(reserve_config_2.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 02_7500000 - 0
             );
         });
