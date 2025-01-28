@@ -131,12 +131,7 @@ pub fn build_actions_from_request(
         pool.require_action_allowed(e, request.request_type);
         match RequestType::from_u32(e, request.request_type) {
             RequestType::Supply => {
-                let mut reserve = pool.load_reserve(e, &request.address, true);
-                reserve.require_action_allowed(e, request.request_type);
-                let b_tokens_minted = reserve.to_b_token_down(e, request.amount);
-                from_state.add_supply(e, &mut reserve, b_tokens_minted);
-                actions.add_for_spender_transfer(&reserve.asset, request.amount);
-                pool.cache_reserve(reserve);
+                let b_tokens_minted = apply_supply(e, &mut actions, pool, from_state, &request);
                 PoolEvents::supply(
                     e,
                     request.address.clone(),
@@ -146,35 +141,19 @@ pub fn build_actions_from_request(
                 );
             }
             RequestType::Withdraw => {
-                let mut reserve = pool.load_reserve(e, &request.address, true);
-                let cur_b_tokens = from_state.get_supply(reserve.config.index);
-                let mut to_burn = reserve.to_b_token_up(e, request.amount);
-                let mut tokens_out = request.amount;
-                if to_burn > cur_b_tokens {
-                    to_burn = cur_b_tokens;
-                    tokens_out = reserve.to_asset_from_b_token(e, cur_b_tokens);
-                }
-                from_state.remove_supply(e, &mut reserve, to_burn);
-                actions.add_for_pool_transfer(&reserve.asset, tokens_out);
-                pool.cache_reserve(reserve);
+                let (tokens_out, b_tokens_burnt) =
+                    apply_withdraw(e, &mut actions, pool, from_state, &request);
                 PoolEvents::withdraw(
                     e,
                     request.address.clone(),
                     from_state.address.clone(),
-                    request.amount,
-                    to_burn,
+                    tokens_out,
+                    b_tokens_burnt,
                 );
             }
             RequestType::SupplyCollateral => {
-                let mut reserve = pool.load_reserve(e, &request.address, true);
-                reserve.require_action_allowed(e, request.request_type);
-                let b_tokens_minted = reserve.to_b_token_down(e, request.amount);
-                from_state.add_collateral(e, &mut reserve, b_tokens_minted);
-                actions.add_for_spender_transfer(&reserve.asset, request.amount);
-                if reserve.total_supply(e) > reserve.config.collateral_cap {
-                    panic_with_error!(e, PoolError::ExceededCollateralCap);
-                }
-                pool.cache_reserve(reserve);
+                let b_tokens_minted =
+                    apply_supply_collateral(e, &mut actions, pool, from_state, &request);
                 PoolEvents::supply_collateral(
                     e,
                     request.address.clone(),
@@ -184,35 +163,18 @@ pub fn build_actions_from_request(
                 );
             }
             RequestType::WithdrawCollateral => {
-                let mut reserve = pool.load_reserve(e, &request.address, true);
-                let cur_b_tokens = from_state.get_collateral(reserve.config.index);
-                let mut to_burn = reserve.to_b_token_up(e, request.amount);
-                let mut tokens_out = request.amount;
-                if to_burn > cur_b_tokens {
-                    to_burn = cur_b_tokens;
-                    tokens_out = reserve.to_asset_from_b_token(e, cur_b_tokens);
-                }
-                from_state.remove_collateral(e, &mut reserve, to_burn);
-                actions.add_for_pool_transfer(&reserve.asset, tokens_out);
-                actions.do_check_health();
-                pool.cache_reserve(reserve);
+                let (tokens_out, b_tokens_burnt) =
+                    apply_withdraw_collateral(e, &mut actions, pool, from_state, &request);
                 PoolEvents::withdraw_collateral(
                     e,
                     request.address.clone(),
                     from_state.address.clone(),
                     tokens_out,
-                    to_burn,
+                    b_tokens_burnt,
                 );
             }
             RequestType::Borrow => {
-                let mut reserve = pool.load_reserve(e, &request.address, true);
-                reserve.require_action_allowed(e, request.request_type);
-                let d_tokens_minted = reserve.to_d_token_up(e, request.amount);
-                from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
-                reserve.require_utilization_below_max(e);
-                actions.add_for_pool_transfer(&reserve.asset, request.amount);
-                actions.do_check_health();
-                pool.cache_reserve(reserve);
+                let d_tokens_minted = apply_borrow(e, &mut actions, pool, from_state, &request);
                 PoolEvents::borrow(
                     e,
                     request.address.clone(),
@@ -222,35 +184,15 @@ pub fn build_actions_from_request(
                 );
             }
             RequestType::Repay => {
-                let mut reserve = pool.load_reserve(e, &request.address, true);
-                let cur_d_tokens = from_state.get_liabilities(reserve.config.index);
-                let d_tokens_burnt = reserve.to_d_token_down(e, request.amount);
-                if d_tokens_burnt > cur_d_tokens {
-                    let cur_underlying_borrowed = reserve.to_asset_from_d_token(e, cur_d_tokens);
-                    let amount_to_refund = request.amount - cur_underlying_borrowed;
-                    require_nonnegative(e, &amount_to_refund);
-                    actions.add_for_spender_transfer(&reserve.asset, request.amount);
-                    actions.add_for_pool_transfer(&reserve.asset, amount_to_refund);
-                    from_state.remove_liabilities(e, &mut reserve, cur_d_tokens);
-                    PoolEvents::repay(
-                        e,
-                        request.address.clone(),
-                        from_state.address.clone(),
-                        cur_underlying_borrowed,
-                        cur_d_tokens,
-                    );
-                } else {
-                    actions.add_for_spender_transfer(&reserve.asset, request.amount);
-                    from_state.remove_liabilities(e, &mut reserve, d_tokens_burnt);
-                    PoolEvents::repay(
-                        e,
-                        request.address.clone(),
-                        from_state.address.clone(),
-                        request.amount,
-                        d_tokens_burnt,
-                    );
-                }
-                pool.cache_reserve(reserve);
+                let (tokens_in, d_tokens_burnt) =
+                    apply_repay(e, &mut actions, pool, from_state, &request);
+                PoolEvents::repay(
+                    e,
+                    request.address.clone(),
+                    from_state.address.clone(),
+                    tokens_in,
+                    d_tokens_burnt,
+                );
             }
             RequestType::FillUserLiquidationAuction => {
                 let filled_auction = auctions::fill(
@@ -325,6 +267,160 @@ pub fn build_actions_from_request(
     pool.require_under_max(e, &from_state.positions, prev_positions_count);
 
     actions
+}
+
+/// Apply a "supply" request to the pool
+///
+/// Appends any necessary actions to the actions list, updates the user and pool's state
+///
+/// Returns the amount of b_tokens minted
+fn apply_supply(
+    e: &Env,
+    actions: &mut Actions,
+    pool: &mut Pool,
+    user: &mut User,
+    request: &Request,
+) -> i128 {
+    let mut reserve = pool.load_reserve(e, &request.address, true);
+    reserve.require_action_allowed(e, request.request_type);
+    let b_tokens_minted = reserve.to_b_token_down(e, request.amount);
+    user.add_supply(e, &mut reserve, b_tokens_minted);
+    actions.add_for_spender_transfer(&reserve.asset, request.amount);
+    pool.cache_reserve(reserve);
+    b_tokens_minted
+}
+
+/// Apply a "withdraw" request to the pool
+///
+/// Appends any necessary actions to the actions list, updates the user and pool's state
+///
+/// Returns the amount of tokens withdrawn and b_tokens burnt
+fn apply_withdraw(
+    e: &Env,
+    actions: &mut Actions,
+    pool: &mut Pool,
+    user: &mut User,
+    request: &Request,
+) -> (i128, i128) {
+    let mut reserve = pool.load_reserve(e, &request.address, true);
+    let cur_b_tokens = user.get_supply(reserve.config.index);
+    let mut to_burn = reserve.to_b_token_up(e, request.amount);
+    let mut tokens_out = request.amount;
+    if to_burn > cur_b_tokens {
+        to_burn = cur_b_tokens;
+        tokens_out = reserve.to_asset_from_b_token(e, cur_b_tokens);
+    }
+    user.remove_supply(e, &mut reserve, to_burn);
+    actions.add_for_pool_transfer(&reserve.asset, tokens_out);
+    pool.cache_reserve(reserve);
+    (tokens_out, to_burn)
+}
+
+/// Apply a "supply_collateral" request to the pool
+///
+/// Appends any necessary actions to the actions list, updates the user and pool's state
+///
+/// Returns the amount of b_tokens minted
+fn apply_supply_collateral(
+    e: &Env,
+    actions: &mut Actions,
+    pool: &mut Pool,
+    user: &mut User,
+    request: &Request,
+) -> i128 {
+    let mut reserve = pool.load_reserve(e, &request.address, true);
+    reserve.require_action_allowed(e, request.request_type);
+    let b_tokens_minted = reserve.to_b_token_down(e, request.amount);
+    user.add_collateral(e, &mut reserve, b_tokens_minted);
+    actions.add_for_spender_transfer(&reserve.asset, request.amount);
+    if reserve.total_supply(e) > reserve.config.collateral_cap {
+        panic_with_error!(e, PoolError::ExceededCollateralCap);
+    }
+    pool.cache_reserve(reserve);
+    b_tokens_minted
+}
+
+/// Apply a "withdraw_collateral" request to the pool
+///
+/// Appends any necessary actions to the actions list, updates the user and pool's state
+///
+/// Returns the amount of tokens withdrawn and b_tokens burnt
+fn apply_withdraw_collateral(
+    e: &Env,
+    actions: &mut Actions,
+    pool: &mut Pool,
+    user: &mut User,
+    request: &Request,
+) -> (i128, i128) {
+    let mut reserve = pool.load_reserve(e, &request.address, true);
+    let cur_b_tokens = user.get_collateral(reserve.config.index);
+    let mut to_burn = reserve.to_b_token_up(e, request.amount);
+    let mut tokens_out = request.amount;
+    if to_burn > cur_b_tokens {
+        to_burn = cur_b_tokens;
+        tokens_out = reserve.to_asset_from_b_token(e, cur_b_tokens);
+    }
+    user.remove_collateral(e, &mut reserve, to_burn);
+    actions.add_for_pool_transfer(&reserve.asset, tokens_out);
+    actions.do_check_health();
+    pool.cache_reserve(reserve);
+    (tokens_out, to_burn)
+}
+
+/// Apply a "borrow" request to the pool
+///
+/// Appends any necessary actions to the actions list, updates the user and pool's state
+///
+/// Returns the amount of d_tokens minted
+fn apply_borrow(
+    e: &Env,
+    actions: &mut Actions,
+    pool: &mut Pool,
+    user: &mut User,
+    request: &Request,
+) -> i128 {
+    let mut reserve = pool.load_reserve(e, &request.address, true);
+    reserve.require_action_allowed(e, request.request_type);
+    let d_tokens_minted = reserve.to_d_token_up(e, request.amount);
+    user.add_liabilities(e, &mut reserve, d_tokens_minted);
+    reserve.require_utilization_below_max(e);
+    actions.add_for_pool_transfer(&reserve.asset, request.amount);
+    actions.do_check_health();
+    pool.cache_reserve(reserve);
+    d_tokens_minted
+}
+
+/// Apply a "repay" request to the pool
+///
+/// Appends any necessary actions to the actions list, updates the user and pool's state
+///
+/// Returns the repayment amount and b_tokens_burnt
+fn apply_repay(
+    e: &Env,
+    actions: &mut Actions,
+    pool: &mut Pool,
+    user: &mut User,
+    request: &Request,
+) -> (i128, i128) {
+    let mut reserve = pool.load_reserve(e, &request.address, true);
+    let cur_d_tokens = user.get_liabilities(reserve.config.index);
+    let d_tokens_burnt = reserve.to_d_token_down(e, request.amount);
+    let repayment_amount = request.amount;
+    if d_tokens_burnt > cur_d_tokens {
+        let cur_underlying_borrowed = reserve.to_asset_from_d_token(e, cur_d_tokens);
+        let amount_to_refund = request.amount - cur_underlying_borrowed;
+        require_nonnegative(e, &amount_to_refund);
+        actions.add_for_spender_transfer(&reserve.asset, request.amount);
+        actions.add_for_pool_transfer(&reserve.asset, amount_to_refund);
+        user.remove_liabilities(e, &mut reserve, cur_d_tokens);
+        pool.cache_reserve(reserve);
+        (cur_underlying_borrowed, cur_d_tokens)
+    } else {
+        actions.add_for_spender_transfer(&reserve.asset, request.amount);
+        user.remove_liabilities(e, &mut reserve, d_tokens_burnt);
+        pool.cache_reserve(reserve);
+        (repayment_amount, d_tokens_burnt)
+    }
 }
 
 #[cfg(test)]
