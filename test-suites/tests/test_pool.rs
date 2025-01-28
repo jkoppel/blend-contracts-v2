@@ -10,7 +10,7 @@ use test_suites::{
     assertions::assert_approx_eq_abs,
     create_fixture_with_data,
     pool::default_reserve_metadata,
-    test_fixture::{TokenIndex, SCALAR_7, SCALAR_9},
+    test_fixture::{TokenIndex, SCALAR_12, SCALAR_7},
 };
 
 /// Test user exposed functions on the lending pool for basic user functionality, auth, and events.
@@ -113,7 +113,7 @@ fn test_pool_user() {
     assert_eq!(weth.balance(&pool_fixture.pool.address), pool_weth_balance);
     assert_eq!(weth.allowance(&sam, &pool_fixture.pool.address), 0);
     sam_weth_btoken_balance += amount
-        .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.supply.get_unchecked(weth_pool_index),
@@ -163,7 +163,7 @@ fn test_pool_user() {
     assert_eq!(weth.balance(&sam), sam_weth_balance);
     assert_eq!(weth.balance(&pool_fixture.pool.address), pool_weth_balance);
     let pool_tokens = amount
-        .fixed_div_ceil(reserve_data.b_rate, SCALAR_9)
+        .fixed_div_ceil(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     sam_weth_btoken_balance -= pool_tokens;
     assert_approx_eq_abs(
@@ -245,7 +245,7 @@ fn test_pool_user() {
     assert_eq!(xlm.balance(&sam), sam_xlm_balance);
     assert_eq!(xlm.balance(&pool_fixture.pool.address), pool_xlm_balance);
     sam_xlm_btoken_balance += amount
-        .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.collateral.get_unchecked(xlm_pool_index),
@@ -316,7 +316,7 @@ fn test_pool_user() {
     assert_eq!(weth.balance(&sam), sam_weth_balance);
     assert_eq!(weth.balance(&pool_fixture.pool.address), pool_weth_balance);
     sam_weth_dtoken_balance += amount
-        .fixed_div_ceil(reserve_data.d_rate, SCALAR_9)
+        .fixed_div_ceil(reserve_data.d_rate, SCALAR_12)
         .unwrap();
     assert_eq!(
         result.liabilities.get_unchecked(weth_pool_index),
@@ -413,7 +413,7 @@ fn test_pool_user() {
     let event = vec![&fixture.env, events.get_unchecked(events.len() - 5)];
     let xlm_reserve_data = fixture.read_reserve_data(0, TokenIndex::XLM);
     let est_xlm = sam_xlm_btoken_balance
-        .fixed_mul_floor(xlm_reserve_data.b_rate, SCALAR_9)
+        .fixed_mul_floor(xlm_reserve_data.b_rate, SCALAR_12)
         .unwrap();
     pool_xlm_balance -= est_xlm;
     sam_xlm_balance += est_xlm;
@@ -447,7 +447,7 @@ fn test_pool_user() {
     );
     let weth_reserve_data = fixture.read_reserve_data(0, TokenIndex::WETH);
     let est_weth = sam_weth_dtoken_balance
-        .fixed_mul_ceil(weth_reserve_data.d_rate, SCALAR_9)
+        .fixed_mul_ceil(weth_reserve_data.d_rate, SCALAR_12)
         .unwrap();
     pool_weth_balance += est_weth;
     sam_weth_balance -= est_weth;

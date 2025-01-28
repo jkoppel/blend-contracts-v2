@@ -5,7 +5,7 @@ use pool::{Request, RequestType};
 use soroban_sdk::{testutils::Address as AddressTestTrait, vec, Address, Vec};
 use test_suites::{
     create_fixture_with_data,
-    test_fixture::{TokenIndex, SCALAR_7, SCALAR_9},
+    test_fixture::{TokenIndex, SCALAR_12, SCALAR_7},
 };
 
 #[test]
@@ -22,7 +22,7 @@ fn test_pool_overflow() {
     // check pool balance to ensure balance does not overflow first
     // 50% util, leave some room for interest accumulation
     let pool_weth_balance = weth.balance(&pool_fixture.pool.address);
-    let max_weth_deposit = i128::MAX - 2 * pool_weth_balance - 5 * SCALAR_9;
+    let max_weth_deposit = i128::MAX - 2 * pool_weth_balance - 5 * SCALAR_12;
 
     // under collateral cap for stable
     let max_stable_deposit = 999_000_000_000_000000;

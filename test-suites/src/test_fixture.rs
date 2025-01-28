@@ -18,7 +18,7 @@ use soroban_sdk::testutils::{Address as _, BytesN as _, EnvTestConfig, Ledger, L
 use soroban_sdk::{vec as svec, Address, BytesN, Env, Map, String, Symbol};
 
 pub const SCALAR_7: i128 = 1_000_0000;
-pub const SCALAR_9: i128 = 1_000_000_000_000;
+pub const SCALAR_12: i128 = 1_000_000_000_000;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum TokenIndex {

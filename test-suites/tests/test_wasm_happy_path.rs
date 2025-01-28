@@ -6,7 +6,7 @@ use soroban_sdk::{testutils::Address as _, vec, Address};
 use test_suites::{
     assertions::assert_approx_eq_abs,
     create_fixture_with_data,
-    test_fixture::{TokenIndex, SCALAR_7, SCALAR_9},
+    test_fixture::{TokenIndex, SCALAR_12, SCALAR_7},
 };
 
 /// Smoke test for managing positions, tracking emissions, and accruing interest
@@ -66,7 +66,7 @@ fn test_wasm_happy_path() {
         pool_stable_balance
     );
     merry_stable_btoken_balance += amount
-        .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.collateral.get_unchecked(stable_pool_index),
@@ -95,7 +95,7 @@ fn test_wasm_happy_path() {
     assert_eq!(xlm.balance(&sam), sam_xlm_balance);
     assert_eq!(xlm.balance(&pool_fixture.pool.address), pool_xlm_balance);
     sam_xlm_btoken_balance += amount
-        .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.collateral.get_unchecked(xlm_pool_index),
@@ -127,7 +127,7 @@ fn test_wasm_happy_path() {
         pool_stable_balance
     );
     sam_stable_dtoken_balance += amount
-        .fixed_div_floor(reserve_data.d_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.d_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.liabilities.get_unchecked(stable_pool_index),
@@ -156,7 +156,7 @@ fn test_wasm_happy_path() {
     assert_eq!(xlm.balance(&merry), merry_xlm_balance);
     assert_eq!(xlm.balance(&pool_fixture.pool.address), pool_xlm_balance);
     merry_xlm_dtoken_balance += amount
-        .fixed_div_floor(reserve_data.d_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.d_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.liabilities.get_unchecked(xlm_pool_index),
@@ -262,7 +262,7 @@ fn test_wasm_happy_path() {
         pool_stable_balance
     );
     sam_stable_dtoken_balance -= amount
-        .fixed_div_floor(reserve_data.d_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.d_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.liabilities.get_unchecked(stable_pool_index),
@@ -291,7 +291,7 @@ fn test_wasm_happy_path() {
     assert_eq!(xlm.balance(&merry), merry_xlm_balance);
     assert_eq!(xlm.balance(&pool_fixture.pool.address), pool_xlm_balance);
     merry_xlm_dtoken_balance -= amount
-        .fixed_div_floor(reserve_data.d_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.d_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.liabilities.get_unchecked(xlm_pool_index),
@@ -320,7 +320,7 @@ fn test_wasm_happy_path() {
     assert_eq!(xlm.balance(&sam), sam_xlm_balance);
     assert_eq!(xlm.balance(&pool_fixture.pool.address), pool_xlm_balance);
     sam_xlm_btoken_balance -= amount
-        .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.collateral.get_unchecked(xlm_pool_index),
@@ -352,7 +352,7 @@ fn test_wasm_happy_path() {
         pool_stable_balance
     );
     merry_stable_btoken_balance -= amount
-        .fixed_div_floor(reserve_data.b_rate, SCALAR_9)
+        .fixed_div_floor(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     assert_approx_eq_abs(
         result.collateral.get_unchecked(stable_pool_index),
@@ -464,7 +464,7 @@ fn test_wasm_happy_path() {
 
     // Sam repays his STABLE loan
     let amount = sam_stable_dtoken_balance
-        .fixed_mul_ceil(1_100_000_000_000, SCALAR_9)
+        .fixed_mul_ceil(1_100_000_000_000, SCALAR_12)
         .unwrap();
     let result = pool_fixture.pool.submit(
         &sam,
@@ -481,7 +481,7 @@ fn test_wasm_happy_path() {
     );
     let reserve_data = fixture.read_reserve_data(0, TokenIndex::STABLE);
     let est_amount = sam_stable_dtoken_balance
-        .fixed_mul_ceil(reserve_data.d_rate, SCALAR_9)
+        .fixed_mul_ceil(reserve_data.d_rate, SCALAR_12)
         .unwrap();
     pool_stable_balance += est_amount;
     sam_stable_balance -= est_amount;
@@ -496,7 +496,7 @@ fn test_wasm_happy_path() {
 
     // Merry repays his XLM loan
     let amount = merry_xlm_dtoken_balance
-        .fixed_mul_ceil(1_250_000_000_000, SCALAR_9)
+        .fixed_mul_ceil(1_250_000_000_000, SCALAR_12)
         .unwrap();
     let result = pool_fixture.pool.submit(
         &merry,
@@ -513,7 +513,7 @@ fn test_wasm_happy_path() {
     );
     let reserve_data = fixture.read_reserve_data(0, TokenIndex::XLM);
     let est_amount = merry_xlm_dtoken_balance
-        .fixed_mul_ceil(reserve_data.d_rate, SCALAR_9)
+        .fixed_mul_ceil(reserve_data.d_rate, SCALAR_12)
         .unwrap();
     pool_xlm_balance += est_amount;
     merry_xlm_balance -= est_amount;
@@ -529,7 +529,7 @@ fn test_wasm_happy_path() {
     // Sam withdraws all of his XLM
     let reserve_data = fixture.read_reserve_data(0, TokenIndex::XLM);
     let amount = sam_xlm_btoken_balance
-        .fixed_mul_ceil(reserve_data.b_rate, SCALAR_9)
+        .fixed_mul_ceil(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     let result = pool_fixture.pool.submit(
         &sam,
@@ -564,7 +564,7 @@ fn test_wasm_happy_path() {
     // Merry withdraws all of his STABLE
     let reserve_data = fixture.read_reserve_data(0, TokenIndex::STABLE);
     let amount = merry_stable_btoken_balance
-        .fixed_mul_ceil(reserve_data.b_rate, SCALAR_9)
+        .fixed_mul_ceil(reserve_data.b_rate, SCALAR_12)
         .unwrap();
     let result = pool_fixture.pool.submit(
         &merry,
