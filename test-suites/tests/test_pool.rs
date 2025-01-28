@@ -525,7 +525,7 @@ fn test_pool_user() {
             )
         ]
     );
-    assert_eq!(result, 2940_3117289); // ~ 4.99k / (100k + 4.99k) * 0.12 (xlm eps) * 5d23hr59m in seconds
+    assert_eq!(result, 2940_3117269); // ~ 4.99k / (100k + 4.99k) * 0.12 (xlm eps) * 5d23hr59m in seconds
     assert_eq!(blnd.balance(&sam), sam_blnd_balance + result);
 }
 

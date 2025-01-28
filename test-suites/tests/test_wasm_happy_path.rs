@@ -212,7 +212,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&frodo, &vec![&fixture.env, 0, 3], &frodo);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 4665_6412742);
+    assert_eq!(claim_amount, 4665_6412730);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -228,7 +228,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&sam, &vec![&fixture.env, 0, 3], &sam);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 730943587256);
+    assert_eq!(claim_amount, 730943587268);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -376,7 +376,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&frodo, &vec![&fixture.env, 0, 3], &frodo);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 11673_1666080);
+    assert_eq!(claim_amount, 11673_1666149);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -404,7 +404,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&sam, &vec![&fixture.env, 0, 3], &sam);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 90908_8333918);
+    assert_eq!(claim_amount, 90908_8333849);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -445,7 +445,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&frodo, &vec![&fixture.env, 0, 3], &frodo);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 1073628_1820163);
+    assert_eq!(claim_amount, 1073628_1826492);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -456,7 +456,7 @@ fn test_wasm_happy_path() {
         .pool
         .claim(&sam, &vec![&fixture.env, 0, 3], &sam);
     backstop_blnd_balance -= claim_amount;
-    assert_eq!(claim_amount, 8361251_8179829);
+    assert_eq!(claim_amount, 8361251_8173502);
     assert_eq!(
         fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
         backstop_blnd_balance
@@ -464,7 +464,7 @@ fn test_wasm_happy_path() {
 
     // Sam repays his STABLE loan
     let amount = sam_stable_dtoken_balance
-        .fixed_mul_ceil(1_100_000_000, SCALAR_9)
+        .fixed_mul_ceil(1_100_000_000_000, SCALAR_9)
         .unwrap();
     let result = pool_fixture.pool.submit(
         &sam,
@@ -496,7 +496,7 @@ fn test_wasm_happy_path() {
 
     // Merry repays his XLM loan
     let amount = merry_xlm_dtoken_balance
-        .fixed_mul_ceil(1_250_000_000, SCALAR_9)
+        .fixed_mul_ceil(1_250_000_000_000, SCALAR_9)
         .unwrap();
     let result = pool_fixture.pool.submit(
         &merry,
@@ -558,7 +558,7 @@ fn test_wasm_happy_path() {
     let expected_gulp_amount = 100 * SCALAR_7;
     stable.mint(&pool_fixture.pool.address, &expected_gulp_amount);
     let gulp_amount = pool_fixture.pool.gulp(&stable.address);
-    assert_eq!(gulp_amount, expected_gulp_amount + 147); // 147 stroops from accumlated rounding loss
+    assert_eq!(gulp_amount, expected_gulp_amount + 4); // 4 stroops from rounding loss
     pool_stable_balance += expected_gulp_amount; // rounding loss does not effect the b_rate
 
     // Merry withdraws all of his STABLE

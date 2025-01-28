@@ -142,8 +142,8 @@ mod tests {
         reserve_config.l_factor = 0_8000000;
         reserve_data.b_supply = 100_000_000_000;
         reserve_data.d_supply = 70_000_000_000;
-        reserve_data.b_rate = 1_100_000_000;
-        reserve_data.d_rate = 1_150_000_000;
+        reserve_data.b_rate = 1_100_000_000_000;
+        reserve_data.d_rate = 1_150_000_000_000;
         reserve_config.index = 1;
         testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
 
@@ -153,8 +153,8 @@ mod tests {
         reserve_config.index = 2;
         reserve_data.b_supply = 10_000_000;
         reserve_data.d_supply = 5_000_000;
-        reserve_data.b_rate = 1_001_100_000;
-        reserve_data.d_rate = 1_001_200_000;
+        reserve_data.b_rate = 1_001_100_000_000;
+        reserve_data.d_rate = 1_001_200_000_000;
         testutils::create_reserve(&e, &pool, &underlying_2, &reserve_config, &reserve_data);
 
         oracle_client.set_data(

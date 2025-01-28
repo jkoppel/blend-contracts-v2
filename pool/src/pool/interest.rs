@@ -3,7 +3,7 @@ use soroban_fixed_point_math::SorobanFixedPoint;
 use soroban_sdk::Env;
 
 use crate::{
-    constants::{SCALAR_7, SCALAR_9, SECONDS_PER_YEAR},
+    constants::{SCALAR_12, SCALAR_7, SECONDS_PER_YEAR},
     storage::ReserveConfig,
 };
 
@@ -33,7 +33,7 @@ pub fn calc_accrual(
         let base_rate =
             util_scalar.fixed_mul_ceil(e, &i128(config.r_one), &SCALAR_7) + i128(config.r_base);
 
-        cur_ir = base_rate.fixed_mul_ceil(e, &ir_mod, &SCALAR_9);
+        cur_ir = base_rate.fixed_mul_ceil(e, &ir_mod, &SCALAR_7);
     } else if cur_util <= 0_9500000 {
         let util_scalar =
             (cur_util - target_util).fixed_div_ceil(e, &(0_9500000 - target_util), &SCALAR_7);
@@ -41,7 +41,7 @@ pub fn calc_accrual(
             + i128(config.r_one)
             + i128(config.r_base);
 
-        cur_ir = base_rate.fixed_mul_ceil(e, &ir_mod, &SCALAR_9);
+        cur_ir = base_rate.fixed_mul_ceil(e, &ir_mod, &SCALAR_7);
     } else {
         let util_scalar = (cur_util - 0_9500000).fixed_div_ceil(e, &0_0500000, &SCALAR_7);
         let extra_rate = util_scalar.fixed_mul_ceil(e, &i128(config.r_three), &SCALAR_7);
@@ -49,22 +49,23 @@ pub fn calc_accrual(
         let intersection = ir_mod.fixed_mul_ceil(
             e,
             &i128(config.r_two + config.r_one + config.r_base),
-            &SCALAR_9,
+            &SCALAR_7,
         );
         cur_ir = extra_rate + intersection;
     }
 
     // update rate_modifier
-    // scale delta blocks and util dif to 9 decimals
-    let delta_time_scaled = i128(e.ledger().timestamp() - last_time) * SCALAR_9;
-    let util_dif_scaled = (cur_util - target_util) * 100;
+    // scale delta blocks to 12 decimals
+    let delta_time = i128(e.ledger().timestamp() - last_time);
+    // util dif 7 decimals
+    let util_dif = cur_util - target_util;
     let new_ir_mod: i128;
-    if util_dif_scaled >= 0 {
+    if util_dif >= 0 {
         // rate modifier increasing
-        let util_error = delta_time_scaled.fixed_mul_floor(e, &util_dif_scaled, &SCALAR_9);
+        let util_error = delta_time * util_dif;
         let rate_dif = util_error.fixed_mul_floor(e, &i128(config.reactivity), &SCALAR_7);
         let next_ir_mod = ir_mod + rate_dif;
-        let ir_mod_max = 10 * SCALAR_9;
+        let ir_mod_max = 10 * SCALAR_7;
         if next_ir_mod > ir_mod_max {
             new_ir_mod = ir_mod_max;
         } else {
@@ -72,10 +73,10 @@ pub fn calc_accrual(
         }
     } else {
         // rate modifier decreasing
-        let util_error = delta_time_scaled.fixed_mul_ceil(e, &util_dif_scaled, &SCALAR_9);
+        let util_error = delta_time * util_dif;
         let rate_dif = util_error.fixed_mul_ceil(e, &i128(config.reactivity), &SCALAR_7);
         let next_ir_mod = ir_mod + rate_dif;
-        let ir_mod_min = SCALAR_9 / 10;
+        let ir_mod_min = SCALAR_7 / 10;
         if next_ir_mod < ir_mod_min {
             new_ir_mod = ir_mod_min;
         } else {
@@ -84,9 +85,11 @@ pub fn calc_accrual(
     }
 
     // calc accrual amount over blocks
+    let delta_time_scaled = delta_time * SCALAR_12;
     let time_weight = delta_time_scaled / SECONDS_PER_YEAR;
     (
-        SCALAR_9 + time_weight.fixed_mul_ceil(e, &(cur_ir * 100), &SCALAR_9),
+        // accrual scaled to 12 decimals
+        SCALAR_12 + time_weight.fixed_mul_ceil(e, &cur_ir, &SCALAR_7),
         new_ir_mod,
     )
 }
@@ -115,7 +118,7 @@ mod tests {
             index: 0,
             enabled: true,
         };
-        let ir_mod: i128 = 1_000_000_000;
+        let ir_mod: i128 = 1_0000000;
 
         e.ledger().set(LedgerInfo {
             timestamp: 500,
@@ -130,8 +133,8 @@ mod tests {
 
         let (accrual, ir_mod) = calc_accrual(&e, &reserve_config, 0_6565656, ir_mod, 0);
 
-        assert_eq!(accrual, 1_000_000_853);
-        assert_eq!(ir_mod, 0_999_906_566);
+        assert_eq!(accrual, 1_000_000_852_536);
+        assert_eq!(ir_mod, 0_9999066);
     }
 
     #[test]
@@ -153,7 +156,7 @@ mod tests {
             index: 0,
             enabled: true,
         };
-        let ir_mod: i128 = 1_000_000_000;
+        let ir_mod: i128 = 1_0000000;
 
         e.ledger().set(LedgerInfo {
             timestamp: 500,
@@ -168,8 +171,8 @@ mod tests {
 
         let (accrual, ir_mod) = calc_accrual(&e, &reserve_config, 0_7979797, ir_mod, 0);
 
-        assert_eq!(accrual, 1_000_002_853);
-        assert_eq!(ir_mod, 1_000_047_979);
+        assert_eq!(accrual, 1_000_002_853_078);
+        assert_eq!(ir_mod, 1_0000479);
     }
 
     #[test]
@@ -191,7 +194,7 @@ mod tests {
             index: 0,
             enabled: true,
         };
-        let ir_mod: i128 = 1_000_000_000;
+        let ir_mod: i128 = 1_0000000;
 
         e.ledger().set(LedgerInfo {
             timestamp: 500,
@@ -206,8 +209,8 @@ mod tests {
 
         let (accrual, ir_mod) = calc_accrual(&e, &reserve_config, 0_9696969, ir_mod, 0);
 
-        assert_eq!(accrual, 1_000_018_247);
-        assert_eq!(ir_mod, 1_000_219_696);
+        assert_eq!(accrual, 1_000_018_247_510);
+        assert_eq!(ir_mod, 1_0002196);
     }
 
     #[test]
@@ -229,7 +232,7 @@ mod tests {
             index: 0,
             enabled: true,
         };
-        let ir_mod: i128 = 9_997_000_000;
+        let ir_mod: i128 = 9_9970000;
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -244,7 +247,7 @@ mod tests {
 
         let (_accrual, ir_mod) = calc_accrual(&e, &reserve_config, 0_9696969, ir_mod, 0);
 
-        assert_eq!(ir_mod, 10_000_000_000);
+        assert_eq!(ir_mod, 10_0000000);
     }
 
     #[test]
@@ -266,7 +269,7 @@ mod tests {
             index: 0,
             enabled: true,
         };
-        let ir_mod: i128 = 0_150_000_000;
+        let ir_mod: i128 = 0_1500000;
 
         e.ledger().set(LedgerInfo {
             timestamp: 10000 * 5,
@@ -281,11 +284,11 @@ mod tests {
 
         let (_accrual, ir_mod) = calc_accrual(&e, &reserve_config, 0_2020202, ir_mod, 0);
 
-        assert_eq!(ir_mod, 0_100_000_000);
+        assert_eq!(ir_mod, 0_1000000);
     }
 
     #[test]
-    fn test_calc_accrual_rounds_up() {
+    fn test_calc_ir_mod_reactivity_0() {
         let e = Env::default();
 
         let reserve_config = ReserveConfig {
@@ -298,12 +301,50 @@ mod tests {
             r_one: 0_0500000,
             r_two: 0_5000000,
             r_three: 1_5000000,
+            reactivity: 0,
+            collateral_cap: 1000000000000000000,
+            index: 0,
+            enabled: true,
+        };
+        let ir_mod: i128 = 1_0000000;
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 500,
+            protocol_version: 22,
+            sequence_number: 100,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let (accrual, ir_mod) = calc_accrual(&e, &reserve_config, 0_6565656, ir_mod, 0);
+
+        assert_eq!(accrual, 1_000_000_852_536);
+        assert_eq!(ir_mod, 1_0000000);
+    }
+
+    #[test]
+    fn test_calc_accrual_rounds_up() {
+        let e = Env::default();
+
+        let reserve_config = ReserveConfig {
+            decimals: 7,
+            c_factor: 0_7500000,
+            l_factor: 0_7500000,
+            util: 0_7500000,
+            max_util: 0_9500000,
+            r_base: 0_0001000,
+            r_one: 0_0500000,
+            r_two: 0_5000000,
+            r_three: 1_5000000,
             reactivity: 0_0000020,
             collateral_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
-        let ir_mod: i128 = 0_100_000_000;
+        let ir_mod: i128 = 0_1000000;
 
         e.ledger().set(LedgerInfo {
             timestamp: 501,
@@ -316,10 +357,10 @@ mod tests {
             max_entry_ttl: 3110400,
         });
 
-        let (accrual, ir_mod) = calc_accrual(&e, &reserve_config, 0_0500000, ir_mod, 500);
+        let (accrual, ir_mod) = calc_accrual(&e, &reserve_config, 0_0000005, ir_mod, 500);
 
-        assert_eq!(accrual, 1_000_000_001);
-        assert_eq!(ir_mod, 0_100_000_000);
+        assert_eq!(accrual, 1_000_000_000_001);
+        assert_eq!(ir_mod, 0_1000000);
     }
 
     #[test]
@@ -341,7 +382,7 @@ mod tests {
             index: 0,
             enabled: true,
         };
-        let ir_mod: i128 = 1_000_000_000;
+        let ir_mod: i128 = 1_0000000;
 
         e.ledger().set(LedgerInfo {
             timestamp: 500,
@@ -359,13 +400,13 @@ mod tests {
         let (accrual_2, ir_mod_2) = calc_accrual(&e, &reserve_config, 0_7565656, ir_mod, 0);
         let (accrual_3, ir_mod_3) = calc_accrual(&e, &reserve_config, 0_9565656, ir_mod, 0);
 
-        assert_eq!(accrual_0, 1_000_003_964);
-        assert_eq!(ir_mod_0, 0_999_250_000);
-        assert_eq!(accrual_1, 1_000_003_964);
-        assert_eq!(ir_mod_1, 0_999_906_566);
-        assert_eq!(accrual_2, 1_000_003_964);
-        assert_eq!(ir_mod_2, 1_000_006_565);
-        assert_eq!(accrual_3, 1_000_003_964);
-        assert_eq!(ir_mod_3, 1_000_206_565);
+        assert_eq!(accrual_0, 1_000_003_963_724);
+        assert_eq!(ir_mod_0, 0_9992500);
+        assert_eq!(accrual_1, 1_000_003_963_724);
+        assert_eq!(ir_mod_1, 0_9999066);
+        assert_eq!(accrual_2, 1_000_003_963_724);
+        assert_eq!(ir_mod_2, 1_0000065);
+        assert_eq!(accrual_3, 1_000_003_963_724);
+        assert_eq!(ir_mod_3, 1_0002065);
     }
 }

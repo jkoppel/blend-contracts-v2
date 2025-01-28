@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::{
-    constants::{SCALAR_7, SCALAR_9},
+    constants::{SCALAR_12, SCALAR_7},
     pool::Reserve,
     storage::{self, ReserveConfig, ReserveData},
     PoolContract,
@@ -217,9 +217,9 @@ pub(crate) fn default_reserve(e: &Env) -> Reserve {
             enabled: true,
         },
         data: ReserveData {
-            b_rate: 1_000_000_000,
-            d_rate: 1_000_000_000,
-            ir_mod: 1_000_000_000,
+            b_rate: SCALAR_12,
+            d_rate: SCALAR_12,
+            ir_mod: SCALAR_7,
             b_supply: 100_0000000,
             d_supply: 75_0000000,
             last_time: 0,
@@ -247,9 +247,9 @@ pub(crate) fn default_reserve_meta() -> (ReserveConfig, ReserveData) {
             enabled: true,
         },
         ReserveData {
-            b_rate: 1_000_000_000,
-            d_rate: 1_000_000_000,
-            ir_mod: 1_000_000_000,
+            b_rate: SCALAR_12,
+            d_rate: SCALAR_12,
+            ir_mod: SCALAR_7,
             b_supply: 100_0000000,
             d_supply: 75_0000000,
             last_time: 0,
@@ -283,11 +283,11 @@ pub(crate) fn create_reserve(
     // mint pool assets to set expected b_rate
     let total_supply = reserve_data
         .b_supply
-        .fixed_mul_floor(e, &reserve_data.b_rate, &SCALAR_9);
+        .fixed_mul_floor(e, &reserve_data.b_rate, &SCALAR_12);
     let total_liabilities =
         reserve_data
             .d_supply
-            .fixed_mul_floor(e, &reserve_data.d_rate, &SCALAR_9);
+            .fixed_mul_floor(e, &reserve_data.d_rate, &SCALAR_12);
     let to_mint_pool = total_supply - total_liabilities + reserve_data.backstop_credit;
     underlying_client
         .mock_all_auths()

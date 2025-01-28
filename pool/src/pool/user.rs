@@ -1,7 +1,7 @@
 use soroban_fixed_point_math::SorobanFixedPoint;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, Map};
 
-use crate::{constants::SCALAR_9, emissions, storage, validator::require_nonnegative, PoolError};
+use crate::{constants::SCALAR_12, emissions, storage, validator::require_nonnegative, PoolError};
 
 use super::{Pool, Reserve};
 
@@ -108,7 +108,7 @@ impl User {
         // determine amount of funds in underlying that have defaulted
         // and deduct them from the b_rate
         let default_amount = reserve.to_asset_from_d_token(e, amount);
-        let b_rate_loss = default_amount.fixed_div_floor(&e, &reserve.data.b_supply, &SCALAR_9);
+        let b_rate_loss = default_amount.fixed_div_floor(&e, &reserve.data.b_supply, &SCALAR_12);
         reserve.data.b_rate -= b_rate_loss;
         if reserve.data.b_rate < 0 {
             reserve.data.b_rate = 0;
@@ -558,9 +558,9 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        reserve_0.data.d_rate = 1_500_000_000;
+        reserve_0.data.d_rate = 1_500_000_000_000;
         reserve_0.data.d_supply = 500_0000000;
-        reserve_0.data.b_rate = 1_250_000_000;
+        reserve_0.data.b_rate = 1_250_000_000_000;
         reserve_0.data.b_supply = 750_0000000;
 
         let mut user = User {
@@ -584,7 +584,7 @@ mod tests {
                 reserve_0.total_supply(&e),
                 total_supply - underlying_default_amount
             );
-            assert_eq!(reserve_0.data.b_rate, 1_210_000_000);
+            assert_eq!(reserve_0.data.b_rate, 1_210_000_000_000);
             assert_eq!(reserve_0.data.b_supply, 750_0000000);
         });
     }
@@ -597,9 +597,9 @@ mod tests {
         let pool = testutils::create_pool(&e);
 
         let mut reserve_0 = testutils::default_reserve(&e);
-        reserve_0.data.d_rate = 1_500_000_000;
+        reserve_0.data.d_rate = 1_500_000_000_000;
         reserve_0.data.d_supply = 500_0000000;
-        reserve_0.data.b_rate = 0_100_000_000;
+        reserve_0.data.b_rate = 0_100_000_000_000;
         reserve_0.data.b_supply = 750_0000000;
 
         let mut user = User {
