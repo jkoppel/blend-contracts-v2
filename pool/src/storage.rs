@@ -39,7 +39,7 @@ pub struct PoolEmissionConfig {
 }
 
 /// The configuration information about a reserve asset
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[contracttype]
 pub struct ReserveConfig {
     pub index: u32,           // the index of the reserve in the list
@@ -65,14 +65,14 @@ pub struct QueuedReserveInit {
 }
 
 /// The data for a reserve asset
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[contracttype]
 pub struct ReserveData {
-    pub d_rate: i128, // the conversion rate from dToken to underlying expressed in 9 decimals
-    pub b_rate: i128, // the conversion rate from bToken to underlying expressed with the underlying's decimals
-    pub ir_mod: i128, // the interest rate curve modifier
-    pub b_supply: i128, // the total supply of b tokens
-    pub d_supply: i128, // the total supply of d tokens
+    pub d_rate: i128,   // the conversion rate from dToken to underlying with 12 decimals
+    pub b_rate: i128,   // the conversion rate from bToken to underlying with 12 decimals
+    pub ir_mod: i128,   // the interest rate curve modifier with 7 decimals
+    pub b_supply: i128, // the total supply of b tokens, in the underlying token's decimals
+    pub d_supply: i128, // the total supply of d tokens, in the underlying token's decimals
     pub backstop_credit: i128, // the amount of underlying tokens currently owed to the backstop
     pub last_time: u64, // the last block the data was updated
 }

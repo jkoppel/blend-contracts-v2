@@ -47,6 +47,7 @@ pub fn create_fixture_with_data<'a>(wasm: bool) -> TestFixture<'a> {
     weth_config.c_factor = 0_800_0000;
     weth_config.l_factor = 0_800_0000;
     weth_config.util = 0_700_0000;
+    weth_config.collateral_cap = i128::MAX;
     fixture.create_pool_reserve(0, TokenIndex::WETH, &weth_config);
 
     // enable emissions for pool

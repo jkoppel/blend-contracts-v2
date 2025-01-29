@@ -5,10 +5,8 @@ use crate::{
     storage,
 };
 use cast::i128;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{
-    contracttype, map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Map, Vec,
-};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::{contracttype, map, panic_with_error, Address, Env, Map, Vec};
 
 use super::{
     backstop_interest_auction::{create_interest_auction_data, fill_interest_auction},
@@ -213,17 +211,13 @@ fn scale_auction(
     for (asset, amount) in auction_data.bid.iter() {
         // apply percent scalar and store remainder to base auction
         // round up to avoid rounding exploits
-        let to_fill_base = amount
-            .fixed_mul_ceil(percent_filled_i128, SCALAR_7)
-            .unwrap_optimized();
+        let to_fill_base = amount.fixed_mul_ceil(e, &percent_filled_i128, &SCALAR_7);
         let remaining_base = amount - to_fill_base;
         if remaining_base > 0 {
             remaining_auction.bid.set(asset.clone(), remaining_base);
         }
         // apply block scalar to to_fill auction and don't store if 0
-        let to_fill_scaled = to_fill_base
-            .fixed_mul_ceil(bid_modifier, SCALAR_7)
-            .unwrap_optimized();
+        let to_fill_scaled = to_fill_base.fixed_mul_ceil(e, &bid_modifier, &SCALAR_7);
         if to_fill_scaled > 0 {
             to_fill_auction.bid.set(asset, to_fill_scaled);
         }
@@ -231,17 +225,13 @@ fn scale_auction(
     for (asset, amount) in auction_data.lot.iter() {
         // apply percent scalar and store remainder to base auction
         // round down to avoid rounding exploits
-        let to_fill_base = amount
-            .fixed_mul_floor(percent_filled_i128, SCALAR_7)
-            .unwrap_optimized();
+        let to_fill_base = amount.fixed_mul_floor(e, &percent_filled_i128, &SCALAR_7);
         let remaining_base = amount - to_fill_base;
         if remaining_base > 0 {
             remaining_auction.lot.set(asset.clone(), remaining_base);
         }
         // apply block scalar to to_fill auction and don't store if 0
-        let to_fill_scaled = to_fill_base
-            .fixed_mul_floor(lot_modifier, SCALAR_7)
-            .unwrap_optimized();
+        let to_fill_scaled = to_fill_base.fixed_mul_floor(e, &lot_modifier, &SCALAR_7);
         if to_fill_scaled > 0 {
             to_fill_auction.lot.set(asset, to_fill_scaled);
         }
@@ -267,6 +257,7 @@ mod tests {
     use soroban_sdk::{
         map,
         testutils::{Address as _, Ledger, LedgerInfo},
+        unwrap::UnwrapOptimized,
         vec, Symbol,
     };
 
@@ -314,7 +305,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -327,7 +318,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -340,7 +331,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -467,7 +458,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -541,7 +532,7 @@ mod tests {
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
-        reserve_data_0.b_rate = 1_100_000_000;
+        reserve_data_0.b_rate = 1_100_000_000_000;
         reserve_config_0.c_factor = 0_8500000;
         reserve_config_0.l_factor = 0_9000000;
         reserve_config_0.index = 0;
@@ -555,7 +546,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.b_rate = 1_200_000_000;
+        reserve_data_1.b_rate = 1_200_000_000_000;
         reserve_config_1.c_factor = 0_7500000;
         reserve_config_1.l_factor = 0_7500000;
         reserve_data_1.last_time = 12345;
@@ -654,7 +645,7 @@ mod tests {
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
-        reserve_data_0.b_rate = 1_100_000_000;
+        reserve_data_0.b_rate = 1_100_000_000_000;
         reserve_config_0.c_factor = 0_8500000;
         reserve_config_0.l_factor = 0_9000000;
         reserve_config_0.index = 0;
@@ -668,7 +659,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.b_rate = 1_200_000_000;
+        reserve_data_1.b_rate = 1_200_000_000_000;
         reserve_config_1.c_factor = 0_7500000;
         reserve_config_1.l_factor = 0_7500000;
         reserve_data_1.last_time = 12345;
@@ -766,7 +757,7 @@ mod tests {
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
         reserve_data_0.last_time = 12345;
-        reserve_data_0.b_rate = 1_100_000_000;
+        reserve_data_0.b_rate = 1_100_000_000_000;
         reserve_config_0.c_factor = 0_8500000;
         reserve_config_0.l_factor = 0_9000000;
         reserve_config_0.index = 0;
@@ -780,7 +771,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.b_rate = 1_200_000_000;
+        reserve_data_1.b_rate = 1_200_000_000_000;
         reserve_config_1.c_factor = 0_7500000;
         reserve_config_1.l_factor = 0_7500000;
         reserve_data_1.last_time = 12345;

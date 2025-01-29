@@ -230,12 +230,12 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         reserve_config.index = 1;
-        reserve_data.d_rate = 1_001_000_000;
+        reserve_data.d_rate = 1_001_000_000_000;
         testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         reserve_config.index = 2;
-        reserve_data.d_rate = 1_002_000_000;
+        reserve_data.d_rate = 1_002_000_000_000;
         testutils::create_reserve(&e, &pool, &underlying_2, &reserve_config, &reserve_data);
 
         let pool_config = PoolConfig {
@@ -318,12 +318,12 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         reserve_config.index = 1;
-        reserve_data.d_rate = 1_001_000_000;
+        reserve_data.d_rate = 1_001_000_000_000;
         testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         reserve_config.index = 2;
-        reserve_data.d_rate = 1_002_000_000;
+        reserve_data.d_rate = 1_002_000_000_000;
         testutils::create_reserve(&e, &pool, &underlying_2, &reserve_config, &reserve_data);
 
         let pool_config = PoolConfig {

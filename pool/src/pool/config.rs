@@ -1,5 +1,5 @@
 use crate::{
-    constants::{SCALAR_7, SCALAR_9, SECONDS_PER_WEEK},
+    constants::{SCALAR_12, SCALAR_7, SECONDS_PER_WEEK},
     errors::PoolError,
     storage::{
         self, has_queued_reserve_set, PoolConfig, QueuedReserveInit, ReserveConfig, ReserveData,
@@ -123,15 +123,15 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
             || reserve_config.r_three != config.r_three
             || reserve_config.util != config.util
         {
-            reserve.data.ir_mod = SCALAR_9;
+            reserve.data.ir_mod = SCALAR_7;
         }
         reserve.store(e);
     } else {
         index = storage::push_res_list(e, asset);
         let init_data = ReserveData {
-            b_rate: SCALAR_9,
-            d_rate: SCALAR_9,
-            ir_mod: SCALAR_9,
+            b_rate: SCALAR_12,
+            d_rate: SCALAR_12,
+            ir_mod: SCALAR_7,
             d_supply: 0,
             b_supply: 0,
             last_time: e.ledger().timestamp(),
@@ -705,10 +705,10 @@ mod tests {
 
             // validate interest was accrued
             let res_data = storage::get_res_data(&e, &underlying);
-            assert!(res_data.d_rate > 1_000_000_000);
+            assert!(res_data.d_rate > 1_000_000_000_000);
             assert!(res_data.backstop_credit > 0);
             assert_eq!(res_data.last_time, 10000);
-            assert!(res_data.ir_mod != 1_000_000_000);
+            assert!(res_data.ir_mod != 1_0000000);
         });
     }
 
@@ -781,10 +781,10 @@ mod tests {
             assert_eq!(res_config_updated.index, reserve_config.index);
 
             let res_data = storage::get_res_data(&e, &underlying);
-            assert!(res_data.d_rate > 1_000_000_000);
+            assert!(res_data.d_rate > 1_000_000_000_000);
             assert!(res_data.backstop_credit > 0);
             assert_eq!(res_data.last_time, 10000);
-            assert_eq!(res_data.ir_mod, 1_000_000_000);
+            assert_eq!(res_data.ir_mod, 1_0000000);
         });
     }
 

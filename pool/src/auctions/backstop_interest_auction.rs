@@ -3,8 +3,8 @@ use crate::{
 };
 use cast::i128;
 use sep_41_token::TokenClient;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Vec};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::{map, panic_with_error, Address, Env, Vec};
 
 use super::{AuctionData, AuctionType};
 
@@ -45,9 +45,11 @@ pub fn create_interest_auction_data(
         let reserve = pool.load_reserve(e, &lot_asset, false);
         if reserve.data.backstop_credit > 0 {
             let asset_to_base = pool.load_price(e, &reserve.asset);
-            interest_value += i128(asset_to_base)
-                .fixed_mul_floor(reserve.data.backstop_credit, reserve.scalar)
-                .unwrap_optimized();
+            interest_value += i128(asset_to_base).fixed_mul_floor(
+                e,
+                &reserve.data.backstop_credit,
+                &reserve.scalar,
+            );
             auction_data
                 .lot
                 .set(reserve.asset, reserve.data.backstop_credit);
@@ -71,18 +73,15 @@ pub fn create_interest_auction_data(
     }
 
     let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
-    let backstop_token_value_base = (pool_backstop_data
-        .usdc
-        .fixed_mul_floor(oracle_scalar, SCALAR_7)
-        .unwrap_optimized()
-        * 5)
-    .fixed_div_floor(pool_backstop_data.tokens, SCALAR_7)
-    .unwrap_optimized();
+    let backstop_token_value_base =
+        (pool_backstop_data
+            .usdc
+            .fixed_mul_floor(e, &oracle_scalar, &SCALAR_7)
+            * 5)
+        .fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
     let bid_amount = interest_value
-        .fixed_mul_floor(1_4000000, SCALAR_7)
-        .unwrap_optimized()
-        .fixed_div_floor(backstop_token_value_base, SCALAR_7)
-        .unwrap_optimized();
+        .fixed_mul_floor(e, &1_4000000, &SCALAR_7)
+        .fixed_div_floor(e, &backstop_token_value_base, &SCALAR_7);
     auction_data.bid.set(backstop_token, bid_amount);
 
     auction_data
@@ -329,7 +328,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.b_rate = 1_100_000_000;
+        reserve_data_0.b_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_data_0.backstop_credit = 10_0000000;
         reserve_config_0.index = 0;
@@ -343,7 +342,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.b_rate = 1_100_000_000;
+        reserve_data_1.b_rate = 1_100_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_data_1.backstop_credit = 2_5000000;
         reserve_config_1.index = 1;
@@ -357,7 +356,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1094,9 +1093,9 @@ mod tests {
                 100,
             );
             assert_eq!(result.block, 151);
-            assert_eq!(result.bid.get_unchecked(backstop_token_id), 336_0010348);
+            assert_eq!(result.bid.get_unchecked(backstop_token_id), 336_0010346);
             assert_eq!(result.bid.len(), 1);
-            assert_eq!(result.lot.get_unchecked(underlying_0), 100_0000714);
+            assert_eq!(result.lot.get_unchecked(underlying_0), 100_0000713);
             assert_eq!(result.lot.get_unchecked(underlying_1), 25_0000178);
             assert_eq!(result.lot.get_unchecked(underlying_2), 71);
             assert_eq!(result.lot.len(), 3);
@@ -1147,7 +1146,7 @@ mod tests {
 
         let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.b_rate = 1_100_000_000;
+        reserve_data_0.b_rate = 1_100_000_000_000;
         reserve_data_0.b_supply = 200_000_0000000;
         reserve_data_0.d_supply = 100_000_0000000;
         reserve_data_0.last_time = 12345;
@@ -1164,7 +1163,7 @@ mod tests {
 
         let (underlying_1, underlying_1_client) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.b_rate = 1_100_000_000;
+        reserve_data_1.b_rate = 1_100_000_000_000;
         reserve_data_0.b_supply = 10_000_0000000;
         reserve_data_0.b_supply = 7_000_0000000;
         reserve_data_1.last_time = 12345;
@@ -1275,7 +1274,7 @@ mod tests {
 
         let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.b_rate = 1_100_000_000;
+        reserve_data_0.b_rate = 1_100_000_000_000;
         reserve_data_0.b_supply = 200_000_0000000;
         reserve_data_0.d_supply = 100_000_0000000;
         reserve_data_0.last_time = 12345;
@@ -1292,7 +1291,7 @@ mod tests {
 
         let (underlying_1, underlying_1_client) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.b_rate = 1_100_000_000;
+        reserve_data_1.b_rate = 1_100_000_000_000;
         reserve_data_0.b_supply = 10_000_0000000;
         reserve_data_0.b_supply = 7_000_0000000;
         reserve_data_1.last_time = 12345;

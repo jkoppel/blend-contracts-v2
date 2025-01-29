@@ -10,7 +10,7 @@ use soroban_sdk::{testutils::Address as _, vec, Address, token::TokenClient};
 use test_suites::{
     assertions::assert_approx_eq_abs,
     create_fixture_with_data,
-    test_fixture::{PoolFixture, TestFixture, TokenIndex, SCALAR_7, SCALAR_9},
+    test_fixture::{PoolFixture, TestFixture, TokenIndex, SCALAR_7, SCALAR_12},
 };
 
 #[derive(Arbitrary, Debug)]

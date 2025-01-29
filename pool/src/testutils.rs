@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::{
-    constants::{SCALAR_7, SCALAR_9},
+    constants::{SCALAR_12, SCALAR_7},
     pool::Reserve,
     storage::{self, ReserveConfig, ReserveData},
     PoolContract,
@@ -9,10 +9,8 @@ use crate::{
 use blend_contract_sdk::emitter::{Client as EmitterClient, WASM as EmitterWASM};
 use sep_40_oracle::testutils::{MockPriceOracleClient, MockPriceOracleWASM};
 use sep_41_token::testutils::{MockTokenClient, MockTokenWASM};
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{
-    testutils::Address as _, unwrap::UnwrapOptimized, vec, Address, BytesN, Env, IntoVal, String,
-};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env, IntoVal, String};
 
 use backstop::{BackstopClient, BackstopContract};
 use mock_pool_factory::{MockPoolFactory, MockPoolFactoryClient, PoolInitMeta};
@@ -219,9 +217,9 @@ pub(crate) fn default_reserve(e: &Env) -> Reserve {
             enabled: true,
         },
         data: ReserveData {
-            b_rate: 1_000_000_000,
-            d_rate: 1_000_000_000,
-            ir_mod: 1_000_000_000,
+            b_rate: SCALAR_12,
+            d_rate: SCALAR_12,
+            ir_mod: SCALAR_7,
             b_supply: 100_0000000,
             d_supply: 75_0000000,
             last_time: 0,
@@ -249,9 +247,9 @@ pub(crate) fn default_reserve_meta() -> (ReserveConfig, ReserveData) {
             enabled: true,
         },
         ReserveData {
-            b_rate: 1_000_000_000,
-            d_rate: 1_000_000_000,
-            ir_mod: 1_000_000_000,
+            b_rate: SCALAR_12,
+            d_rate: SCALAR_12,
+            ir_mod: SCALAR_7,
             b_supply: 100_0000000,
             d_supply: 75_0000000,
             last_time: 0,
@@ -285,12 +283,11 @@ pub(crate) fn create_reserve(
     // mint pool assets to set expected b_rate
     let total_supply = reserve_data
         .b_supply
-        .fixed_mul_floor(reserve_data.b_rate, SCALAR_9)
-        .unwrap_optimized();
-    let total_liabilities = reserve_data
-        .d_supply
-        .fixed_mul_floor(reserve_data.d_rate, SCALAR_9)
-        .unwrap_optimized();
+        .fixed_mul_floor(e, &reserve_data.b_rate, &SCALAR_12);
+    let total_liabilities =
+        reserve_data
+            .d_supply
+            .fixed_mul_floor(e, &reserve_data.d_rate, &SCALAR_12);
     let to_mint_pool = total_supply - total_liabilities + reserve_data.backstop_credit;
     underlying_client
         .mock_all_auths()

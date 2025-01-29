@@ -6,7 +6,7 @@ use crate::{
     storage::{self, ReserveConfig, ReserveEmissionData},
 };
 use cast::{i128, u64};
-use soroban_fixed_point_math::FixedPoint;
+use soroban_fixed_point_math::SorobanFixedPoint;
 use soroban_sdk::{
     contracttype, map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Map, Vec,
 };
@@ -92,10 +92,8 @@ fn do_gulp_emissions(e: &Env, new_emissions: i128) {
     }
     for (res_config, res_asset_address, res_token_id, res_eps_share) in pool_emis_enabled {
         let new_reserve_emissions = i128(res_eps_share)
-            .fixed_div_floor(total_share, SCALAR_7)
-            .unwrap_optimized()
-            .fixed_mul_floor(new_emissions, SCALAR_7)
-            .unwrap_optimized();
+            .fixed_div_floor(e, &total_share, &SCALAR_7)
+            .fixed_mul_floor(e, &new_emissions, &SCALAR_7);
 
         update_reserve_emission_eps(
             e,
@@ -140,9 +138,11 @@ fn update_reserve_emission_eps(
             let time_since_last_emission = emission_data.expiration - e.ledger().timestamp();
 
             // Eps is scaled by 14 decimals
-            let tokens_since_last_emission = i128(emission_data.eps)
-                .fixed_mul_floor(i128(time_since_last_emission), SCALAR_7)
-                .unwrap_optimized();
+            let tokens_since_last_emission = i128(emission_data.eps).fixed_mul_floor(
+                e,
+                &i128(time_since_last_emission),
+                &SCALAR_7,
+            );
             tokens_left_to_emit += tokens_since_last_emission;
         }
 

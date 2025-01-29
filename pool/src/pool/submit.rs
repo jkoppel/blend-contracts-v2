@@ -46,7 +46,7 @@ pub fn execute_submit(
     if actions.check_health
         && from_state.has_liabilities()
         && PositionData::calculate_from_positions(e, &mut pool, &from_state.positions)
-            .is_hf_under(1_0000100)
+            .is_hf_under(e, 1_0000100)
     {
         panic_with_error!(e, PoolError::InvalidHf);
     }
@@ -82,7 +82,7 @@ pub fn execute_submit_with_flash_loan(
     // requests.
     {
         let mut reserve = pool.load_reserve(e, &flash_loan.asset, true);
-        let d_tokens_minted = reserve.to_d_token_up(flash_loan.amount);
+        let d_tokens_minted = reserve.to_d_token_up(e, flash_loan.amount);
         from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
         reserve.require_utilization_below_max(e);
 
@@ -104,7 +104,7 @@ pub fn execute_submit_with_flash_loan(
     // min is 1.0000100 to prevent rounding errors
     if from_state.has_liabilities()
         && PositionData::calculate_from_positions(e, &mut pool, &from_state.positions)
-            .is_hf_under(1_0000100)
+            .is_hf_under(e, 1_0000100)
     {
         panic_with_error!(e, PoolError::InvalidHf);
     }

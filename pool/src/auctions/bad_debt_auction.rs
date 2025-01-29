@@ -7,8 +7,8 @@ use crate::{
     storage,
 };
 use cast::i128;
-use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{map, panic_with_error, unwrap::UnwrapOptimized, Address, Env, Vec};
+use soroban_fixed_point_math::SorobanFixedPoint;
+use soroban_sdk::{map, panic_with_error, Address, Env, Vec};
 
 use super::{AuctionData, AuctionType};
 
@@ -52,10 +52,8 @@ pub fn create_bad_debt_auction_data(
             .unwrap_or(0);
         if liability_balance > 0 {
             let asset_to_base = pool.load_price(e, &reserve.asset);
-            let asset_balance = reserve.to_asset_from_d_token(liability_balance);
-            debt_value += i128(asset_to_base)
-                .fixed_mul_floor(asset_balance, reserve.scalar)
-                .unwrap_optimized();
+            let asset_balance = reserve.to_asset_from_d_token(e, liability_balance);
+            debt_value += i128(asset_to_base).fixed_mul_floor(e, &asset_balance, &reserve.scalar);
             auction_data.bid.set(reserve.asset, liability_balance);
         } else {
             panic_with_error!(e, PoolError::InvalidBid);
@@ -77,20 +75,16 @@ pub fn create_bad_debt_auction_data(
     let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
     let backstop_value_base = pool_backstop_data
         .usdc
-        .fixed_mul_floor(oracle_scalar, SCALAR_7)
-        .unwrap_optimized() // adjust for oracle scalar
+        .fixed_mul_floor(e, &oracle_scalar, &SCALAR_7) // adjust for oracle scalar
         * 5; // Since the backstop LP token is an 80/20 split of USDC/BLND, we multiply by 5 to get the value of the BLND portion
-    let backstop_token_to_base = backstop_value_base
-        .fixed_div_floor(pool_backstop_data.tokens, SCALAR_7)
-        .unwrap_optimized();
+    let backstop_token_to_base =
+        backstop_value_base.fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
 
     // determine lot amount of backstop tokens needed to safely cover bad debt, or post
     // all backstop tokens if there isn't enough to cover the bad debt
     let mut lot_amount = debt_value
-        .fixed_mul_floor(1_4000000, SCALAR_7)
-        .unwrap_optimized()
-        .fixed_div_floor(backstop_token_to_base, SCALAR_7)
-        .unwrap_optimized();
+        .fixed_mul_floor(e, &1_4000000, &SCALAR_7)
+        .fixed_div_floor(e, &backstop_token_to_base, &SCALAR_7);
     lot_amount = pool_backstop_data.tokens.min(lot_amount);
     auction_data.lot.set(backstop_token, lot_amount);
     auction_data
@@ -156,7 +150,6 @@ mod tests {
     use sep_40_oracle::testutils::Asset;
     use soroban_sdk::{
         testutils::{Address as _, Ledger, LedgerInfo},
-        unwrap::UnwrapOptimized,
         vec, Symbol,
     };
 
@@ -383,7 +376,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -478,7 +471,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -586,7 +579,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -681,7 +674,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -776,7 +769,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -789,7 +782,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -802,7 +795,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -908,7 +901,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -921,7 +914,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -934,7 +927,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1041,7 +1034,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -1054,7 +1047,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -1067,7 +1060,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1180,7 +1173,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -1193,7 +1186,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -1206,7 +1199,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1314,7 +1307,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 11845;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -1327,7 +1320,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 11845;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -1340,7 +1333,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 11845;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1448,7 +1441,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -1461,7 +1454,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -1474,7 +1467,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1579,7 +1572,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -1592,7 +1585,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -1605,7 +1598,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1659,14 +1652,14 @@ mod tests {
                 samwise_positions
                     .liabilities
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 10_0000000
             );
             assert_eq!(
                 samwise_positions
                     .liabilities
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 2_5000000
             );
             let backstop_positions = storage::get_user_positions(&e, &backstop_address);
@@ -1716,7 +1709,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -1729,7 +1722,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -1742,7 +1735,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1807,14 +1800,14 @@ mod tests {
                 samwise_positions
                     .liabilities
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 10_0000000 - 2_5000000
             );
             assert_eq!(
                 samwise_positions
                     .liabilities
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 2_5000000 - 0_6250000
             );
             let backstop_positions = storage::get_user_positions(&e, &backstop_address);
@@ -1876,7 +1869,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -1889,7 +1882,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -1902,7 +1895,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -1966,14 +1959,14 @@ mod tests {
                 samwise_positions
                     .liabilities
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 10_0000000 - 2_5000000
             );
             assert_eq!(
                 samwise_positions
                     .liabilities
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 2_5000000 - 6250000
             );
             let backstop_positions = storage::get_user_positions(&e, &backstop_address);
@@ -1981,14 +1974,14 @@ mod tests {
                 backstop_positions
                     .liabilities
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 2_5000000
             );
             assert_eq!(
                 backstop_positions
                     .liabilities
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 6250000
             );
 
@@ -2046,7 +2039,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -2059,7 +2052,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -2072,7 +2065,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(
@@ -2128,14 +2121,14 @@ mod tests {
                 backstop_positions
                     .liabilities
                     .get(reserve_config_0.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 10_0000000
             );
             assert_eq!(
                 backstop_positions
                     .liabilities
                     .get(reserve_config_1.index)
-                    .unwrap_optimized(),
+                    .unwrap(),
                 2_5000000
             );
         });
@@ -2185,7 +2178,7 @@ mod tests {
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
-        reserve_data_0.d_rate = 1_100_000_000;
+        reserve_data_0.d_rate = 1_100_000_000_000;
         reserve_data_0.last_time = 12345;
         reserve_config_0.index = 0;
         testutils::create_reserve(
@@ -2198,7 +2191,7 @@ mod tests {
 
         let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
-        reserve_data_1.d_rate = 1_200_000_000;
+        reserve_data_1.d_rate = 1_200_000_000_000;
         reserve_data_1.last_time = 12345;
         reserve_config_1.index = 1;
         testutils::create_reserve(
@@ -2211,7 +2204,7 @@ mod tests {
 
         let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
-        reserve_data_2.b_rate = 1_100_000_000;
+        reserve_data_2.b_rate = 1_100_000_000_000;
         reserve_data_2.last_time = 12345;
         reserve_config_2.index = 1;
         testutils::create_reserve(

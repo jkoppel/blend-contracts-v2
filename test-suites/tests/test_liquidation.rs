@@ -929,7 +929,7 @@ fn test_liquidations() {
         assert_eq!(positions.liabilities.get(0).unwrap(), bad_debt);
     });
     // check d_supply
-    let d_supply = 19104605847;
+    let d_supply = 19104605828;
     fixture.env.as_contract(&pool_fixture.pool.address, || {
         let key = PoolDataKey::ResData(fixture.tokens[TokenIndex::STABLE].address.clone());
         let data = fixture
