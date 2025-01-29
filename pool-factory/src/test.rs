@@ -188,6 +188,43 @@ fn test_pool_factory_invalid_pool_init_args_max_positions() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #1300)")]
+fn test_pool_factory_invalid_pool_init_args_max_positions_large() {
+    let e = Env::default();
+    e.cost_estimate().budget().reset_unlimited();
+    e.mock_all_auths_allowing_non_root_auth();
+    let wasm_hash = e.deployer().upload_contract_wasm(pool::WASM);
+
+    let backstop_id = Address::generate(&e);
+    let blnd_id = Address::generate(&e);
+
+    let pool_init_meta = PoolInitMeta {
+        backstop: backstop_id.clone(),
+        pool_hash: wasm_hash.clone(),
+        blnd_id: blnd_id.clone(),
+    };
+    let pool_factory_address = e.register(PoolFactoryContract {}, (pool_init_meta,));
+    let pool_factory_client = PoolFactoryClient::new(&e, &pool_factory_address);
+
+    let bombadil = Address::generate(&e);
+    let oracle = Address::generate(&e);
+    let backstop_rate: u32 = 0_1000000;
+    let max_positions: u32 = 65;
+
+    let name1 = String::from_str(&e, "pool1");
+    let salt = BytesN::<32>::random(&e);
+
+    pool_factory_client.deploy(
+        &bombadil,
+        &name1,
+        &salt,
+        &oracle,
+        &backstop_rate,
+        &max_positions,
+    );
+}
+
+#[test]
 fn test_pool_factory_frontrun_protection() {
     let e = Env::default();
     e.cost_estimate().budget().reset_unlimited();

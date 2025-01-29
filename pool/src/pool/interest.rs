@@ -1,10 +1,11 @@
 use cast::i128;
 use soroban_fixed_point_math::SorobanFixedPoint;
-use soroban_sdk::Env;
+use soroban_sdk::{panic_with_error, Env};
 
 use crate::{
     constants::{SCALAR_12, SCALAR_7, SECONDS_PER_YEAR},
     storage::ReserveConfig,
+    PoolError,
 };
 
 /// Calculates the loan accrual ratio for the Reserve based on the current utilization and
@@ -56,6 +57,10 @@ pub fn calc_accrual(
 
     // update rate_modifier
     let delta_time = i128(e.ledger().timestamp() - last_time);
+    // this should never occur, but require some time to pass
+    if delta_time < 1 {
+        panic_with_error!(e, PoolError::InternalError);
+    }
     // util dif 7 decimals
     let util_dif = cur_util - target_util;
     let new_ir_mod: i128;

@@ -20,7 +20,7 @@ pub fn execute_deposit(e: &Env, from: &Address, pool_address: &Address, amount: 
     backstop_token_client.transfer(from, &e.current_contract_address(), &amount);
 
     let to_mint = pool_balance.convert_to_shares(amount);
-    if to_mint == 0 {
+    if to_mint <= 0 {
         panic_with_error!(e, &BackstopError::InvalidShareMintAmount);
     }
     pool_balance.deposit(amount, to_mint);

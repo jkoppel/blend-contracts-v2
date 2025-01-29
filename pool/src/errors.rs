@@ -31,7 +31,7 @@ pub enum PoolError {
     InternalReserveNotFound = 1209,
 
     // Oracle Errors
-    StalePrice = 1210,
+    InvalidPrice = 1210,
 
     // Auction Errors
     InvalidLiquidation = 1211,
