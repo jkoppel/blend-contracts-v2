@@ -452,7 +452,7 @@ pub fn get_res_list(e: &Env) -> Vec<Address> {
 // @dev: Once added it can't be removed
 pub fn push_res_list(e: &Env, asset: &Address) -> u32 {
     let mut res_list = get_res_list(e);
-    if res_list.len() == 32 {
+    if res_list.len() >= 32 {
         panic_with_error!(e, PoolError::BadRequest)
     }
     res_list.push_back(asset.clone());

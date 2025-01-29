@@ -67,7 +67,7 @@ impl User {
     /// Add liabilities to the position expressed in debtTokens. Accrues emissions
     /// against the balance if necessary and updates the reserve's d_supply.
     pub fn add_liabilities(&mut self, e: &Env, reserve: &mut Reserve, amount: i128) {
-        if amount == 0 {
+        if amount <= 0 {
             panic_with_error!(e, PoolError::InvalidDTokenMintAmount)
         }
         let balance = self.get_liabilities(reserve.config.index);
@@ -81,7 +81,7 @@ impl User {
     /// Remove liabilities from the position expressed in debtTokens. Accrues emissions
     /// against the balance if necessary and updates the reserve's d_supply.
     pub fn remove_liabilities(&mut self, e: &Env, reserve: &mut Reserve, amount: i128) {
-        if amount == 0 {
+        if amount <= 0 {
             panic_with_error!(e, PoolError::InvalidDTokenBurnAmount)
         }
         let balance = self.get_liabilities(reserve.config.index);
@@ -123,7 +123,7 @@ impl User {
     /// Add collateral to the position expressed in blendTokens. Accrues emissions
     /// against the balance if necessary and updates the reserve's b_supply.
     pub fn add_collateral(&mut self, e: &Env, reserve: &mut Reserve, amount: i128) {
-        if amount == 0 {
+        if amount <= 0 {
             panic_with_error!(e, PoolError::InvalidBTokenMintAmount)
         }
         let balance = self.get_collateral(reserve.config.index);
@@ -137,7 +137,7 @@ impl User {
     /// Remove collateral from the position expressed in blendTokens. Accrues emissions
     /// against the balance if necessary and updates the reserve's d_supply.
     pub fn remove_collateral(&mut self, e: &Env, reserve: &mut Reserve, amount: i128) {
-        if amount == 0 {
+        if amount <= 0 {
             panic_with_error!(e, PoolError::InvalidBTokenBurnAmount)
         }
         let balance = self.get_collateral(reserve.config.index);
@@ -162,7 +162,7 @@ impl User {
     /// Add supply to the position expressed in blendTokens. Accrues emissions
     /// against the balance if necessary and updates the reserve's b_supply.
     pub fn add_supply(&mut self, e: &Env, reserve: &mut Reserve, amount: i128) {
-        if amount == 0 {
+        if amount <= 0 {
             panic_with_error!(e, PoolError::InvalidBTokenMintAmount)
         }
         let balance = self.get_supply(reserve.config.index);
@@ -176,7 +176,7 @@ impl User {
     /// Remove supply from the position expressed in blendTokens. Accrues emissions
     /// against the balance if necessary and updates the reserve's b_supply.
     pub fn remove_supply(&mut self, e: &Env, reserve: &mut Reserve, amount: i128) {
-        if amount == 0 {
+        if amount <= 0 {
             panic_with_error!(e, PoolError::InvalidBTokenBurnAmount)
         }
         let balance = self.get_supply(reserve.config.index);

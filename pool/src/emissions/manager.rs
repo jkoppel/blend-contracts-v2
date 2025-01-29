@@ -32,7 +32,8 @@ pub struct ReserveEmissionMetadata {
 ///                             if the total pool eps
 ///
 /// ### Panics
-/// If the total share of the pool eps from the reserves is over 1
+/// If any res_emission_metadata is included where share is 0, the reserve index is invalid,
+/// or the reserve type is invalid
 pub fn set_pool_emissions(e: &Env, res_emission_metadata: Vec<ReserveEmissionMetadata>) {
     let mut pool_emissions: Map<u32, u64> = map![e];
 

@@ -115,7 +115,7 @@ impl Pool {
     /// * asset - The address of the underlying asset
     ///
     /// ### Panics
-    /// If the price is stale
+    /// If the price is invalid due to being over a day old or being less than or equal to 0
     pub fn load_price(&mut self, e: &Env, asset: &Address) -> i128 {
         if let Some(price) = self.prices.get(asset.clone()) {
             return price;
@@ -123,8 +123,8 @@ impl Pool {
         let oracle_client = PriceFeedClient::new(e, &self.config.oracle);
         let oracle_asset = Asset::Stellar(asset.clone());
         let price_data = oracle_client.lastprice(&oracle_asset).unwrap_optimized();
-        if price_data.timestamp + 24 * 60 * 60 < e.ledger().timestamp() {
-            panic_with_error!(e, PoolError::StalePrice);
+        if price_data.timestamp + 24 * 60 * 60 < e.ledger().timestamp() || price_data.price <= 0 {
+            panic_with_error!(e, PoolError::InvalidPrice);
         }
         self.prices.set(asset.clone(), price_data.price);
         price_data.price
@@ -601,6 +601,50 @@ mod tests {
             &300,
         );
         oracle_client.set_price(&vec![&e, 123], &1000);
+        let pool_config = PoolConfig {
+            oracle,
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            let mut pool = Pool::load(&e);
+
+            pool.load_price(&e, &asset);
+            assert!(false);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1210)")]
+    fn test_load_price_panics_if_zero() {
+        let e = Env::default();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 1000 + 24 * 60 * 60 + 1,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let asset = Address::generate(&e);
+        let (oracle, oracle_client) = testutils::create_mock_oracle(&e);
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![&e, Asset::Stellar(asset.clone())],
+            &7,
+            &300,
+        );
+        oracle_client.set_price(&vec![&e, -1], &(1000 + 24 * 60 * 60));
         let pool_config = PoolConfig {
             oracle,
             bstop_rate: 0_2000000,
