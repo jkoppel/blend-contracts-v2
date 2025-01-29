@@ -55,7 +55,6 @@ pub fn calc_accrual(
     }
 
     // update rate_modifier
-    // scale delta blocks to 12 decimals
     let delta_time = i128(e.ledger().timestamp() - last_time);
     // util dif 7 decimals
     let util_dif = cur_util - target_util;
@@ -85,6 +84,7 @@ pub fn calc_accrual(
     }
 
     // calc accrual amount over blocks
+    // scale delta_time to 12 decimals so time_weight is scaled to 12 decimals
     let delta_time_scaled = delta_time * SCALAR_12;
     let time_weight = delta_time_scaled / SECONDS_PER_YEAR;
     (
