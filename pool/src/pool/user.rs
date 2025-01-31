@@ -196,7 +196,7 @@ impl User {
         self.get_collateral(reserve_index) + self.get_supply(reserve_index)
     }
 
-    // Removes positions from a user - does not consider supply
+    /// Removes positions from a user - does not consider supply
     pub fn rm_positions(
         &mut self,
         e: &Env,
@@ -205,18 +205,22 @@ impl User {
         liability_amounts: Map<Address, i128>,
     ) {
         for (asset, amount) in collateral_amounts.iter() {
-            let mut reserve = pool.load_reserve(e, &asset, true);
-            self.remove_collateral(e, &mut reserve, amount);
-            pool.cache_reserve(reserve);
+            if amount > 0 {
+                let mut reserve = pool.load_reserve(e, &asset, true);
+                self.remove_collateral(e, &mut reserve, amount);
+                pool.cache_reserve(reserve);
+            }
         }
         for (asset, amount) in liability_amounts.iter() {
-            let mut reserve = pool.load_reserve(e, &asset, true);
-            self.remove_liabilities(e, &mut reserve, amount);
-            pool.cache_reserve(reserve);
+            if amount > 0 {
+                let mut reserve = pool.load_reserve(e, &asset, true);
+                self.remove_liabilities(e, &mut reserve, amount);
+                pool.cache_reserve(reserve);
+            }
         }
     }
 
-    // Adds positions to a user - does not consider supply
+    /// Adds positions to a user - does not consider supply
     pub fn add_positions(
         &mut self,
         e: &Env,
@@ -225,14 +229,18 @@ impl User {
         liability_amounts: Map<Address, i128>,
     ) {
         for (asset, amount) in collateral_amounts.iter() {
-            let mut reserve = pool.load_reserve(e, &asset, true);
-            self.add_collateral(e, &mut reserve, amount);
-            pool.cache_reserve(reserve);
+            if amount > 0 {
+                let mut reserve = pool.load_reserve(e, &asset, true);
+                self.add_collateral(e, &mut reserve, amount);
+                pool.cache_reserve(reserve);
+            }
         }
         for (asset, amount) in liability_amounts.iter() {
-            let mut reserve = pool.load_reserve(e, &asset, true);
-            self.add_liabilities(e, &mut reserve, amount);
-            pool.cache_reserve(reserve);
+            if amount > 0 {
+                let mut reserve = pool.load_reserve(e, &asset, true);
+                self.add_liabilities(e, &mut reserve, amount);
+                pool.cache_reserve(reserve);
+            }
         }
     }
 

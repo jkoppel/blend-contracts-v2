@@ -101,12 +101,13 @@ pub fn fill_interest_auction(
     let backstop_client = BackstopClient::new(&e, &backstop);
     let backstop_token: Address = backstop_client.backstop_token();
     let backstop_token_bid_amount = auction_data.bid.get(backstop_token).unwrap_or(0);
-
-    backstop_client.donate(
-        &filler,
-        &e.current_contract_address(),
-        &backstop_token_bid_amount,
-    );
+    if backstop_token_bid_amount > 0 {
+        backstop_client.donate(
+            &filler,
+            &e.current_contract_address(),
+            &backstop_token_bid_amount,
+        );
+    }
 
     // lot contains underlying tokens, but the backstop credit must be updated on the reserve
     for (res_asset_address, lot_amount) in auction_data.lot.iter() {

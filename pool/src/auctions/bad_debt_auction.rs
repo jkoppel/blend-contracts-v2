@@ -110,11 +110,13 @@ pub fn fill_bad_debt_auction(
     let backstop_client = BackstopClient::new(e, &backstop_address);
     let backstop_token_id = backstop_client.backstop_token();
     let lot_amount = auction_data.lot.get(backstop_token_id).unwrap_or(0);
-    backstop_client.draw(
-        &e.current_contract_address(),
-        &lot_amount,
-        &filler_state.address,
-    );
+    if lot_amount > 0 {
+        backstop_client.draw(
+            &e.current_contract_address(),
+            &lot_amount,
+            &filler_state.address,
+        );
+    }
 
     // If the backstop still has liabilities and less than 5% of the backstop threshold burn bad debt
     if !backstop_state.positions.liabilities.is_empty() {
