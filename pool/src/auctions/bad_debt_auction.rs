@@ -83,7 +83,7 @@ pub fn create_bad_debt_auction_data(
     // determine lot amount of backstop tokens needed to safely cover bad debt, or post
     // all backstop tokens if there isn't enough to cover the bad debt
     let mut lot_amount = debt_value
-        .fixed_mul_floor(e, &1_4000000, &SCALAR_7)
+        .fixed_mul_floor(e, &1_2000000, &SCALAR_7)
         .fixed_div_floor(e, &backstop_token_to_base, &SCALAR_7);
     lot_amount = pool_backstop_data.tokens.min(lot_amount);
     auction_data.lot.set(backstop_token, lot_amount);
@@ -987,7 +987,7 @@ mod tests {
             assert_eq!(result.bid.get_unchecked(underlying_0), 10_0000000);
             assert_eq!(result.bid.get_unchecked(underlying_1), 2_5000000);
             assert_eq!(result.bid.len(), 2);
-            assert_eq!(result.lot.get_unchecked(lp_token), 38_0800000);
+            assert_eq!(result.lot.get_unchecked(lp_token), 32_6400000);
             assert_eq!(result.lot.len(), 1);
         });
     }
@@ -1126,7 +1126,7 @@ mod tests {
             assert_eq!(result.bid.get_unchecked(underlying_0), 10_0000000);
             assert_eq!(result.bid.get_unchecked(underlying_1), 2_5000000);
             assert_eq!(result.bid.len(), 2);
-            assert_eq!(result.lot.get_unchecked(lp_token), 38_0800000);
+            assert_eq!(result.lot.get_unchecked(lp_token), 32_6400000);
             assert_eq!(result.lot.len(), 1);
         });
     }
@@ -1158,7 +1158,7 @@ mod tests {
             testutils::create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &lp_token, &usdc, &blnd);
-        // mint lp tokens - only deposit 38_0000000
+        // mint lp tokens - only deposit 32_0000000
         blnd_client.mint(&samwise, &500_001_0000000);
         blnd_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
         usdc_client.mint(&samwise, &12_501_0000000);
@@ -1168,7 +1168,7 @@ mod tests {
             &vec![&e, 500_001_0000000, 12_501_0000000],
             &samwise,
         );
-        backstop_client.deposit(&samwise, &pool_address, &38_0000000);
+        backstop_client.deposit(&samwise, &pool_address, &32_0000000);
         backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
@@ -1260,7 +1260,7 @@ mod tests {
             assert_eq!(result.bid.get_unchecked(underlying_0), 10_0000000);
             assert_eq!(result.bid.get_unchecked(underlying_1), 2_5000000);
             assert_eq!(result.bid.len(), 2);
-            assert_eq!(result.lot.get_unchecked(lp_token), 38_0000000);
+            assert_eq!(result.lot.get_unchecked(lp_token), 32_0000000);
             assert_eq!(result.lot.len(), 1);
         });
     }
@@ -1394,7 +1394,7 @@ mod tests {
             assert_eq!(result.bid.get_unchecked(underlying_0), 10_0000000);
             assert_eq!(result.bid.get_unchecked(underlying_1), 2_5000000);
             assert_eq!(result.bid.len(), 2);
-            assert_eq!(result.lot.get_unchecked(lp_token), 38_0801894);
+            assert_eq!(result.lot.get_unchecked(lp_token), 32_6401624);
             assert_eq!(result.lot.len(), 1);
         });
     }
@@ -1526,7 +1526,7 @@ mod tests {
             assert_eq!(result.block, 51);
             assert_eq!(result.bid.get_unchecked(underlying_0), 10_0000000);
             assert_eq!(result.bid.len(), 1);
-            assert_eq!(result.lot.get_unchecked(lp_token), 24_6400000);
+            assert_eq!(result.lot.get_unchecked(lp_token), 21_1200000);
             assert_eq!(result.lot.len(), 1);
         });
     }

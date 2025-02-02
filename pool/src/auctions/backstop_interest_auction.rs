@@ -80,7 +80,7 @@ pub fn create_interest_auction_data(
             * 5)
         .fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
     let bid_amount = interest_value
-        .fixed_mul_floor(e, &1_4000000, &SCALAR_7)
+        .fixed_mul_floor(e, &1_2000000, &SCALAR_7)
         .fixed_div_floor(e, &backstop_token_value_base, &SCALAR_7);
     auction_data.bid.set(backstop_token, bid_amount);
 
@@ -858,7 +858,7 @@ mod tests {
                 100,
             );
             assert_eq!(result.block, 51);
-            assert_eq!(result.bid.get_unchecked(backstop_token_id), 336_0000000);
+            assert_eq!(result.bid.get_unchecked(backstop_token_id), 288_0000000);
             assert_eq!(result.bid.len(), 1);
             assert_eq!(result.lot.get_unchecked(underlying_0), 100_0000000);
             assert_eq!(result.lot.get_unchecked(underlying_1), 25_0000000);
@@ -976,7 +976,7 @@ mod tests {
                 100,
             );
             assert_eq!(result.block, 51);
-            assert_eq!(result.bid.get_unchecked(backstop_token_id), 336_0000000);
+            assert_eq!(result.bid.get_unchecked(backstop_token_id), 288_0000000);
             assert_eq!(result.bid.len(), 1);
             assert_eq!(result.lot.get_unchecked(underlying_0), 100_0000000);
             assert_eq!(result.lot.get_unchecked(underlying_1), 25_0000000);
@@ -1094,7 +1094,7 @@ mod tests {
                 100,
             );
             assert_eq!(result.block, 151);
-            assert_eq!(result.bid.get_unchecked(backstop_token_id), 336_0010346);
+            assert_eq!(result.bid.get_unchecked(backstop_token_id), 288_0008868);
             assert_eq!(result.bid.len(), 1);
             assert_eq!(result.lot.get_unchecked(underlying_0), 100_0000713);
             assert_eq!(result.lot.get_unchecked(underlying_1), 25_0000178);
