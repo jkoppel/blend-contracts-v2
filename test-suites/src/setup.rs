@@ -72,7 +72,6 @@ pub fn create_fixture_with_data<'a>(wasm: bool) -> TestFixture<'a> {
     fixture
         .backstop
         .deposit(&frodo, &pool_fixture.pool.address, &(50_000 * SCALAR_7));
-    // fixture.backstop.update_tkn_val();
     fixture
         .backstop
         .add_reward(&pool_fixture.pool.address, &None);

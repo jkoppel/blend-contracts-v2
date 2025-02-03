@@ -32,7 +32,6 @@ fn test_pool_inflation_attack() {
     fixture
         .backstop
         .deposit(&whale, &fixture.pools[0].pool.address, &(50_000 * SCALAR_7));
-    // fixture.backstop.update_tkn_val();
     fixture.pools[0].pool.set_status(&0);
     fixture.jump_with_sequence(60);
 
