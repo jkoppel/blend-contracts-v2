@@ -1,7 +1,12 @@
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{contracttype, panic_with_error, unwrap::UnwrapOptimized, Address, Env};
 
-use crate::{constants::SCALAR_7, dependencies::PoolFactoryClient, errors::BackstopError, storage};
+use crate::{
+    constants::SCALAR_7,
+    dependencies::{CometClient, PoolFactoryClient},
+    errors::BackstopError,
+    storage,
+};
 
 /// The pool's backstop data
 #[derive(Clone)]
@@ -24,21 +29,44 @@ pub fn load_pool_backstop_data(e: &Env, address: &Address) -> PoolBackstopData {
         0
     };
 
-    let (blnd_per_tkn, usdc_per_tkn) = storage::get_lp_token_val(e);
-    let blnd = pool_balance
-        .tokens
-        .fixed_mul_floor(blnd_per_tkn, SCALAR_7)
-        .unwrap_optimized();
-    let usdc = pool_balance
-        .tokens
-        .fixed_mul_floor(usdc_per_tkn, SCALAR_7)
-        .unwrap_optimized();
+    if pool_balance.tokens > 0 {
+        let backstop_token = storage::get_backstop_token(e);
+        let blnd_token = storage::get_blnd_token(e);
+        let usdc_token = storage::get_usdc_token(e);
+        let comet_client = CometClient::new(e, &backstop_token);
+        let total_comet_shares = comet_client.get_total_supply();
+        let total_blnd = comet_client.get_balance(&blnd_token);
+        let total_usdc = comet_client.get_balance(&usdc_token);
 
-    PoolBackstopData {
-        tokens: pool_balance.tokens,
-        q4w_pct,
-        blnd,
-        usdc,
+        // underlying per LP token
+        let blnd_per_tkn = total_blnd
+            .fixed_div_floor(total_comet_shares, SCALAR_7)
+            .unwrap_optimized();
+        let usdc_per_tkn = total_usdc
+            .fixed_div_floor(total_comet_shares, SCALAR_7)
+            .unwrap_optimized();
+
+        let blnd = pool_balance
+            .tokens
+            .fixed_mul_floor(blnd_per_tkn, SCALAR_7)
+            .unwrap_optimized();
+        let usdc = pool_balance
+            .tokens
+            .fixed_mul_floor(usdc_per_tkn, SCALAR_7)
+            .unwrap_optimized();
+        PoolBackstopData {
+            tokens: pool_balance.tokens,
+            q4w_pct,
+            blnd,
+            usdc,
+        }
+    } else {
+        PoolBackstopData {
+            tokens: 0,
+            q4w_pct,
+            blnd: 0,
+            usdc: 0,
+        }
     }
 }
 
@@ -174,16 +202,33 @@ impl PoolBalance {
 mod tests {
     use soroban_sdk::testutils::Address as _;
 
-    use crate::testutils::{create_backstop, create_mock_pool_factory};
+    use crate::testutils::{
+        create_backstop, create_blnd_token, create_comet_lp_pool_with_tokens_per_share,
+        create_mock_pool_factory, create_usdc_token,
+    };
 
     use super::*;
 
     #[test]
     fn test_load_pool_data() {
         let e = Env::default();
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_address = create_backstop(&e);
         let pool = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_address, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_address, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_address,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_0500000,
+        );
 
         e.as_contract(&backstop_address, || {
             storage::set_pool_balance(
@@ -195,7 +240,6 @@ mod tests {
                     q4w: 50_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_0500000));
 
             let pool_data = load_pool_backstop_data(&e, &pool);
 
@@ -209,9 +253,23 @@ mod tests {
     #[test]
     fn test_load_pool_data_no_shares() {
         let e = Env::default();
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_address = create_backstop(&e);
         let pool = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_address, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_address, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_address,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_0500000,
+        );
 
         e.as_contract(&backstop_address, || {
             storage::set_pool_balance(
@@ -223,7 +281,6 @@ mod tests {
                     q4w: 0,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_0500000));
 
             let pool_data = load_pool_backstop_data(&e, &pool);
 
@@ -231,6 +288,47 @@ mod tests {
             assert_eq!(pool_data.q4w_pct, 0);
             assert_eq!(pool_data.blnd, 1_250_0000000);
             assert_eq!(pool_data.usdc, 12_5000000);
+        });
+    }
+
+    #[test]
+    fn test_load_pool_data_no_tokens() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let bombadil = Address::generate(&e);
+        let backstop_address = create_backstop(&e);
+        let pool = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_address, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_address, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_address,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_0500000,
+        );
+
+        e.as_contract(&backstop_address, || {
+            storage::set_pool_balance(
+                &e,
+                &pool,
+                &PoolBalance {
+                    shares: 100_0000000,
+                    tokens: 0,
+                    q4w: 0,
+                },
+            );
+
+            let pool_data = load_pool_backstop_data(&e, &pool);
+
+            assert_eq!(pool_data.tokens, 0);
+            assert_eq!(pool_data.q4w_pct, 0);
+            assert_eq!(pool_data.blnd, 0);
+            assert_eq!(pool_data.usdc, 0);
         });
     }
 

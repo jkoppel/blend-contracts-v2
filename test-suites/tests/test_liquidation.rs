@@ -47,7 +47,7 @@ fn assert_fill_auction_event_no_data(
 
 #[test]
 fn test_liquidations() {
-    let fixture = create_fixture_with_data(false);
+    let fixture = create_fixture_with_data(true);
     let frodo = fixture.users.get(0).unwrap();
     let pool_fixture = &fixture.pools[0];
 
@@ -198,6 +198,7 @@ fn test_liquidations() {
         ],
         &100u32,
     );
+
     let stable_interest_lot_amount = auction_data
         .lot
         .get_unchecked(fixture.tokens[TokenIndex::STABLE].address.clone());
@@ -212,7 +213,7 @@ fn test_liquidations() {
     assert_approx_eq_abs(weth_interest_lot_amount, 0_002671545, 5000);
     let lp_donate_bid_amount = auction_data.bid.get_unchecked(fixture.lp.address.clone());
     //NOTE: bid STABLE amount is seven decimals whereas reserve(and lot) STABLE has 6 decomals
-    assert_approx_eq_abs(lp_donate_bid_amount, 313_7415968, SCALAR_7);
+    assert_approx_eq_abs(lp_donate_bid_amount, 268_9213686, SCALAR_7);
     assert_eq!(auction_data.block, 151);
     let liq_pct = 30;
     let events = fixture.env.events().all();
@@ -605,7 +606,7 @@ fn test_liquidations() {
         bad_debt_auction_data
             .lot
             .get_unchecked(fixture.lp.address.clone()),
-        7171_0435309, // lp_token value is $1.25 each
+        6146_6087407, // lp_token value is $1.25 each
         SCALAR_7,
     );
     let events = fixture.env.events().all();
@@ -678,12 +679,12 @@ fn test_liquidations() {
     );
     assert_approx_eq_abs(
         fixture.lp.balance(&frodo),
-        frodo_bstop_pre_fill + 717_1043530,
+        frodo_bstop_pre_fill + 614_6608740,
         SCALAR_7,
     );
     assert_approx_eq_abs(
         fixture.lp.balance(&fixture.backstop.address),
-        backstop_bstop_pre_fill - 717_1043531,
+        backstop_bstop_pre_fill - 614_6608740,
         SCALAR_7,
     );
     let new_auction = pool_fixture
@@ -718,7 +719,7 @@ fn test_liquidations() {
         bad_debt_auction_data
             .lot
             .get_unchecked(fixture.lp.address.clone())
-            - 1434_2087060,
+            - 1229_3217480,
         SCALAR_7,
     );
     assert_eq!(new_auction.block, bad_debt_auction_data.block);
@@ -763,12 +764,12 @@ fn test_liquidations() {
     );
     assert_approx_eq_abs(
         fixture.lp.balance(&frodo),
-        frodo_bstop_pre_fill + 4302_6261190,
+        frodo_bstop_pre_fill + 3687_9652440,
         SCALAR_7,
     );
     assert_approx_eq_abs(
         fixture.lp.balance(&fixture.backstop.address),
-        backstop_bstop_pre_fill - 4302_6261190,
+        backstop_bstop_pre_fill - 3687_9652440,
         SCALAR_7,
     );
 
@@ -785,7 +786,7 @@ fn test_liquidations() {
         .withdraw(&frodo, &pool_fixture.pool.address, &original_deposit);
     assert_approx_eq_abs(
         fixture.lp.balance(&frodo) - pre_withdraw_frodo_bstp,
-        original_deposit - 717_1043530 - 4302_6261190 + 313_7415968,
+        original_deposit - 614_6608740 - 3687_9652440 + 268_9213686,
         SCALAR_7,
     );
     fixture

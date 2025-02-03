@@ -3,7 +3,7 @@ use soroban_sdk::{
     String, Symbol, TryFromVal, Val, Vec,
 };
 
-use crate::{auctions::AuctionData, pool::Positions, PoolError};
+use crate::{auctions::AuctionData, constants::MAX_RESERVES, pool::Positions, PoolError};
 
 /********** Ledger Thresholds **********/
 
@@ -54,7 +54,7 @@ pub struct ReserveConfig {
     pub r_three: u32, // the R3 value in the interest rate formula scaled expressed in 7 decimals
     pub reactivity: u32, // the reactivity constant for the reserve scaled expressed in 7 decimals
     pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
-    pub enabled: bool,        // the flag of the reserve
+    pub enabled: bool,        // the enabled flag of the reserve
 }
 
 #[derive(Clone)]
@@ -447,12 +447,12 @@ pub fn get_res_list(e: &Env) -> Vec<Address> {
 /// * `asset` - The contract address of the underlying asset
 ///
 /// ### Panics
-/// If the number of reserves in the list exceeds 32
+/// If the number of reserves in the list exceeds 50
 ///
 // @dev: Once added it can't be removed
 pub fn push_res_list(e: &Env, asset: &Address) -> u32 {
     let mut res_list = get_res_list(e);
-    if res_list.len() >= 32 {
+    if res_list.len() >= MAX_RESERVES {
         panic_with_error!(e, PoolError::BadRequest)
     }
     res_list.push_back(asset.clone());

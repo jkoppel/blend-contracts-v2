@@ -80,7 +80,7 @@ pub fn create_interest_auction_data(
             * 5)
         .fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
     let bid_amount = interest_value
-        .fixed_mul_floor(e, &1_4000000, &SCALAR_7)
+        .fixed_mul_floor(e, &1_2000000, &SCALAR_7)
         .fixed_div_floor(e, &backstop_token_value_base, &SCALAR_7);
     auction_data.bid.set(backstop_token, bid_amount);
 
@@ -101,12 +101,13 @@ pub fn fill_interest_auction(
     let backstop_client = BackstopClient::new(&e, &backstop);
     let backstop_token: Address = backstop_client.backstop_token();
     let backstop_token_bid_amount = auction_data.bid.get(backstop_token).unwrap_or(0);
-
-    backstop_client.donate(
-        &filler,
-        &e.current_contract_address(),
-        &backstop_token_bid_amount,
-    );
+    if backstop_token_bid_amount > 0 {
+        backstop_client.donate(
+            &filler,
+            &e.current_contract_address(),
+            &backstop_token_bid_amount,
+        );
+    }
 
     // lot contains underlying tokens, but the backstop credit must be updated on the reserve
     for (res_asset_address, lot_amount) in auction_data.lot.iter() {
@@ -434,7 +435,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
@@ -512,7 +512,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
@@ -590,7 +589,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
@@ -668,7 +666,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
@@ -780,7 +777,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
@@ -857,7 +853,7 @@ mod tests {
                 100,
             );
             assert_eq!(result.block, 51);
-            assert_eq!(result.bid.get_unchecked(backstop_token_id), 336_0000000);
+            assert_eq!(result.bid.get_unchecked(backstop_token_id), 288_0000000);
             assert_eq!(result.bid.len(), 1);
             assert_eq!(result.lot.get_unchecked(underlying_0), 100_0000000);
             assert_eq!(result.lot.get_unchecked(underlying_1), 25_0000000);
@@ -892,7 +888,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
@@ -975,7 +970,7 @@ mod tests {
                 100,
             );
             assert_eq!(result.block, 51);
-            assert_eq!(result.bid.get_unchecked(backstop_token_id), 336_0000000);
+            assert_eq!(result.bid.get_unchecked(backstop_token_id), 288_0000000);
             assert_eq!(result.bid.len(), 1);
             assert_eq!(result.lot.get_unchecked(underlying_0), 100_0000000);
             assert_eq!(result.lot.get_unchecked(underlying_1), 25_0000000);
@@ -1010,7 +1005,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -1093,7 +1087,7 @@ mod tests {
                 100,
             );
             assert_eq!(result.block, 151);
-            assert_eq!(result.bid.get_unchecked(backstop_token_id), 336_0010346);
+            assert_eq!(result.bid.get_unchecked(backstop_token_id), 288_0008868);
             assert_eq!(result.bid.len(), 1);
             assert_eq!(result.lot.get_unchecked(underlying_0), 100_0000713);
             assert_eq!(result.lot.get_unchecked(underlying_1), 25_0000178);
@@ -1142,7 +1136,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
 
         let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
@@ -1270,7 +1263,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
 
         let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();

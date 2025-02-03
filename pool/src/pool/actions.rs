@@ -1492,7 +1492,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
 
         let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
