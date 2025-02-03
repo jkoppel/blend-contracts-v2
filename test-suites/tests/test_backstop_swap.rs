@@ -461,7 +461,6 @@ fn deploy_v2_pool(
 
     // setup backstop and enable borrowing
     backstop_client.deposit(&creator, &pool_id, &(55_000 * SCALAR_7));
-    backstop_client.update_tkn_val();
     backstop_client.add_reward(&pool_id, &None);
     pool_client.set_status(&3);
     pool_client.update_status();

@@ -184,7 +184,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -249,7 +248,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -296,7 +294,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         e.ledger().set(LedgerInfo {
             timestamp: 12345,
@@ -372,7 +369,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -467,7 +463,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -575,7 +570,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -670,7 +664,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -765,7 +758,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -897,7 +889,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -1030,7 +1021,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -1169,7 +1159,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &32_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -1303,7 +1292,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -1437,7 +1425,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -1570,7 +1557,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
@@ -1707,7 +1693,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &1_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
@@ -1867,7 +1852,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &2_500_0000000);
-        backstop_client.update_tkn_val();
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
@@ -2037,7 +2021,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
@@ -2176,7 +2159,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();

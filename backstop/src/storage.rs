@@ -60,7 +60,6 @@ const USDC_TOKEN_KEY: &str = "USDCTkn";
 const LAST_DISTRO_KEY: &str = "LastDist";
 const REWARD_ZONE_KEY: &str = "RZ";
 const DROP_LIST_KEY: &str = "DropList";
-const LP_TOKEN_VAL_KEY: &str = "LPTknVal";
 const RZ_EMISSION_INDEX_KEY: &str = "RZEmissionIndex";
 const BACKFILL_EMISSIONS_KEY: &str = "BackfillEmis";
 const BACKFILL_STATUS_KEY: &str = "Backfill";
@@ -531,35 +530,5 @@ pub fn set_drop_list(e: &Env, drop_list: &Vec<(Address, i128)>) {
         &Symbol::new(&e, DROP_LIST_KEY),
         LEDGER_THRESHOLD_USER,
         LEDGER_BUMP_USER,
-    );
-}
-
-/********** LP Token Value **********/
-
-/// Get the last updated token value for the LP pool
-pub fn get_lp_token_val(e: &Env) -> (i128, i128) {
-    e.storage().persistent().extend_ttl(
-        &Symbol::new(&e, LP_TOKEN_VAL_KEY),
-        LEDGER_THRESHOLD_SHARED,
-        LEDGER_BUMP_SHARED,
-    );
-    e.storage()
-        .persistent()
-        .get::<Symbol, (i128, i128)>(&Symbol::new(&e, LP_TOKEN_VAL_KEY))
-        .unwrap_optimized()
-}
-
-/// Set the reward zone
-///
-/// ### Arguments
-/// * `share_val` - A tuple of (blnd_per_share, usdc_per_share)
-pub fn set_lp_token_val(e: &Env, share_val: &(i128, i128)) {
-    e.storage()
-        .persistent()
-        .set::<Symbol, (i128, i128)>(&Symbol::new(&e, LP_TOKEN_VAL_KEY), share_val);
-    e.storage().persistent().extend_ttl(
-        &Symbol::new(&e, LP_TOKEN_VAL_KEY),
-        LEDGER_THRESHOLD_SHARED,
-        LEDGER_BUMP_SHARED,
     );
 }

@@ -156,15 +156,6 @@ pub trait Backstop {
     /// If the `pool_address` is not valid, backstop does not have sufficient allowance from `from`, or if the pool does not
     /// authorize the call
     fn donate(e: Env, from: Address, pool_address: Address, amount: i128);
-
-    /// Updates the underlying value of 1 backstop token
-    ///
-    /// ### Returns
-    /// A tuple of (blnd_per_tkn, usdc_per_tkn) of underlying value per backstop token
-    ///
-    /// ### Errors
-    /// If the underlying value is unable to be computed
-    fn update_tkn_val(e: Env) -> (i128, i128);
 }
 
 #[contractimpl]
@@ -331,16 +322,6 @@ impl Backstop for BackstopContract {
         backstop::execute_donate(&e, &from, &pool_address, amount);
 
         BackstopEvents::donate(&e, pool_address, from, amount);
-    }
-
-    fn update_tkn_val(e: Env) -> (i128, i128) {
-        storage::extend_instance(&e);
-
-        let backstop_token = storage::get_backstop_token(&e);
-        let blnd_token = storage::get_blnd_token(&e);
-        let usdc_token = storage::get_usdc_token(&e);
-
-        backstop::execute_update_comet_token_value(&e, &backstop_token, &blnd_token, &usdc_token)
     }
 }
 

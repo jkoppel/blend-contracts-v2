@@ -184,7 +184,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -231,7 +230,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &20_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -275,7 +273,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &30_000_0000000);
 
         let pool_config = PoolConfig {
@@ -318,7 +315,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -365,7 +361,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &40_000_0000000);
 
         let pool_config = PoolConfig {
@@ -409,7 +404,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &40_000_0000000);
 
         let pool_config = PoolConfig {
@@ -452,7 +446,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -498,7 +491,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -541,7 +533,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -588,7 +579,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -635,7 +625,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &20_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -682,7 +671,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &15_000_0000000);
 
         let pool_config = PoolConfig {
@@ -730,7 +718,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &15_000_0000000);
 
         let pool_config = PoolConfig {
@@ -778,7 +765,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &25_000_0000000);
 
         let pool_config = PoolConfig {
@@ -826,7 +812,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &30_000_0000000);
 
         let pool_config = PoolConfig {
@@ -873,7 +858,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &30_000_0000000);
 
         let pool_config = PoolConfig {
@@ -921,7 +905,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &40_000_0000000);
 
         let pool_config = PoolConfig {
@@ -970,7 +953,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -1014,7 +996,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let pool_config = PoolConfig {
             oracle: oracle_id,
@@ -1058,7 +1039,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_id, &50_000_0000000);
-        backstop_client.update_tkn_val();
         backstop_client.queue_withdrawal(&samwise, &pool_id, &12_500_0000000);
 
         let pool_config = PoolConfig {

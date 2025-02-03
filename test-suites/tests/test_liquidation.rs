@@ -47,7 +47,7 @@ fn assert_fill_auction_event_no_data(
 
 #[test]
 fn test_liquidations() {
-    let fixture = create_fixture_with_data(false);
+    let fixture = create_fixture_with_data(true);
     let frodo = fixture.users.get(0).unwrap();
     let pool_fixture = &fixture.pools[0];
 
@@ -198,6 +198,7 @@ fn test_liquidations() {
         ],
         &100u32,
     );
+
     let stable_interest_lot_amount = auction_data
         .lot
         .get_unchecked(fixture.tokens[TokenIndex::STABLE].address.clone());

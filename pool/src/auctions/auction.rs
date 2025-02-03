@@ -299,7 +299,6 @@ mod tests {
             &samwise,
         );
         backstop_client.deposit(&samwise, &pool_address, &50_000_0000000);
-        backstop_client.update_tkn_val();
 
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -423,7 +422,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
@@ -871,7 +869,6 @@ mod tests {
         let (backstop_address, backstop_client) =
             testutils::create_backstop(&e, &pool_address, &backstop_token_id, &usdc_id, &blnd_id);
         backstop_client.deposit(&bombadil, &pool_address, &(50 * SCALAR_7));
-        backstop_client.update_tkn_val();
         let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
 
         let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);

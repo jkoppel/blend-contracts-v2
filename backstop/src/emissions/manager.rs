@@ -308,7 +308,10 @@ mod tests {
 
     use crate::{
         backstop::PoolBalance,
-        testutils::{create_backstop, create_blnd_token, create_emitter},
+        testutils::{
+            create_backstop, create_blnd_token, create_comet_lp_pool_with_tokens_per_share,
+            create_emitter, create_usdc_token,
+        },
     };
 
     /********** gulp_emissions **********/
@@ -1173,9 +1176,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
 
         e.as_contract(&backstop_id, || {
             storage::set_pool_balance(
@@ -1187,7 +1204,6 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), None);
             let actual_rz = storage::get_reward_zone(&e);
@@ -1209,9 +1225,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let mut reward_zone: Vec<Address> = vec![
             &e,
             Address::generate(&e),
@@ -1236,7 +1266,6 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), None);
             let actual_rz = storage::get_reward_zone(&e);
@@ -1259,9 +1288,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
 
         e.as_contract(&backstop_id, || {
             storage::set_pool_balance(
@@ -1273,7 +1316,7 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
+            // storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), None);
             let actual_rz = storage::get_reward_zone(&e);
@@ -1295,9 +1338,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let mut reward_zone: Vec<Address> = vec![
             &e,
             Address::generate(&e),
@@ -1323,7 +1380,6 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), None);
             let actual_rz = storage::get_reward_zone(&e);
@@ -1331,6 +1387,7 @@ mod tests {
             assert_eq!(actual_rz, reward_zone);
         });
     }
+
     #[test]
     #[should_panic(expected = "Error(Contract, #1009)")]
     fn test_add_to_rz_respects_max_size() {
@@ -1346,9 +1403,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let mut reward_zone: Vec<Address> = vec![&e];
         for _ in 0..50 {
             reward_zone.push_back(Address::generate(&e));
@@ -1364,7 +1435,6 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             // This should fail due to the reward zone being full and not having a pool to remove
             add_to_reward_zone(&e, to_add.clone(), None);
@@ -1387,9 +1457,24 @@ mod tests {
 
         let backstop_id = create_backstop(&e);
         create_blnd_token(&e, &backstop_id, &Address::generate(&e));
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
+        let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let mut reward_zone: Vec<Address> = vec![&e];
         for _ in 0..50 {
             reward_zone.push_back(Address::generate(&e));
@@ -1436,7 +1521,6 @@ mod tests {
                 },
             );
             storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove.clone()));
             let actual_rz = storage::get_reward_zone(&e);
             assert_eq!(actual_rz.len(), 50);
@@ -1465,10 +1549,24 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let mut reward_zone: Vec<Address> = vec![&e];
         for _ in 0..50 {
             reward_zone.push_back(Address::generate(&e));
@@ -1496,7 +1594,6 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove));
         });
@@ -1516,10 +1613,24 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let mut reward_zone: Vec<Address> = vec![&e];
         for _ in 0..50 {
             reward_zone.push_back(Address::generate(&e));
@@ -1547,7 +1658,6 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove));
         });
@@ -1567,10 +1677,24 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let mut reward_zone: Vec<Address> = vec![&e];
         for _ in 0..50 {
             reward_zone.push_back(Address::generate(&e));
@@ -1597,7 +1721,7 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
+            // storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove));
         });
@@ -1617,10 +1741,24 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
         let to_add = Address::generate(&e);
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let reward_zone: Vec<Address> = vec![
             &e,
             Address::generate(&e),
@@ -1656,7 +1794,7 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
+            // storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove.clone()));
         });
@@ -1677,11 +1815,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
-        create_blnd_token(&e, &backstop_id, &Address::generate(&e));
-
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let mut reward_zone: Vec<Address> = vec![
             &e,
             Address::generate(&e),
@@ -1726,7 +1876,6 @@ mod tests {
                 }
             });
             storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             remove_from_reward_zone(&e, to_remove.clone());
             let actual_rz = storage::get_reward_zone(&e);
             reward_zone.remove(1);
@@ -1753,11 +1902,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
-        create_blnd_token(&e, &backstop_id, &Address::generate(&e));
-
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let reward_zone: Vec<Address> = vec![
             &e,
             Address::generate(&e),
@@ -1793,7 +1954,6 @@ mod tests {
                 }
             });
             storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             remove_from_reward_zone(&e, to_remove.clone());
         });
     }
@@ -1812,11 +1972,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
-        create_blnd_token(&e, &backstop_id, &Address::generate(&e));
-
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let reward_zone: Vec<Address> = vec![
             &e,
             Address::generate(&e),
@@ -1852,7 +2024,6 @@ mod tests {
                 }
             });
             storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             remove_from_reward_zone(&e, to_remove.clone());
         });
     }
@@ -1871,11 +2042,23 @@ mod tests {
             min_persistent_entry_ttl: 10,
             max_entry_ttl: 3110400,
         });
+        e.mock_all_auths();
 
+        let bombadil = Address::generate(&e);
         let backstop_id = create_backstop(&e);
-        create_blnd_token(&e, &backstop_id, &Address::generate(&e));
-
         let to_remove = Address::generate(&e);
+
+        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
+        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
+        create_comet_lp_pool_with_tokens_per_share(
+            &e,
+            &backstop_id,
+            &bombadil,
+            &blnd_id,
+            5_0000000,
+            &usdc_id,
+            0_1000000,
+        );
         let reward_zone: Vec<Address> = vec![&e, Address::generate(&e)];
 
         e.as_contract(&backstop_id, || {
@@ -1907,7 +2090,6 @@ mod tests {
                 }
             });
             storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
-            storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
             remove_from_reward_zone(&e, to_remove.clone());
         });
     }
