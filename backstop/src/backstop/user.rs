@@ -199,7 +199,7 @@ mod tests {
                 &e,
                 Q4W {
                     amount: to_queue,
-                    exp: 10000 + 21 * 24 * 60 * 60,
+                    exp: 10000 + 17 * 24 * 60 * 60,
                 },
             ],
         );
@@ -236,7 +236,7 @@ mod tests {
         user.queue_shares_for_withdrawal(&e, to_queue);
         cur_q4w.push_back(Q4W {
             amount: to_queue,
-            exp: 11000000 + 21 * 24 * 60 * 60,
+            exp: 11000000 + 17 * 24 * 60 * 60,
         });
         assert_eq_vec_q4w(&user.q4w, &cur_q4w);
     }
@@ -246,7 +246,7 @@ mod tests {
         let e = Env::default();
         let exp = 12592000;
         let mut cur_q4w = vec![&e];
-        for i in 0..20 {
+        for i in 0..19 {
             cur_q4w.push_back(Q4W {
                 amount: 200,
                 exp: exp + i,
@@ -272,7 +272,7 @@ mod tests {
         user.queue_shares_for_withdrawal(&e, to_queue);
         cur_q4w.push_back(Q4W {
             amount: to_queue,
-            exp: 11000000 + 21 * 24 * 60 * 60,
+            exp: 11000000 + 17 * 24 * 60 * 60,
         });
         assert_eq_vec_q4w(&user.q4w, &cur_q4w);
     }
@@ -284,7 +284,7 @@ mod tests {
 
         let exp = 12592000;
         let mut cur_q4w = vec![&e];
-        for i in 0..21 {
+        for i in 0..20 {
             cur_q4w.push_back(Q4W {
                 amount: 200,
                 exp: exp + i,
