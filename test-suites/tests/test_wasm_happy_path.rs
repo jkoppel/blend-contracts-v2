@@ -602,7 +602,7 @@ fn test_wasm_happy_path() {
     assert_eq!(result.amount, amount);
     assert_eq!(
         result.exp,
-        fixture.env.ledger().timestamp() + 60 * 60 * 24 * 21
+        fixture.env.ledger().timestamp() + 60 * 60 * 24 * 17
     );
     assert_eq!(fixture.lp.balance(&frodo), frodo_bstop_token_balance);
     assert_eq!(
@@ -611,7 +611,7 @@ fn test_wasm_happy_path() {
     );
 
     // Time passes and Frodo withdraws his queued for withdrawal backstop deposit
-    fixture.jump(60 * 60 * 24 * 30 + 1);
+    fixture.jump(60 * 60 * 24 * 17 + 1);
     let result = fixture
         .backstop
         .withdraw(&frodo, &pool_fixture.pool.address, &amount);
