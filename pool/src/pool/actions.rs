@@ -124,7 +124,6 @@ pub fn build_actions_from_request(
     requests: Vec<Request>,
 ) -> Actions {
     let mut actions = Actions::new(e);
-    let prev_positions_count = from_state.positions.effective_count();
     for request in requests.iter() {
         // verify the request is allowed
         require_nonnegative(e, &request.amount);
@@ -262,9 +261,6 @@ pub fn build_actions_from_request(
             }
         }
     }
-
-    // Verify max positions haven't been exceeded
-    pool.require_under_max(e, &from_state.positions, prev_positions_count);
 
     actions
 }
@@ -1877,125 +1873,7 @@ mod tests {
         });
     }
 
-    /********** positions_under_max **********/
-
-    #[test]
-    fn test_actions_requires_positions_under_max_with_decrease() {
-        let e = Env::default();
-        e.mock_all_auths();
-
-        let bombadil = Address::generate(&e);
-        let samwise = Address::generate(&e);
-        let pool = testutils::create_pool(&e);
-
-        let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
-        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
-        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
-
-        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
-        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
-        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
-
-        e.ledger().set(LedgerInfo {
-            timestamp: 600,
-            protocol_version: 22,
-            sequence_number: 1234,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-
-        let pool_config = PoolConfig {
-            oracle: Address::generate(&e),
-            bstop_rate: 0_2000000,
-            status: 0,
-            max_positions: 2,
-        };
-
-        let user_positions = Positions {
-            liabilities: map![&e, (0, 5_0000000), (1, 1_0000000)],
-            collateral: map![&e, (0, 20_0000000), (1, 10)],
-            supply: map![&e],
-        };
-        e.as_contract(&pool, || {
-            storage::set_pool_config(&e, &pool_config);
-            storage::set_user_positions(&e, &samwise, &user_positions);
-
-            let mut pool = Pool::load(&e);
-
-            let requests = vec![
-                &e,
-                Request {
-                    request_type: RequestType::WithdrawCollateral as u32,
-                    address: underlying_1.clone(),
-                    amount: 20,
-                },
-            ];
-
-            let mut user = User::load(&e, &samwise);
-            let _ = build_actions_from_request(&e, &mut pool, &mut user, requests);
-            assert_eq!(user.positions.effective_count(), 3)
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "Error(Contract, #1208)")]
-    fn test_actions_requires_positions_under_max() {
-        let e = Env::default();
-        e.mock_all_auths();
-
-        let bombadil = Address::generate(&e);
-        let samwise = Address::generate(&e);
-        let pool = testutils::create_pool(&e);
-
-        let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
-        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
-        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
-
-        e.ledger().set(LedgerInfo {
-            timestamp: 600,
-            protocol_version: 22,
-            sequence_number: 1234,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-
-        let pool_config = PoolConfig {
-            oracle: Address::generate(&e),
-            bstop_rate: 0_2000000,
-            status: 0,
-            max_positions: 1,
-        };
-
-        let user_positions = Positions {
-            liabilities: map![&e],
-            collateral: map![&e, (0, 20_0000000)],
-            supply: map![&e],
-        };
-        e.as_contract(&pool, || {
-            storage::set_pool_config(&e, &pool_config);
-            storage::set_user_positions(&e, &samwise, &user_positions);
-
-            let mut pool = Pool::load(&e);
-
-            let requests = vec![
-                &e,
-                Request {
-                    request_type: RequestType::Borrow as u32,
-                    address: underlying.clone(),
-                    amount: 1_0000000,
-                },
-            ];
-
-            let mut user = User::load(&e, &samwise);
-            build_actions_from_request(&e, &mut pool, &mut user, requests);
-        });
-    }
+    /********** reserve conifg **********/
 
     #[test]
     #[should_panic(expected = "Error(Contract, #1220)")]
