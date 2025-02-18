@@ -166,7 +166,7 @@ fn require_valid_reserve_metadata(e: &Env, metadata: &ReserveConfig) {
     if metadata.decimals > 18
         || metadata.c_factor > SCALAR_7_U32
         || metadata.l_factor > SCALAR_7_U32
-        || metadata.util > 0_9500000
+        || metadata.util > 0_9000000
         || (metadata.max_util > SCALAR_7_U32 || metadata.max_util <= metadata.util)
         || metadata.r_base >= 1_0000000
         || metadata.r_base < 0_0001000
@@ -997,7 +997,7 @@ mod tests {
             decimals: 18,
             c_factor: 0_7500000,
             l_factor: 0_7500000,
-            util: 1_0000000,
+            util: 0_9000001,
             max_util: 0_9500000,
             r_base: 0_0001000,
             r_one: 0_0500000,
