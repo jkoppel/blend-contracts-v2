@@ -2,7 +2,7 @@ use moderc3156::FlashLoanClient;
 use sep_41_token::TokenClient;
 use soroban_sdk::{panic_with_error, Address, Env, Map, Vec};
 
-use crate::{events::PoolEvents, PoolError};
+use crate::{events::PoolEvents, storage, AuctionType, PoolError};
 
 use super::{
     actions::{build_actions_from_request, Actions, Request},
@@ -43,18 +43,13 @@ pub fn execute_submit(
 
     let actions = build_actions_from_request(e, &mut pool, &mut from_state, requests);
 
-    // Verify max positions haven't been exceeded
-    pool.require_under_max(e, &from_state.positions, prev_positions_count);
-
-    // panics if the new positions set does not meet the health factor requirement
-    // min is 1.0000100 to prevent rounding errors
-    if actions.check_health
-        && from_state.has_liabilities()
-        && PositionData::calculate_from_positions(e, &mut pool, &from_state.positions)
-            .is_hf_under(e, 1_0000100)
-    {
-        panic_with_error!(e, PoolError::InvalidHf);
-    }
+    validate_submit(
+        e,
+        &mut pool,
+        &from_state,
+        prev_positions_count,
+        actions.check_health,
+    );
 
     if use_allowance {
         handle_transfer_with_allowance(e, &actions, spender, to);
@@ -103,21 +98,10 @@ pub fn execute_submit_with_flash_loan(
         );
     }
 
-    // note: check_health is omitted since we always will want to check the health
-    // if a flash loan is involved.
     let actions = build_actions_from_request(e, &mut pool, &mut from_state, requests);
 
-    // Verify max positions haven't been exceeded
-    pool.require_under_max(e, &from_state.positions, prev_positions_count);
-
-    // panics if the new positions set does not meet the health factor requirement
-    // min is 1.0000100 to prevent rounding errors
-    if from_state.has_liabilities()
-        && PositionData::calculate_from_positions(e, &mut pool, &from_state.positions)
-            .is_hf_under(e, 1_0000100)
-    {
-        panic_with_error!(e, PoolError::InvalidHf);
-    }
+    // always check health since flash_borrow requires it
+    validate_submit(e, &mut pool, &from_state, prev_positions_count, true);
 
     // we deal with the flashloan transfer before the others to allow the flash
     // loan to yield the repaid or supplied amount in the transfers.
@@ -146,6 +130,43 @@ pub fn execute_submit_with_flash_loan(
     from_state.store(e);
 
     from_state.positions
+}
+
+/// Validate submit results in a valid state for the pool and user.
+///
+/// ### Arguments
+/// * pool - The pool state. Writes the oracle cache if oracle data is fetched.
+/// * from_state - The user state for "from"
+/// * prev_positions_count - The initial number of positions for "from"
+/// * check_health - A bool indicating if the health factor should be checked
+fn validate_submit(
+    e: &Env,
+    pool: &mut Pool,
+    from_state: &User,
+    prev_positions_count: u32,
+    check_health: bool,
+) {
+    // Verify max positions haven't been exceeded
+    pool.require_under_max(e, &from_state.positions, prev_positions_count);
+
+    // Verify "from" does not have an active liquidation post requests
+    if storage::has_auction(
+        e,
+        &(AuctionType::UserLiquidation as u32),
+        &from_state.address,
+    ) {
+        panic_with_error!(e, PoolError::AuctionInProgress);
+    }
+
+    // panics if the new positions set does not meet the health factor requirement
+    // min is 1.0000100 to prevent rounding errors
+    if check_health
+        && from_state.has_liabilities()
+        && PositionData::calculate_from_positions(e, pool, &from_state.positions)
+            .is_hf_under(e, 1_0000100)
+    {
+        panic_with_error!(e, PoolError::InvalidHf);
+    }
 }
 
 fn handle_transfer_with_allowance(e: &Env, actions: &Actions, spender: &Address, to: &Address) {
@@ -201,7 +222,7 @@ fn handle_transfers(e: &Env, actions: &Actions, spender: &Address, to: &Address)
 mod tests {
     use crate::{
         storage::{self, PoolConfig},
-        testutils, RequestType,
+        testutils, AuctionData, RequestType,
     };
 
     use super::*;
@@ -1158,6 +1179,205 @@ mod tests {
         });
     }
 
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1212)")]
+    fn test_submit_with_ongoing_liquidation_blocked() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let (oracle, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+
+        let (underlying_1, underlying_1_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        underlying_0_client.mint(&samwise, &10_0000000);
+        underlying_1_client.mint(&samwise, &10_0000000);
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 1_0000000, 5_0000000]);
+
+        let auction_data = AuctionData {
+            bid: map![&e, (underlying_0.clone(), 2_0000000)],
+            lot: map![&e, (underlying_1.clone(), 2_0000000),],
+            block: 1200,
+        };
+        let pool_config = PoolConfig {
+            oracle,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 2,
+        };
+        let user_positions = Positions {
+            liabilities: map![&e, (0, 5_0000000)],
+            collateral: map![&e, (1, 6_0000000)],
+            supply: map![&e],
+        };
+        e.as_contract(&pool, || {
+            e.mock_all_auths_allowing_non_root_auth();
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_user_positions(&e, &samwise, &user_positions);
+            storage::set_auction(
+                &e,
+                &(AuctionType::UserLiquidation as u32),
+                &samwise,
+                &auction_data,
+            );
+
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::Repay as u32,
+                    address: underlying_0,
+                    amount: 4_0000000,
+                },
+            ];
+            execute_submit(&e, &samwise, &samwise, &samwise, requests, false);
+        });
+    }
+
+    #[test]
+    fn test_submit_with_ongoing_liquidation_works_if_canceled() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let (oracle, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+
+        let (underlying_1, underlying_1_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        underlying_0_client.mint(&samwise, &10_0000000);
+        underlying_1_client.mint(&samwise, &10_0000000);
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 1_0000000, 5_0000000]);
+
+        let auction_data = AuctionData {
+            bid: map![&e, (underlying_0.clone(), 2_0000000)],
+            lot: map![&e, (underlying_1.clone(), 2_0000000),],
+            block: 1200,
+        };
+        let pool_config = PoolConfig {
+            oracle,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 2,
+        };
+        let user_positions = Positions {
+            liabilities: map![&e, (0, 5_0000000)],
+            collateral: map![&e, (1, 6_0000000)],
+            supply: map![&e],
+        };
+        e.as_contract(&pool, || {
+            e.mock_all_auths_allowing_non_root_auth();
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_user_positions(&e, &samwise, &user_positions);
+            storage::set_auction(
+                &e,
+                &(AuctionType::UserLiquidation as u32),
+                &samwise,
+                &auction_data,
+            );
+
+            let pre_pool_balance_0 = underlying_0_client.balance(&pool);
+
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::Repay as u32,
+                    address: underlying_0,
+                    amount: 4_0000000,
+                },
+                Request {
+                    request_type: RequestType::DeleteLiquidationAuction as u32,
+                    address: samwise.clone(),
+                    amount: 0,
+                },
+            ];
+            let result = execute_submit(&e, &samwise, &samwise, &samwise, requests, false);
+
+            assert_eq!(result.liabilities.len(), 1);
+            assert_eq!(result.collateral.len(), 1);
+
+            assert_eq!(result.collateral.get_unchecked(1), 6_0000000);
+            assert_eq!(result.liabilities.get_unchecked(0), 1_0000046);
+
+            assert_eq!(
+                underlying_0_client.balance(&pool),
+                pre_pool_balance_0 + 4_0000000
+            );
+            assert_eq!(
+                underlying_0_client.balance(&samwise),
+                10_0000000 - 4_0000000
+            );
+
+            assert!(!storage::has_auction(
+                &e,
+                &(AuctionType::UserLiquidation as u32),
+                &samwise
+            ));
+        });
+    }
+
     /***** submit_with_flash_loan *****/
 
     #[test]
@@ -1715,6 +1935,99 @@ mod tests {
                 underlying_1_client.balance(&samwise),
                 10_0000000 - 1_0000012
             );
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1212)")]
+    fn test_submit_with_flash_loan_with_ongoing_liquidation_blocked() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let (oracle, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (flash_loan_receiver, _) = testutils::create_flashloan_receiver(&e);
+
+        let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+
+        let (underlying_1, underlying_1_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        underlying_0_client.mint(&samwise, &10_0000000);
+        underlying_1_client.mint(&samwise, &10_0000000);
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 1_0000000, 5_0000000]);
+
+        let auction_data = AuctionData {
+            bid: map![&e, (underlying_0.clone(), 2_0000000)],
+            lot: map![&e, (underlying_1.clone(), 2_0000000),],
+            block: 1200,
+        };
+        let pool_config = PoolConfig {
+            oracle,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 2,
+        };
+        let user_positions = Positions {
+            liabilities: map![&e, (0, 5_0000000)],
+            collateral: map![&e, (1, 6_0000000)],
+            supply: map![&e],
+        };
+        e.as_contract(&pool, || {
+            e.mock_all_auths_allowing_non_root_auth();
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_user_positions(&e, &samwise, &user_positions);
+            storage::set_auction(
+                &e,
+                &(AuctionType::UserLiquidation as u32),
+                &samwise,
+                &auction_data,
+            );
+
+            let flash_loan: FlashLoan = FlashLoan {
+                contract: flash_loan_receiver,
+                asset: underlying_0.clone(),
+                amount: 1_0000000,
+            };
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::Repay as u32,
+                    address: underlying_0,
+                    amount: 4_5000000,
+                },
+            ];
+            execute_submit_with_flash_loan(&e, &samwise, flash_loan, requests);
         });
     }
 }
