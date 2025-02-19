@@ -265,6 +265,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -306,6 +307,7 @@ mod tests {
         let liq_pct = 50;
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -341,6 +343,7 @@ mod tests {
         let liq_pct = 50;
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -376,6 +379,7 @@ mod tests {
         let liq_pct = 0;
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -411,6 +415,7 @@ mod tests {
         let liq_pct = 101;
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -501,6 +506,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -599,6 +605,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -697,6 +704,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -795,6 +803,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -909,6 +918,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -1022,6 +1032,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1122,6 +1133,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1222,6 +1234,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1328,6 +1341,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1438,6 +1452,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1592,6 +1607,7 @@ mod tests {
         let liq_pct = 100;
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1707,6 +1723,7 @@ mod tests {
         let liq_pct = 46;
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1822,6 +1839,7 @@ mod tests {
         let liq_pct = 25;
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1935,6 +1953,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -2045,6 +2064,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -2153,6 +2173,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -2263,6 +2284,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -2366,6 +2388,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -2482,6 +2505,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -2656,6 +2680,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -2791,6 +2816,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: oracle_address,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,

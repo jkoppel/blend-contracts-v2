@@ -25,6 +25,7 @@ fn test_pool_factory() {
     let backstop_id = Address::generate(&e);
     let backstop_rate: u32 = 0_1000000;
     let max_positions: u32 = 6;
+    let min_collateral: i128 = 1_0000000;
     let blnd_id = Address::generate(&e);
 
     let pool_init_meta = PoolInitMeta {
@@ -46,6 +47,7 @@ fn test_pool_factory() {
         &oracle,
         &backstop_rate,
         &max_positions,
+        &min_collateral,
     );
 
     let event = vec![&e, e.events().all().last_unchecked()];
@@ -69,6 +71,7 @@ fn test_pool_factory() {
         &oracle,
         &backstop_rate,
         &max_positions,
+        &min_collateral,
     );
 
     e.as_contract(&deployed_pool_address_1, || {
@@ -93,6 +96,7 @@ fn test_pool_factory() {
                 .unwrap(),
             pool::PoolConfig {
                 oracle: oracle,
+                min_collateral: min_collateral,
                 bstop_rate: backstop_rate,
                 status: 6,
                 max_positions: 6
@@ -136,7 +140,7 @@ fn test_pool_factory_invalid_pool_init_args_backstop_rate() {
     let oracle = Address::generate(&e);
     let backstop_rate: u32 = 1_0000000;
     let max_positions: u32 = 6;
-
+    let min_collateral: i128 = 1_0000000;
     let name1 = String::from_str(&e, "pool1");
     let salt = BytesN::<32>::random(&e);
 
@@ -147,6 +151,7 @@ fn test_pool_factory_invalid_pool_init_args_backstop_rate() {
         &oracle,
         &backstop_rate,
         &max_positions,
+        &min_collateral,
     );
 }
 
@@ -173,6 +178,7 @@ fn test_pool_factory_invalid_pool_init_args_max_positions() {
     let oracle = Address::generate(&e);
     let backstop_rate: u32 = 0_1000000;
     let max_positions: u32 = 1;
+    let min_collateral: i128 = 1_0000000;
 
     let name1 = String::from_str(&e, "pool1");
     let salt = BytesN::<32>::random(&e);
@@ -184,6 +190,7 @@ fn test_pool_factory_invalid_pool_init_args_max_positions() {
         &oracle,
         &backstop_rate,
         &max_positions,
+        &min_collateral,
     );
 }
 
@@ -209,7 +216,8 @@ fn test_pool_factory_invalid_pool_init_args_max_positions_large() {
     let bombadil = Address::generate(&e);
     let oracle = Address::generate(&e);
     let backstop_rate: u32 = 0_1000000;
-    let max_positions: u32 = 65;
+    let max_positions: u32 = 101;
+    let min_collateral: i128 = 1_0000000;
 
     let name1 = String::from_str(&e, "pool1");
     let salt = BytesN::<32>::random(&e);
@@ -221,6 +229,46 @@ fn test_pool_factory_invalid_pool_init_args_max_positions_large() {
         &oracle,
         &backstop_rate,
         &max_positions,
+        &min_collateral,
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1300)")]
+fn test_pool_factory_invalid_pool_init_args_min_collateral() {
+    let e = Env::default();
+    e.cost_estimate().budget().reset_unlimited();
+    e.mock_all_auths_allowing_non_root_auth();
+    let wasm_hash = e.deployer().upload_contract_wasm(pool::WASM);
+
+    let backstop_id = Address::generate(&e);
+    let blnd_id = Address::generate(&e);
+
+    let pool_init_meta = PoolInitMeta {
+        backstop: backstop_id.clone(),
+        pool_hash: wasm_hash.clone(),
+        blnd_id: blnd_id.clone(),
+    };
+    let pool_factory_address = e.register(PoolFactoryContract {}, (pool_init_meta,));
+    let pool_factory_client = PoolFactoryClient::new(&e, &pool_factory_address);
+
+    let bombadil = Address::generate(&e);
+    let oracle = Address::generate(&e);
+    let backstop_rate: u32 = 0_1000000;
+    let max_positions: u32 = 100;
+    let min_collateral: i128 = -1;
+
+    let name1 = String::from_str(&e, "pool1");
+    let salt = BytesN::<32>::random(&e);
+
+    pool_factory_client.deploy(
+        &bombadil,
+        &name1,
+        &salt,
+        &oracle,
+        &backstop_rate,
+        &max_positions,
+        &min_collateral,
     );
 }
 
@@ -239,6 +287,7 @@ fn test_pool_factory_frontrun_protection() {
     let backstop_id = Address::generate(&e);
     let backstop_rate: u32 = 0_1000000;
     let max_positions: u32 = 6;
+    let min_collateral: i128 = 0;
     let blnd_id = Address::generate(&e);
 
     let pool_init_meta = PoolInitMeta {
@@ -262,6 +311,7 @@ fn test_pool_factory_frontrun_protection() {
         &oracle,
         &backstop_rate,
         &max_positions,
+        &min_collateral,
     );
 
     let deployed_pool_address_bombadil = pool_factory_client.deploy(
@@ -271,6 +321,7 @@ fn test_pool_factory_frontrun_protection() {
         &oracle,
         &backstop_rate,
         &max_positions,
+        &min_collateral,
     );
 
     assert!(deployed_pool_address_sauron != deployed_pool_address_bombadil);

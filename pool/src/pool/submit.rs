@@ -160,12 +160,13 @@ fn validate_submit(
 
     // panics if the new positions set does not meet the health factor requirement
     // min is 1.0000100 to prevent rounding errors
-    if check_health
-        && from_state.has_liabilities()
-        && PositionData::calculate_from_positions(e, pool, &from_state.positions)
-            .is_hf_under(e, 1_0000100)
-    {
-        panic_with_error!(e, PoolError::InvalidHf);
+    if check_health && from_state.has_liabilities() {
+        let position_data = PositionData::calculate_from_positions(e, pool, &from_state.positions);
+        if position_data.is_hf_under(e, 1_0000100) {
+            panic_with_error!(e, PoolError::InvalidHf);
+        } else if position_data.collateral_base < pool.config.min_collateral {
+            panic_with_error!(e, PoolError::MinCollateralNotMet);
+        }
     }
 }
 
@@ -282,6 +283,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -377,6 +379,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -519,6 +522,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -635,6 +639,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -696,6 +701,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -795,6 +801,7 @@ mod tests {
         });
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -859,6 +866,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -919,6 +927,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -979,6 +988,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -1048,6 +1058,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 3,
@@ -1127,6 +1138,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -1233,6 +1245,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -1318,6 +1331,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -1378,6 +1392,82 @@ mod tests {
         });
     }
 
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1224)")]
+    fn test_submit_under_min_collateral_fails() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let frodo = Address::generate(&e);
+        let merry = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let (oracle, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        underlying_0_client.mint(&frodo, &16_0000000);
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 1_0000000, 5_0000000]);
+
+        let pool_config = PoolConfig {
+            oracle,
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            e.mock_all_auths_allowing_non_root_auth();
+            storage::set_pool_config(&e, &pool_config);
+
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::SupplyCollateral as u32,
+                    address: underlying_0,
+                    amount: 0_9000000,
+                },
+                Request {
+                    request_type: RequestType::Borrow as u32,
+                    address: underlying_1,
+                    amount: 0_01000000,
+                },
+            ];
+            execute_submit(&e, &samwise, &frodo, &merry, requests, false);
+        });
+    }
+
     /***** submit_with_flash_loan *****/
 
     #[test]
@@ -1430,6 +1520,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1538,6 +1629,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1639,6 +1731,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1720,6 +1813,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 4,
@@ -1803,6 +1897,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 3,
@@ -1886,6 +1981,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -1994,6 +2090,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -2025,6 +2122,90 @@ mod tests {
                     request_type: RequestType::Repay as u32,
                     address: underlying_0,
                     amount: 4_5000000,
+                },
+            ];
+            execute_submit_with_flash_loan(&e, &samwise, flash_loan, requests);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1224)")]
+    fn test_submit_with_flash_loan_under_min_collateral_fails() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let (oracle, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (flash_loan_receiver, _) = testutils::create_flashloan_receiver(&e);
+
+        let (underlying_0, underlying_0_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+
+        let (underlying_1, underlying_1_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        underlying_0_client.mint(&samwise, &20_0000000);
+        underlying_0_client.approve(&samwise, &pool, &20_0000000, &100000);
+        underlying_1_client.mint(&samwise, &20_0000000);
+        underlying_1_client.approve(&samwise, &pool, &20_0000000, &100000);
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 1_0000000, 5_0000000]);
+
+        let pool_config = PoolConfig {
+            oracle,
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            e.mock_all_auths_allowing_non_root_auth();
+            storage::set_pool_config(&e, &pool_config);
+
+            let flash_loan: FlashLoan = FlashLoan {
+                contract: flash_loan_receiver,
+                asset: underlying_1.clone(),
+                amount: 5_0000000,
+            };
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::SupplyCollateral as u32,
+                    address: underlying_0,
+                    amount: 0_9000000,
+                },
+                Request {
+                    request_type: RequestType::Repay as u32,
+                    address: underlying_1,
+                    amount: 4_9900000,
                 },
             ];
             execute_submit_with_flash_loan(&e, &samwise, flash_loan, requests);

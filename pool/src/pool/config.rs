@@ -1,5 +1,5 @@
 use crate::{
-    constants::{SCALAR_12, SCALAR_7, SECONDS_PER_WEEK},
+    constants::{MAX_RESERVES, SCALAR_12, SCALAR_7, SECONDS_PER_WEEK},
     errors::PoolError,
     storage::{
         self, has_queued_reserve_set, PoolConfig, QueuedReserveInit, ReserveConfig, ReserveData,
@@ -20,43 +20,39 @@ pub fn execute_initialize(
     oracle: &Address,
     bstop_rate: &u32,
     max_positions: &u32,
+    min_collateral: &i128,
     backstop_address: &Address,
     blnd_id: &Address,
 ) {
-    // ensure backstop is [0,1)
-    if *bstop_rate >= SCALAR_7 as u32 {
-        panic_with_error!(e, PoolError::InvalidPoolInitArgs);
-    }
-
-    // verify max positions is at least 2
-    if *max_positions < 2 {
-        panic_with_error!(&e, PoolError::InvalidPoolInitArgs);
-    }
+    let pool_config = PoolConfig {
+        oracle: oracle.clone(),
+        min_collateral: *min_collateral,
+        bstop_rate: *bstop_rate,
+        status: 6,
+        max_positions: *max_positions,
+    };
+    require_valid_pool_config(e, &pool_config);
 
     storage::set_admin(e, admin);
     storage::set_name(e, name);
     storage::set_backstop(e, backstop_address);
-    storage::set_pool_config(
-        e,
-        &PoolConfig {
-            oracle: oracle.clone(),
-            bstop_rate: *bstop_rate,
-            status: 6,
-            max_positions: *max_positions,
-        },
-    );
+    storage::set_pool_config(e, &pool_config);
     storage::set_blnd_token(e, blnd_id);
 }
 
 /// Update the pool
-pub fn execute_update_pool(e: &Env, backstop_take_rate: u32, max_positions: u32) {
-    // ensure backstop is [0,1)
-    if backstop_take_rate >= SCALAR_7 as u32 {
-        panic_with_error!(e, PoolError::BadRequest);
-    }
+pub fn execute_update_pool(
+    e: &Env,
+    backstop_take_rate: u32,
+    max_positions: u32,
+    min_collateral: i128,
+) {
     let mut pool_config = storage::get_pool_config(e);
     pool_config.bstop_rate = backstop_take_rate;
     pool_config.max_positions = max_positions;
+    pool_config.min_collateral = min_collateral;
+
+    require_valid_pool_config(e, &pool_config);
     storage::set_pool_config(e, &pool_config);
 }
 
@@ -177,6 +173,23 @@ fn require_valid_reserve_metadata(e: &Env, metadata: &ReserveConfig) {
     }
 }
 
+fn require_valid_pool_config(e: &Env, config: &PoolConfig) {
+    // ensure backstop is [0,1)
+    if config.bstop_rate >= SCALAR_7 as u32 {
+        panic_with_error!(e, PoolError::InvalidPoolConfigArgs);
+    }
+
+    // verify max positions is at least 2 and less than 2 * max reserves
+    if config.max_positions < 2 || config.max_positions > 2 * MAX_RESERVES {
+        panic_with_error!(&e, PoolError::InvalidPoolConfigArgs);
+    }
+
+    // verify min collateral is at least 0
+    if config.min_collateral < 0 {
+        panic_with_error!(&e, PoolError::InvalidPoolConfigArgs);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::storage::QueuedReserveInit;
@@ -196,6 +209,7 @@ mod tests {
         let oracle = Address::generate(&e);
         let bstop_rate: u32 = 0_1000000;
         let max_positions = 2;
+        let min_collateral = 1_0000000;
         let backstop_address = Address::generate(&e);
         let blnd_id = Address::generate(&e);
 
@@ -207,6 +221,7 @@ mod tests {
                 &oracle,
                 &bstop_rate,
                 &max_positions,
+                &min_collateral,
                 &backstop_address,
                 &blnd_id,
             );
@@ -215,6 +230,8 @@ mod tests {
             let pool_config = storage::get_pool_config(&e);
             assert_eq!(pool_config.oracle, oracle);
             assert_eq!(pool_config.bstop_rate, bstop_rate);
+            assert_eq!(pool_config.min_collateral, min_collateral);
+            assert_eq!(pool_config.max_positions, max_positions);
             assert_eq!(pool_config.status, 6);
             assert_eq!(storage::get_backstop(&e), backstop_address);
             assert_eq!(storage::get_blnd_token(&e), blnd_id);
@@ -233,6 +250,7 @@ mod tests {
         let oracle = Address::generate(&e);
         let bstop_rate = 1_0000000;
         let max_positions = 3;
+        let min_collateral = 1_0000000;
         let backstop_address = Address::generate(&e);
         let blnd_id = Address::generate(&e);
 
@@ -244,6 +262,7 @@ mod tests {
                 &oracle,
                 &bstop_rate,
                 &max_positions,
+                &min_collateral,
                 &backstop_address,
                 &blnd_id,
             );
@@ -262,6 +281,7 @@ mod tests {
         let oracle = Address::generate(&e);
         let bstop_rate = 0_1000000;
         let max_positions = 1;
+        let min_collateral = 1_0000000;
         let backstop_address = Address::generate(&e);
         let blnd_id = Address::generate(&e);
 
@@ -273,6 +293,7 @@ mod tests {
                 &oracle,
                 &bstop_rate,
                 &max_positions,
+                &min_collateral,
                 &backstop_address,
                 &blnd_id,
             );
@@ -287,6 +308,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -295,24 +317,26 @@ mod tests {
             storage::set_pool_config(&e, &pool_config);
 
             // happy path
-            execute_update_pool(&e, 0_2000000, 4u32);
+            execute_update_pool(&e, 0_2000000, 4u32, 2_0000000);
             let new_pool_config = storage::get_pool_config(&e);
             assert_eq!(new_pool_config.bstop_rate, 0_2000000);
             assert_eq!(new_pool_config.oracle, pool_config.oracle);
             assert_eq!(new_pool_config.status, pool_config.status);
-            assert_eq!(new_pool_config.max_positions, 4u32)
+            assert_eq!(new_pool_config.max_positions, 4u32);
+            assert_eq!(new_pool_config.min_collateral, 2_0000000);
         });
     }
 
     #[test]
-    #[should_panic(expected = "Error(Contract, #1200)")]
-    fn test_execute_update_pool_validates() {
+    #[should_panic(expected = "Error(Contract, #1201)")]
+    fn test_execute_update_pool_validates_b_stop_rate() {
         let e = Env::default();
         e.mock_all_auths();
         let pool = testutils::create_pool(&e);
 
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -320,7 +344,49 @@ mod tests {
         e.as_contract(&pool, || {
             storage::set_pool_config(&e, &pool_config);
 
-            execute_update_pool(&e, 1_0000000, 4u32);
+            execute_update_pool(&e, 1_0000000, 4u32, 1_0000000);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1201)")]
+    fn test_execute_update_pool_validates_min_collateral() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let pool = testutils::create_pool(&e);
+
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+
+            execute_update_pool(&e, 0_2000000, 4u32, -1);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1201)")]
+    fn test_execute_update_pool_validates_max_positions() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let pool = testutils::create_pool(&e);
+
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+
+            execute_update_pool(&e, 0_2000000, 1 + 2 * MAX_RESERVES, 2_0000000);
         });
     }
 
@@ -350,6 +416,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 6,
             max_positions: 2,
@@ -400,6 +467,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -453,6 +521,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 6,
             max_positions: 2,
@@ -495,6 +564,7 @@ mod tests {
         };
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -674,6 +744,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -751,6 +822,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,
@@ -829,6 +901,7 @@ mod tests {
 
         let pool_config = PoolConfig {
             oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
             max_positions: 2,

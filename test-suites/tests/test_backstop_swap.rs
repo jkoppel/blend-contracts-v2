@@ -424,6 +424,7 @@ fn deploy_v2_pool(
         &oracle_id,
         &0_1000000,
         &4,
+        &0,
     );
     let pool_client = PoolClient::new(&env, &pool_id);
 

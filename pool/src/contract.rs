@@ -30,10 +30,12 @@ pub trait Pool {
     /// ### Arguments
     /// * `backstop_take_rate` - The new take rate for the backstop (7 decimals)
     /// * `max_positions` - The new maximum number of allowed positions for a single user's account
+    /// * `min_collateral` - The new minimum collateral required to open a borrow position,
+    ///                      in the oracles base asset decimals
     ///
     /// ### Panics
     /// If the caller is not the admin
-    fn update_pool(e: Env, backstop_take_rate: u32, max_positions: u32);
+    fn update_pool(e: Env, backstop_take_rate: u32, max_positions: u32, min_collateral: i128);
 
     /// (Admin only) Queues setting data for a reserve in the pool
     ///
@@ -298,6 +300,7 @@ impl PoolContract {
     /// * `oracle` - The contract address of the oracle
     /// * `backstop_take_rate` - The take rate for the backstop (7 decimals)
     /// * `max_positions` - The maximum number of positions a user is permitted to have
+    /// * `min_collateral` - The minimum collateral required to open a borrow position in the oracles base asset
     ///
     /// Pool Factory supplied:
     /// * `backstop_id` - The contract address of the pool's backstop module
@@ -309,6 +312,7 @@ impl PoolContract {
         oracle: Address,
         bstop_rate: u32,
         max_positions: u32,
+        min_collateral: i128,
         backstop_id: Address,
         blnd_id: Address,
     ) {
@@ -321,6 +325,7 @@ impl PoolContract {
             &oracle,
             &bstop_rate,
             &max_positions,
+            &min_collateral,
             &backstop_id,
             &blnd_id,
         );
@@ -340,14 +345,14 @@ impl Pool for PoolContract {
         PoolEvents::set_admin(&e, admin, new_admin);
     }
 
-    fn update_pool(e: Env, backstop_take_rate: u32, max_positions: u32) {
+    fn update_pool(e: Env, backstop_take_rate: u32, max_positions: u32, min_collateral: i128) {
         storage::extend_instance(&e);
         let admin = storage::get_admin(&e);
         admin.require_auth();
 
-        pool::execute_update_pool(&e, backstop_take_rate, max_positions);
+        pool::execute_update_pool(&e, backstop_take_rate, max_positions, min_collateral);
 
-        PoolEvents::update_pool(&e, admin, backstop_take_rate, max_positions);
+        PoolEvents::update_pool(&e, admin, backstop_take_rate, max_positions, min_collateral);
     }
 
     fn queue_set_reserve(e: Env, asset: Address, metadata: ReserveConfig) {

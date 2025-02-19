@@ -183,6 +183,7 @@ mod tests {
         });
         let pool_config = PoolConfig {
             oracle,
+            min_collateral: 1_0000000,
             bstop_rate: 0_2000000,
             status: 0,
             max_positions: 5,

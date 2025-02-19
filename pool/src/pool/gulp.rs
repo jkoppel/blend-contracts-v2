@@ -76,6 +76,7 @@ mod tests {
         e.as_contract(&pool, || {
             let pool_config = PoolConfig {
                 oracle,
+                min_collateral: 1_0000000,
                 bstop_rate: 0_1000000,
                 status: 0,
                 max_positions: 4,
@@ -126,6 +127,7 @@ mod tests {
         e.as_contract(&pool, || {
             let pool_config = PoolConfig {
                 oracle,
+                min_collateral: 1_0000000,
                 bstop_rate: 0_1000000,
                 status: 0,
                 max_positions: 4,
@@ -174,6 +176,7 @@ mod tests {
         e.as_contract(&pool, || {
             let pool_config = PoolConfig {
                 oracle,
+                min_collateral: 1_0000000,
                 bstop_rate: 0_1000000,
                 status: 0,
                 max_positions: 4,
@@ -224,6 +227,7 @@ mod tests {
         e.as_contract(&pool, || {
             let pool_config = PoolConfig {
                 oracle,
+                min_collateral: 1_0000000,
                 bstop_rate: 0_1000000,
                 status: 0,
                 max_positions: 4,

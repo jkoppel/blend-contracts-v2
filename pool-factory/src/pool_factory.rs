@@ -24,6 +24,7 @@ pub trait PoolFactory {
     /// * `oracle` - The oracle address for the pool
     /// * `backstop_take_rate` - The backstop take rate for the pool (7 decimals)
     /// * `max_positions` - The maximum user positions supported by the pool
+    /// * `min_collateral` - The minimum collateral required for a position
     fn deploy(
         e: Env,
         admin: Address,
@@ -32,6 +33,7 @@ pub trait PoolFactory {
         oracle: Address,
         backstop_take_rate: u32,
         max_positions: u32,
+        min_collateral: i128,
     ) -> Address;
 
     /// Checks if contract address was deployed by the factory
@@ -64,6 +66,7 @@ impl PoolFactory for PoolFactoryContract {
         oracle: Address,
         backstop_take_rate: u32,
         max_positions: u32,
+        min_collateral: i128,
     ) -> Address {
         admin.require_auth();
         storage::extend_instance(&e);
@@ -75,8 +78,14 @@ impl PoolFactory for PoolFactoryContract {
         }
 
         // verify max positions is at least 2 and less than 64
-        // pools have a max of 32 reserves, so 64 is the max number of positions
-        if max_positions < 2 || max_positions > 64 {
+        // pools have a max of 50 reserves, so 100 is the max number of positions
+        if max_positions < 2 || max_positions > 100 {
+            panic_with_error!(&e, PoolFactoryError::InvalidPoolInitArgs);
+        }
+
+        // verify max positions is at least 2 and less than 64
+        // pools have a max of 50 reserves, so 100 is the max number of positions
+        if min_collateral < 0 {
             panic_with_error!(&e, PoolFactoryError::InvalidPoolInitArgs);
         }
 
@@ -94,6 +103,7 @@ impl PoolFactory for PoolFactoryContract {
                 oracle,
                 backstop_take_rate,
                 max_positions,
+                min_collateral,
                 pool_init_meta.backstop,
                 pool_init_meta.blnd_id,
             ),

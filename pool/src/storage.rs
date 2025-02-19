@@ -24,7 +24,8 @@ const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER + 20 * ONE_DAY_LEDGERS; // ~
 #[derive(Clone)]
 #[contracttype]
 pub struct PoolConfig {
-    pub oracle: Address,    // the contract address of the oracle
+    pub oracle: Address,      // the contract address of the oracle
+    pub min_collateral: i128, // the minimum amount of collateral required to open a liability position
     pub bstop_rate: u32, // the rate the backstop takes on accrued debt interest, expressed in 7 decimals
     pub status: u32,     // the status of the pool
     pub max_positions: u32, // the maximum number of effective positions (collateral + liabilities) a single user can hold

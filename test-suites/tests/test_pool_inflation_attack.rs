@@ -16,7 +16,7 @@ fn test_pool_inflation_attack() {
     let pippen = Address::generate(&fixture.env);
 
     // create pool with 1 new reserve
-    fixture.create_pool(String::from_str(&fixture.env, "Teapot"), 0, 6);
+    fixture.create_pool(String::from_str(&fixture.env, "Teapot"), 0, 6, 0);
 
     let xlm_config = default_reserve_metadata();
     fixture.create_pool_reserve(0, TokenIndex::XLM, &xlm_config);
