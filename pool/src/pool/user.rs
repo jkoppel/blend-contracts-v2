@@ -108,7 +108,7 @@ impl User {
         // determine amount of funds in underlying that have defaulted
         // and deduct them from the b_rate
         let default_amount = reserve.to_asset_from_d_token(e, amount);
-        let b_rate_loss = default_amount.fixed_div_floor(&e, &reserve.data.b_supply, &SCALAR_12);
+        let b_rate_loss = default_amount.fixed_div_ceil(&e, &reserve.data.b_supply, &SCALAR_12);
         reserve.data.b_rate -= b_rate_loss;
         if reserve.data.b_rate < 0 {
             reserve.data.b_rate = 0;
@@ -627,6 +627,46 @@ mod tests {
             assert_eq!(reserve_0.data.d_supply, d_supply - 100_0000000);
             assert_eq!(reserve_0.total_supply(&e), 0);
             assert_eq!(reserve_0.data.b_rate, 0);
+            assert_eq!(reserve_0.data.b_supply, 750_0000000);
+        });
+    }
+
+    #[test]
+    fn test_default_liabilities_reduces_b_rate_rounds_ceil() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let mut reserve_0 = testutils::default_reserve(&e);
+        reserve_0.data.d_rate = 1_500_000_000_000;
+        reserve_0.data.d_supply = 500_0000000;
+        reserve_0.data.b_rate = 1_250_000_000_000;
+        reserve_0.data.b_supply = 750_0000000;
+
+        let mut user = User {
+            address: samwise.clone(),
+            positions: Positions::env_default(&e),
+        };
+        e.as_contract(&pool, || {
+            assert_eq!(user.get_liabilities(0), 0);
+
+            user.add_liabilities(&e, &mut reserve_0, 20_0000001);
+            assert_eq!(user.get_liabilities(0), 20_0000001);
+
+            let d_supply = reserve_0.data.d_supply;
+            let total_supply = reserve_0.total_supply(&e);
+            let underlying_default_amount = reserve_0.to_asset_from_d_token(&e, 20_0000001);
+            user.default_liabilities(&e, &mut reserve_0, 20_0000001);
+
+            // rounding loss of 1 stroop for resulting total supply
+            assert_eq!(user.get_liabilities(0), 0);
+            assert_eq!(reserve_0.data.d_supply, d_supply - 20_0000001);
+            assert_eq!(
+                reserve_0.total_supply(&e),
+                total_supply - underlying_default_amount - 1
+            );
+            assert_eq!(reserve_0.data.b_rate, 1_209_999_999_733);
             assert_eq!(reserve_0.data.b_supply, 750_0000000);
         });
     }
