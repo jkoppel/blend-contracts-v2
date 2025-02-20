@@ -202,8 +202,12 @@ pub trait Pool {
     /// If the specified conditions are not met for the status to be set
     fn set_status(e: Env, pool_status: u32);
 
-    /// Update the reserve's bToken rate based on the pool's balance. This is useful for tokens where
-    ///  a holder's balance can increase outside of a direct transfer.
+    /// Gulps unaccounted for tokens to the backstop credit so they aren't lost. This is most relevant
+    /// for rebasing tokens where the token balance of the pool can increase without any corresponding
+    /// transfer.
+    ///
+    /// Blend Pools do not support fee-on-transaction tokens, or any tokens in which the pools balance
+    /// can decrease without any corresponding withdraw. Thus, negative token deltas are ignored.
     ///
     /// ### Arguments
     /// * `asset` - The address of the asset to gulp
@@ -487,9 +491,9 @@ impl Pool for PoolContract {
 
     fn gulp(e: Env, asset: Address) -> i128 {
         storage::extend_instance(&e);
-        let (token_delta, new_backstop_credits) = pool::execute_gulp(&e, &asset);
+        let token_delta = pool::execute_gulp(&e, &asset);
 
-        PoolEvents::gulp(&e, asset, token_delta, new_backstop_credits);
+        PoolEvents::gulp(&e, asset, token_delta);
         token_delta
     }
 

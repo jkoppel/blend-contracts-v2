@@ -1,7 +1,13 @@
+use std::fmt::Debug;
+use std::ops::{Add, Sub};
+
 use crate::test_fixture::SCALAR_7;
 use soroban_fixed_point_math::FixedPoint;
 
-pub fn assert_approx_eq_abs(a: i128, b: i128, delta: i128) {
+pub fn assert_approx_eq_abs<T>(a: T, b: T, delta: T)
+where
+    T: PartialOrd + Add<Output = T> + Sub<Output = T> + Copy + Debug,
+{
     assert!(
         a > b - delta && a < b + delta,
         "assertion failed: `(left != right)` \

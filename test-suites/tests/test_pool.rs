@@ -527,6 +527,34 @@ fn test_pool_user() {
     );
     assert_eq!(result, 2940_3117269); // ~ 4.99k / (100k + 4.99k) * 0.12 (xlm eps) * 5d23hr59m in seconds
     assert_eq!(blnd.balance(&sam), sam_blnd_balance + result);
+
+    // Sam sends XLM to the pool
+    let gulp_amount = SCALAR_7;
+    xlm.transfer(&sam, &pool_fixture.pool.address, &gulp_amount);
+
+    // gulp unnaccounted for XLM and verify it is given as backstop credit
+    let pre_gulp_reserve = pool_fixture.pool.get_reserve(&xlm.address);
+    let gulp_result = pool_fixture.pool.gulp(&xlm.address);
+    assert_eq!(fixture.env.auths().len(), 0); // no auth required
+    let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
+    assert_eq!(
+        event,
+        vec![
+            &fixture.env,
+            (
+                pool_fixture.pool.address.clone(),
+                (Symbol::new(&fixture.env, "gulp"), xlm.address.clone()).into_val(&fixture.env),
+                gulp_result.into_val(&fixture.env)
+            )
+        ]
+    );
+    let post_gulp_reserve = pool_fixture.pool.get_reserve(&xlm.address);
+    assert_eq!(post_gulp_reserve.data.b_rate, pre_gulp_reserve.data.b_rate);
+    assert_eq!(
+        post_gulp_reserve.data.backstop_credit,
+        pre_gulp_reserve.data.backstop_credit + gulp_result
+    );
+    assert_eq!(post_gulp_reserve.data.d_rate, pre_gulp_reserve.data.d_rate);
 }
 
 /// Test user exposed functions on the lending pool for basic configuration functionality, auth, and events.

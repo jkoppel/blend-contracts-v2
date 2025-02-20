@@ -72,7 +72,7 @@ impl Reserve {
         reserve.data.d_rate = loan_accrual.fixed_mul_ceil(e, &reserve.data.d_rate, &SCALAR_12);
         let accrued_interest = reserve.total_liabilities(e) - pre_update_liabilities;
 
-        reserve.gulp(e, pool_config.bstop_rate, accrued_interest);
+        reserve.accrue(e, pool_config.bstop_rate, accrued_interest);
 
         reserve.data.last_time = e.ledger().timestamp();
         reserve
@@ -83,12 +83,12 @@ impl Reserve {
         storage::set_res_data(e, &self.asset, &self.data);
     }
 
-    /// Accrue tokens to the backstop credit. This issues any `backstop_credit` required and updates the reserve's bRate to account for the additional tokens.
+    /// Accrue tokens to the reserve supply. This issues any `backstop_credit` required and updates the reserve's bRate to account for the additional tokens.
     ///
     /// ### Arguments
     /// * bstop_rate - The backstop take rate for the pool
     /// * accrued - The amount of additional underlying tokens
-    pub fn gulp(&mut self, e: &Env, bstop_rate: u32, accrued: i128) {
+    fn accrue(&mut self, e: &Env, bstop_rate: u32, accrued: i128) {
         let pre_update_supply = self.total_supply(e);
 
         if accrued > 0 {
@@ -745,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn test_gulp() {
+    fn test_accrue() {
         let e = Env::default();
         e.mock_all_auths();
 
@@ -763,14 +763,14 @@ mod tests {
         let mut reserve = testutils::default_reserve(&e);
         reserve.data.backstop_credit = 0_1234567;
 
-        reserve.gulp(&e, 0_2000000, 100_0000000);
+        reserve.accrue(&e, 0_2000000, 100_0000000);
         assert_eq!(reserve.data.backstop_credit, 20_0000000 + 0_1234567);
         assert_eq!(reserve.data.b_rate, 1_800_000_000_000);
         assert_eq!(reserve.data.last_time, 0);
     }
 
     #[test]
-    fn test_gulp_negative_delta_no_change() {
+    fn test_accrue_negative_delta_no_change() {
         let e = Env::default();
         e.mock_all_auths();
 
@@ -788,7 +788,7 @@ mod tests {
         let mut reserve = testutils::default_reserve(&e);
         reserve.data.backstop_credit = 0_1234567;
 
-        reserve.gulp(&e, 0_2000000, -10_0000000);
+        reserve.accrue(&e, 0_2000000, -10_0000000);
         assert_eq!(reserve.data.backstop_credit, 0_1234567);
         assert_eq!(reserve.data.b_rate, 1_000_000_000_000);
         assert_eq!(reserve.data.last_time, 0);

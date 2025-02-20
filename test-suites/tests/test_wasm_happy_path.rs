@@ -563,7 +563,7 @@ fn test_wasm_happy_path() {
     let expected_gulp_amount = 100 * SCALAR_7;
     stable.mint(&pool_fixture.pool.address, &expected_gulp_amount);
     let gulp_amount = pool_fixture.pool.gulp(&stable.address);
-    assert_eq!(gulp_amount, expected_gulp_amount + 3); // 3 stroops from rounding loss
+    assert_eq!(gulp_amount, expected_gulp_amount + 2); // 2 stroops from rounding loss
     pool_stable_balance += expected_gulp_amount; // rounding loss does not effect the b_rate
 
     // Merry withdraws all of his STABLE
