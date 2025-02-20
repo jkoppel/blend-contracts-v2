@@ -65,10 +65,14 @@ pub fn execute_claim(e: &Env, from: &Address, reserve_token_ids: &Vec<u32>, to: 
 /// Update the emissions information about a reserve token. Must be called before any update
 /// is made to the supply of debtTokens or blendTokens.
 ///
+/// A reserve token id is a unique identifiers for a position in a pool.
+/// - For a reserve's dTokens (liabilities), reserve_token_id = reserve_index * 2
+/// - For a reserve's bTokens (supply/collateral), reserve_token_id = reserve_index * 2 + 1
+///
 /// Returns the amount of tokens to claim, or zero if 'claim' is false
 ///
 /// ### Arguments
-/// * `res_token_id` - The reserve token being acted against => (reserve index * 2 + (0 for debtToken or 1 for blendToken))
+/// * `res_token_id` - The reserve token id being acted against
 /// * `supply` - The current supply of the reserve token
 /// * `supply_scalar` - The scalar of the reserve token
 /// * `user` - The user performing an action against the reserve

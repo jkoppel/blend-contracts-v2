@@ -231,7 +231,11 @@ pub trait Pool {
     /// * If the sum of ReserveEmissionMetadata shares is greater than 1
     fn set_emissions_config(e: Env, res_emission_metadata: Vec<ReserveEmissionMetadata>);
 
-    /// Claims outstanding emissions for the caller for the given reserve's
+    /// Claims outstanding emissions for the caller for the given reserve's.
+    ///
+    /// A reserve token id is a unique identifiers for a position in a pool.
+    /// - For a reserve's dTokens (liabilities), reserve_token_id = reserve_index * 2
+    /// - For a reserve's bTokens (supply/collateral), reserve_token_id = reserve_index * 2 + 1
     ///
     /// Returns the number of tokens claimed
     ///
@@ -243,17 +247,23 @@ pub trait Pool {
 
     /// Get the emissions data for a reserve token
     ///
+    /// A reserve token id is a unique identifiers for a position in a pool.
+    /// - For a reserve's dTokens (liabilities), reserve_token_id = reserve_index * 2
+    /// - For a reserve's bTokens (supply/collateral), reserve_token_id = reserve_index * 2 + 1
+    ///
     /// ### Arguments
-    /// * `reserve_token_id` - The reserve token id. This is a unique identifier for the type of position in a pool. For
-    ///                        dTokens, a reserve token id (reserve_index * 2). For bTokens, a reserve token id (reserve_index * 2) + 1.
+    /// * `reserve_token_id` - The reserve token id
     fn get_reserve_emissions(e: Env, reserve_token_id: u32) -> Option<ReserveEmissionData>;
 
     /// Get the emissions data for a user
     ///
+    /// A reserve token id is a unique identifiers for a position in a pool.
+    /// - For a reserve's dTokens (liabilities), reserve_token_id = reserve_index * 2
+    /// - For a reserve's bTokens (supply/collateral), reserve_token_id = reserve_index * 2 + 1
+    ///
     /// ### Arguments
     /// * `user` - The address of the user
-    /// * `reserve_token_id` - The reserve token id. This is a unique identifier for the type of position in a pool. For
-    ///                        dTokens, a reserve token id (reserve_index * 2). For bTokens, a reserve token id (reserve_index * 2) + 1.
+    /// * `reserve_token_id` - The reserve token id
     fn get_user_emissions(e: Env, user: Address, reserve_token_id: u32)
         -> Option<UserEmissionData>;
 
