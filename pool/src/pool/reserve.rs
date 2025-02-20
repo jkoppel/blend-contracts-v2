@@ -83,7 +83,7 @@ impl Reserve {
         storage::set_res_data(e, &self.asset, &self.data);
     }
 
-    /// Accrue tokens to the reserve supply. This issues any `backstop_credit` required and updates the reserve's bRate to account for the additional tokens.
+    /// Accrue tokens to the backstop credit. This issues any `backstop_credit` required and updates the reserve's bRate to account for the additional tokens.
     ///
     /// ### Arguments
     /// * bstop_rate - The backstop take rate for the pool

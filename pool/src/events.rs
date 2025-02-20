@@ -306,15 +306,16 @@ impl PoolEvents {
     /// Emitted when a reserve updates its bToken rate
     ///
     /// - topics - `["gulp", asset: Address]`
-    /// - data - `[token_delta: i128, new_b_rate: i128]`
+    /// - data - `[token_delta: i128, new_backstop_credits: i128]`
     ///
     /// ### Arguments
     /// * asset - The asset
     /// * token_delta - The change in token balance
-    /// * new_b_rate - The new b rate
-    pub fn gulp(e: &Env, asset: Address, token_delta: i128, new_b_rate: i128) {
+    /// * new_backstop_credits - The new backstop credits
+    pub fn gulp(e: &Env, asset: Address, token_delta: i128, new_backstop_credits: i128) {
         let topics = (Symbol::new(e, "gulp"), asset);
-        e.events().publish(topics, (token_delta, new_b_rate));
+        e.events()
+            .publish(topics, (token_delta, new_backstop_credits));
     }
 
     /// Emitted when a new auction is created

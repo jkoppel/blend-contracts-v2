@@ -487,9 +487,9 @@ impl Pool for PoolContract {
 
     fn gulp(e: Env, asset: Address) -> i128 {
         storage::extend_instance(&e);
-        let (token_delta, b_rate) = pool::execute_gulp(&e, &asset);
+        let (token_delta, new_backstop_credits) = pool::execute_gulp(&e, &asset);
 
-        PoolEvents::gulp(&e, asset, token_delta, b_rate);
+        PoolEvents::gulp(&e, asset, token_delta, new_backstop_credits);
         token_delta
     }
 
