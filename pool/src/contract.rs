@@ -233,7 +233,7 @@ pub trait Pool {
 
     /// Claims outstanding emissions for the caller for the given reserve's.
     ///
-    /// A reserve token id is a unique identifiers for a position in a pool.
+    /// A reserve token id is a unique identifier for a position in a pool.
     /// - For a reserve's dTokens (liabilities), reserve_token_id = reserve_index * 2
     /// - For a reserve's bTokens (supply/collateral), reserve_token_id = reserve_index * 2 + 1
     ///
@@ -247,7 +247,7 @@ pub trait Pool {
 
     /// Get the emissions data for a reserve token
     ///
-    /// A reserve token id is a unique identifiers for a position in a pool.
+    /// A reserve token id is a unique identifier for a position in a pool.
     /// - For a reserve's dTokens (liabilities), reserve_token_id = reserve_index * 2
     /// - For a reserve's bTokens (supply/collateral), reserve_token_id = reserve_index * 2 + 1
     ///
@@ -257,7 +257,7 @@ pub trait Pool {
 
     /// Get the emissions data for a user
     ///
-    /// A reserve token id is a unique identifiers for a position in a pool.
+    /// A reserve token id is a unique identifier for a position in a pool.
     /// - For a reserve's dTokens (liabilities), reserve_token_id = reserve_index * 2
     /// - For a reserve's bTokens (supply/collateral), reserve_token_id = reserve_index * 2 + 1
     ///
