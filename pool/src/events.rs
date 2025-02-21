@@ -303,18 +303,17 @@ impl PoolEvents {
         e.events().publish(topics, (tokens_out, d_tokens_minted));
     }
 
-    /// Emitted when a reserve updates its bToken rate
+    /// Emitted when a reserve gulps excess tokens
     ///
     /// - topics - `["gulp", asset: Address]`
-    /// - data - `[token_delta: i128, new_b_rate: i128]`
+    /// - data - `[token_delta: i128]`
     ///
     /// ### Arguments
     /// * asset - The asset
-    /// * token_delta - The change in token balance
-    /// * new_b_rate - The new b rate
-    pub fn gulp(e: &Env, asset: Address, token_delta: i128, new_b_rate: i128) {
+    /// * token_delta - The number of tokens gulped
+    pub fn gulp(e: &Env, asset: Address, token_delta: i128) {
         let topics = (Symbol::new(e, "gulp"), asset);
-        e.events().publish(topics, (token_delta, new_b_rate));
+        e.events().publish(topics, token_delta);
     }
 
     /// Emitted when a new auction is created

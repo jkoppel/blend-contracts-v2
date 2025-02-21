@@ -5,31 +5,29 @@ use crate::storage;
 
 use super::Reserve;
 
-/// Updates the reserve's B token supply to match the pool's asset balance
+/// Gulps the excess tokens in the pool, determined by the difference between the pool token balance
+/// and the reserve total supply, backstop credit, and liabiltiies.
 ///
 /// ### Arguments
 /// * `asset` - The address of the asset to gulp
 ///
 /// ### Returns
-/// * (i128, i128) - The token delta in the pool's asset balance and the reserve's B token supply, the new b rate
-pub fn execute_gulp(e: &Env, asset: &Address) -> (i128, i128) {
+/// * The gulped token delta accrued to the backstop credit
+pub fn execute_gulp(e: &Env, asset: &Address) -> i128 {
     let pool_config = storage::get_pool_config(e);
     let mut reserve = Reserve::load(e, &pool_config, asset);
     let pool_token_balance = TokenClient::new(e, asset).balance(&e.current_contract_address());
     let reserve_token_balance =
         reserve.total_supply(e) + reserve.data.backstop_credit - reserve.total_liabilities(e);
     let token_balance_delta = pool_token_balance - reserve_token_balance;
-
-    let pre_gulp_b_rate = reserve.data.b_rate;
-    reserve.gulp(e, pool_config.bstop_rate, token_balance_delta);
-
-    // If the reserve's b_rate hasn't changed the token delta is not significant
-    if pre_gulp_b_rate == reserve.data.b_rate {
-        return (0, pre_gulp_b_rate);
+    if token_balance_delta <= 0 {
+        return 0;
     }
 
+    reserve.data.backstop_credit += token_balance_delta;
+
     reserve.store(e);
-    return (token_balance_delta, reserve.data.b_rate);
+    return token_balance_delta;
 }
 
 #[cfg(test)]
@@ -61,13 +59,14 @@ mod tests {
         let pool = testutils::create_pool(&e);
         let (oracle, _) = testutils::create_mock_oracle(&e);
 
+        let initial_backstop_credit = 500;
         let (underlying, underlying_client) = testutils::create_token_contract(&e, &bombadil);
         let (reserve_config, mut reserve_data) = testutils::default_reserve_meta();
         reserve_data.b_rate = 1_000_000_000_000;
         reserve_data.d_rate = 1_000_000_000_000;
         reserve_data.d_supply = 500 * SCALAR_7;
         reserve_data.b_supply = 1000 * SCALAR_7;
-        reserve_data.backstop_credit = 0;
+        reserve_data.backstop_credit = initial_backstop_credit;
         reserve_data.last_time = 100;
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
@@ -83,19 +82,20 @@ mod tests {
             };
             storage::set_pool_config(&e, &pool_config);
 
-            let (token_delta_result, new_b_rate) = execute_gulp(&e, &underlying);
+            let token_delta_result = execute_gulp(&e, &underlying);
             assert_eq!(token_delta_result, additional_tokens);
-            assert_eq!(new_b_rate, 1_009_000_000_000);
 
             let new_reserve_data = storage::get_res_data(&e, &underlying);
-            assert_eq!(new_reserve_data.b_rate, new_b_rate);
             assert_eq!(new_reserve_data.last_time, 100);
-            assert_eq!(new_reserve_data.backstop_credit, 1_0000000);
+            assert_eq!(
+                new_reserve_data.backstop_credit,
+                additional_tokens + initial_backstop_credit
+            );
         });
     }
 
     #[test]
-    fn test_execute_gulp_accrues_interest() {
+    fn test_execute_gulp_accrues_interest_before_gulp() {
         let e = Env::default();
         e.mock_all_auths();
         e.ledger().set(LedgerInfo {
@@ -112,13 +112,14 @@ mod tests {
         let pool = testutils::create_pool(&e);
         let (oracle, _) = testutils::create_mock_oracle(&e);
 
+        let initial_backstop_credit = 500;
         let (underlying, underlying_client) = testutils::create_token_contract(&e, &bombadil);
         let (reserve_config, mut reserve_data) = testutils::default_reserve_meta();
         reserve_data.b_rate = 1_000_000_000_000;
         reserve_data.d_rate = 1_000_000_000_000;
         reserve_data.d_supply = 500 * SCALAR_7;
         reserve_data.b_supply = 1000 * SCALAR_7;
-        reserve_data.backstop_credit = 0;
+        reserve_data.backstop_credit = initial_backstop_credit;
         reserve_data.last_time = 0;
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
@@ -134,14 +135,17 @@ mod tests {
             };
             storage::set_pool_config(&e, &pool_config);
 
-            let (token_delta_result, new_b_rate) = execute_gulp(&e, &underlying);
+            let token_delta_result = execute_gulp(&e, &underlying);
             assert_eq!(token_delta_result, additional_tokens);
-            assert_eq!(new_b_rate, 1_009_000_062_000);
 
             let new_reserve_data = storage::get_res_data(&e, &underlying);
-            assert_eq!(new_reserve_data.b_rate, new_b_rate);
+            assert_eq!(new_reserve_data.b_rate, 1_000_000_000_000 + 62000);
             assert_eq!(new_reserve_data.last_time, 100);
-            assert_eq!(new_reserve_data.backstop_credit, 1_0000000 + 68);
+            // 68 is the backstop credit due to the interest accrued
+            assert_eq!(
+                new_reserve_data.backstop_credit,
+                additional_tokens + initial_backstop_credit + 68
+            );
         });
     }
 
@@ -183,9 +187,8 @@ mod tests {
             };
             storage::set_pool_config(&e, &pool_config);
 
-            let (token_delta_result, new_b_rate) = execute_gulp(&e, &underlying);
+            let token_delta_result = execute_gulp(&e, &underlying);
             assert_eq!(token_delta_result, 0);
-            assert_eq!(new_b_rate, 1_000_000_062_000);
 
             // data not set
             let new_reserve_data = storage::get_res_data(&e, &underlying);
@@ -196,9 +199,8 @@ mod tests {
     }
 
     #[test]
-    fn test_execute_gulp_requires_b_rate_change() {
+    fn test_execute_gulp_negative_delta_skips() {
         let e = Env::default();
-        e.cost_estimate().budget().reset_unlimited();
         e.mock_all_auths_allowing_non_root_auth();
         e.ledger().set(LedgerInfo {
             timestamp: 100,
@@ -216,14 +218,15 @@ mod tests {
 
         let (underlying, underlying_client) = testutils::create_token_contract(&e, &bombadil);
         let (reserve_config, mut reserve_data) = testutils::default_reserve_meta();
-        reserve_data.b_rate = 1_623_456_890_000;
-        reserve_data.d_rate = 1_323_456_890_000;
-        reserve_data.d_supply = 990_711 * SCALAR_7;
-        reserve_data.b_supply = 123_493_400 * SCALAR_7;
+        reserve_data.b_rate = 1_000_000_000_000;
+        reserve_data.d_rate = 1_000_000_000_000;
+        reserve_data.d_supply = 500 * SCALAR_7;
+        reserve_data.b_supply = 1000 * SCALAR_7;
+        reserve_data.backstop_credit = 0;
         reserve_data.last_time = 0;
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
-        underlying_client.mint(&pool, &1000);
+        underlying_client.burn(&pool, &SCALAR_7);
         e.as_contract(&pool, || {
             let pool_config = PoolConfig {
                 oracle,
@@ -234,14 +237,14 @@ mod tests {
             };
             storage::set_pool_config(&e, &pool_config);
 
-            let (token_delta_result, new_b_rate) = execute_gulp(&e, &underlying);
+            let token_delta_result = execute_gulp(&e, &underlying);
             assert_eq!(token_delta_result, 0);
-            assert_eq!(new_b_rate, 1_623_456_890_316); // from interest
-                                                       // validate not stored
+
+            // data not set
             let new_reserve_data = storage::get_res_data(&e, &underlying);
-            assert_eq!(new_reserve_data.backstop_credit, 0);
-            assert_eq!(new_reserve_data.b_rate, reserve_data.b_rate);
+            assert_eq!(new_reserve_data.b_rate, 1_000_000_000_000);
             assert_eq!(new_reserve_data.last_time, 0);
+            assert_eq!(new_reserve_data.backstop_credit, 0);
         });
     }
 }

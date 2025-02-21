@@ -202,6 +202,7 @@ fn test_wasm_happy_path() {
     );
 
     // Let three days pass
+    pool_fixture.pool.gulp(&stable.address);
     fixture.jump(60 * 60 * 24 * 3);
 
     // Claim 3 day emissions
@@ -415,11 +416,15 @@ fn test_wasm_happy_path() {
     );
 
     // Let 51 weeks go by and call update to validate emissions won't get missed
+    pool_fixture.pool.gulp(&stable.address);
+
     fixture.jump(60 * 60 * 24 * 7 * 51);
     fixture.emitter.distribute();
     fixture.backstop.distribute();
     pool_fixture.pool.gulp_emissions();
     // Allow another week go by to distribute missed emissions
+    pool_fixture.pool.gulp(&stable.address);
+
     fixture.jump(60 * 60 * 24 * 7);
     fixture.emitter.distribute();
     fixture.backstop.distribute();
@@ -558,7 +563,7 @@ fn test_wasm_happy_path() {
     let expected_gulp_amount = 100 * SCALAR_7;
     stable.mint(&pool_fixture.pool.address, &expected_gulp_amount);
     let gulp_amount = pool_fixture.pool.gulp(&stable.address);
-    assert_eq!(gulp_amount, expected_gulp_amount + 4); // 4 stroops from rounding loss
+    assert_eq!(gulp_amount, expected_gulp_amount + 2); // 2 stroops from rounding loss
     pool_stable_balance += expected_gulp_amount; // rounding loss does not effect the b_rate
 
     // Merry withdraws all of his STABLE
@@ -611,6 +616,8 @@ fn test_wasm_happy_path() {
     );
 
     // Time passes and Frodo withdraws his queued for withdrawal backstop deposit
+    pool_fixture.pool.gulp(&stable.address);
+
     fixture.jump(60 * 60 * 24 * 17 + 1);
     let result = fixture
         .backstop
