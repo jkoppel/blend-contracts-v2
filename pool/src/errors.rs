@@ -18,7 +18,7 @@ pub enum PoolError {
 
     // Pool Request Errors (start at 1200)
     BadRequest = 1200,
-    InvalidPoolInitArgs = 1201,
+    InvalidPoolConfigArgs = 1201,
     InvalidReserveMetadata = 1202,
     InitNotUnlocked = 1203,
     StatusNotAllowed = 1204,
@@ -51,4 +51,5 @@ pub enum PoolError {
     InvalidBid = 1221,
     InvalidLot = 1222,
     ReserveDisabled = 1223,
+    MinCollateralNotMet = 1224,
 }

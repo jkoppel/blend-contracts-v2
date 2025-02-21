@@ -31,6 +31,7 @@ pub(crate) fn create_pool(e: &Env) -> Address {
             Address::generate(e),
             0_1000000u32,
             4u32,
+            1_0000000i128,
             Address::generate(e),
             Address::generate(e),
         ),

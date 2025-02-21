@@ -173,7 +173,13 @@ impl TestFixture<'_> {
         fixture
     }
 
-    pub fn create_pool(&mut self, name: String, backstop_take_rate: u32, max_positions: u32) {
+    pub fn create_pool(
+        &mut self,
+        name: String,
+        backstop_take_rate: u32,
+        max_positions: u32,
+        min_collateral: i128,
+    ) {
         let pool_id = self.pool_factory.deploy(
             &self.bombadil,
             &name,
@@ -181,6 +187,7 @@ impl TestFixture<'_> {
             &self.oracle.address,
             &backstop_take_rate,
             &max_positions,
+            &min_collateral,
         );
         self.pools.push(PoolFixture {
             pool: PoolClient::new(&self.env, &pool_id),

@@ -21,16 +21,22 @@ impl PoolEvents {
     /// Emitted when pool parameters are updated
     ///
     /// - topics - `["update_pool", admin: Address]`
-    /// - data - `[backstop_take_rate: u32, max_positions: u32]`
+    /// - data - `[backstop_take_rate: u32, max_positions: u32, min_collateral: i128]`
     ///
     /// ### Arguments
     /// * admin - The current admin of the pool
     /// * backstop_take_rate - The new backstop take rate
     /// * max_positions - The new maximum number of positions
-    pub fn update_pool(e: &Env, admin: Address, backstop_take_rate: u32, max_positions: u32) {
+    pub fn update_pool(
+        e: &Env,
+        admin: Address,
+        backstop_take_rate: u32,
+        max_positions: u32,
+        min_collateral: i128,
+    ) {
         let topics = (Symbol::new(&e, "update_pool"), admin);
         e.events()
-            .publish(topics, (backstop_take_rate, max_positions));
+            .publish(topics, (backstop_take_rate, max_positions, min_collateral));
     }
 
     /// Emitted when a new reserve configuration change is queued

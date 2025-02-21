@@ -20,6 +20,8 @@ pub trait MockPoolFactoryTrait {
     /// * `name` - The name of the pool
     /// * `oracle` - The oracle address for the pool
     /// * `backstop_take_rate` - The backstop take rate for the pool (7 decimals)
+    /// * `max_positions` - The maximum user positions supported by the pool
+    /// * `min_collateral` - The minimum collateral required for a position
     fn deploy(
         e: Env,
         admin: Address,
@@ -28,6 +30,7 @@ pub trait MockPoolFactoryTrait {
         oracle: Address,
         backstop_take_rate: u32,
         max_positions: u32,
+        min_collateral: i128,
     ) -> Address;
 
     /// Checks if contract address was deployed by the factory
@@ -66,6 +69,7 @@ impl MockPoolFactoryTrait for MockPoolFactory {
         oracle: Address,
         backstop_take_rate: u32,
         max_positions: u32,
+        min_collateral: i128,
     ) -> Address {
         storage::extend_instance(&e);
         admin.require_auth();
@@ -86,6 +90,7 @@ impl MockPoolFactoryTrait for MockPoolFactory {
                 oracle,
                 backstop_take_rate,
                 max_positions,
+                min_collateral,
                 pool_init_meta.backstop,
                 pool_init_meta.blnd_id,
             ),
