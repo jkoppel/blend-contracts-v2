@@ -241,6 +241,9 @@ pub fn set_user_balance(e: &Env, pool: &Address, user: &Address, balance: &UserB
     e.storage()
         .persistent()
         .set::<BackstopDataKey, UserBalance>(&key, balance);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }
 
 /********** Pool Balance **********/
@@ -472,6 +475,9 @@ pub fn set_backstop_emis_data(e: &Env, pool: &Address, backstop_emis_data: &Back
     e.storage()
         .persistent()
         .set::<BackstopDataKey, BackstopEmissionData>(&key, backstop_emis_data);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD_SHARED, LEDGER_BUMP_SHARED);
 }
 
 /// Get the user's backstop emissions data
@@ -506,6 +512,9 @@ pub fn set_user_emis_data(
     e.storage()
         .persistent()
         .set::<BackstopDataKey, UserEmissionData>(&key, user_emis_data);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }
 
 /********** Drop Emissions **********/

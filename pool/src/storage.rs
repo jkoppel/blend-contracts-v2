@@ -533,7 +533,10 @@ pub fn set_user_emissions(e: &Env, user: &Address, res_token_index: &u32, data: 
     });
     e.storage()
         .persistent()
-        .set::<PoolDataKey, UserEmissionData>(&key, data)
+        .set::<PoolDataKey, UserEmissionData>(&key, data);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }
 
 /********** Pool Emissions **********/
