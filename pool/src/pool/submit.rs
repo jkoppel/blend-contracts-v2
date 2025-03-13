@@ -8,7 +8,7 @@ use super::{
     actions::{build_actions_from_request, Actions, Request},
     health_factor::PositionData,
     pool::Pool,
-    FlashLoan, Positions, User,
+    FlashLoan, Positions, RequestType, User,
 };
 
 /// Execute a set of updates for a user against the pool.
@@ -83,10 +83,13 @@ pub fn execute_submit_with_flash_loan(
     // note: we add the flash loan liabilities before processing the other
     // requests.
     {
+        pool.require_action_allowed(e, RequestType::Borrow as u32);
         let mut reserve = pool.load_reserve(e, &flash_loan.asset, true);
         let d_tokens_minted = reserve.to_d_token_up(e, flash_loan.amount);
         from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
         reserve.require_utilization_below_max(e);
+
+        pool.cache_reserve(reserve);
 
         PoolEvents::flash_loan(
             e,
@@ -295,16 +298,19 @@ mod tests {
             let pre_pool_balance_0 = underlying_0_client.balance(&pool);
             let pre_pool_balance_1 = underlying_1_client.balance(&pool);
 
+            let pre_res_0_data = storage::get_res_data(&e, &underlying_0);
+            let pre_res_1_data = storage::get_res_data(&e, &underlying_1);
+
             let requests = vec![
                 &e,
                 Request {
                     request_type: RequestType::SupplyCollateral as u32,
-                    address: underlying_0,
+                    address: underlying_0.clone(),
                     amount: 15_0000000,
                 },
                 Request {
                     request_type: RequestType::Borrow as u32,
-                    address: underlying_1,
+                    address: underlying_1.clone(),
                     amount: 1_5000000,
                 },
             ];
@@ -313,8 +319,22 @@ mod tests {
             assert_eq!(positions.liabilities.len(), 1);
             assert_eq!(positions.collateral.len(), 1);
             assert_eq!(positions.supply.len(), 0);
-            assert_eq!(positions.collateral.get_unchecked(0), 14_9999884);
-            assert_eq!(positions.liabilities.get_unchecked(1), 1_4999983);
+            let b_tokens_minted = positions.collateral.get_unchecked(0);
+            assert_eq!(b_tokens_minted, 14_9999884);
+            let d_tokens_minted = positions.liabilities.get_unchecked(1);
+            assert_eq!(d_tokens_minted, 1_4999983);
+
+            let reserve_0 = storage::get_res_data(&e, &underlying_0);
+            assert_eq!(
+                reserve_0.b_supply,
+                pre_res_0_data.b_supply + b_tokens_minted
+            );
+
+            let reserve_1 = storage::get_res_data(&e, &underlying_1);
+            assert_eq!(
+                reserve_1.d_supply,
+                pre_res_1_data.d_supply + d_tokens_minted
+            );
 
             assert_eq!(
                 underlying_0_client.balance(&pool),
@@ -391,6 +411,9 @@ mod tests {
             let pre_pool_balance_0 = underlying_0_client.balance(&pool);
             let pre_pool_balance_1 = underlying_1_client.balance(&pool);
 
+            let pre_res_0_data = storage::get_res_data(&e, &underlying_0);
+            let pre_res_1_data = storage::get_res_data(&e, &underlying_1);
+
             let requests = vec![
                 &e,
                 Request {
@@ -400,7 +423,7 @@ mod tests {
                 },
                 Request {
                     request_type: RequestType::Borrow as u32,
-                    address: underlying_1,
+                    address: underlying_1.clone(),
                     amount: 1_5000000,
                 },
             ];
@@ -412,8 +435,22 @@ mod tests {
             assert_eq!(positions.liabilities.len(), 1);
             assert_eq!(positions.collateral.len(), 1);
             assert_eq!(positions.supply.len(), 0);
-            assert_eq!(positions.collateral.get_unchecked(0), 14_9999884);
-            assert_eq!(positions.liabilities.get_unchecked(1), 1_4999983);
+            let b_tokens_minted = positions.collateral.get_unchecked(0);
+            assert_eq!(b_tokens_minted, 14_9999884);
+            let d_tokens_minted = positions.liabilities.get_unchecked(1);
+            assert_eq!(d_tokens_minted, 1_4999983);
+
+            let reserve_0 = storage::get_res_data(&e, &underlying_0);
+            assert_eq!(
+                reserve_0.b_supply,
+                pre_res_0_data.b_supply + b_tokens_minted
+            );
+
+            let reserve_1 = storage::get_res_data(&e, &underlying_1);
+            assert_eq!(
+                reserve_1.d_supply,
+                pre_res_1_data.d_supply + d_tokens_minted
+            );
 
             assert_eq!(
                 underlying_0_client.balance(&pool),
@@ -1534,11 +1571,14 @@ mod tests {
             let pre_pool_balance_0 = underlying_0_client.balance(&pool);
             let pre_pool_balance_1 = underlying_1_client.balance(&pool);
 
+            let pre_res_0_data = storage::get_res_data(&e, &underlying_0);
+            let pre_res_1_data = storage::get_res_data(&e, &underlying_1);
+
             // pool has 100 supplied and 50 borrowed for asset_0
             // -> max util is 95%
             let flash_loan: FlashLoan = FlashLoan {
                 contract: flash_loan_receiver,
-                asset: underlying_0,
+                asset: underlying_0.clone(),
                 amount: 25_0000000,
             };
 
@@ -1546,7 +1586,7 @@ mod tests {
                 &e,
                 Request {
                     request_type: RequestType::SupplyCollateral as u32,
-                    address: underlying_1,
+                    address: underlying_1.clone(),
                     amount: 25_0000000,
                 },
             ];
@@ -1555,9 +1595,23 @@ mod tests {
             assert_eq!(positions.liabilities.len(), 1);
             assert_eq!(positions.collateral.len(), 1);
             assert_eq!(positions.supply.len(), 0);
-            assert_eq!(positions.collateral.get_unchecked(1), 249999807);
+            let b_tokens_minted = positions.collateral.get_unchecked(1);
+            assert_eq!(b_tokens_minted, 249999807);
             // actual is 24.999979375 - rounds up
-            assert_eq!(positions.liabilities.get_unchecked(0), 249999794);
+            let d_tokens_minted = positions.liabilities.get_unchecked(0);
+            assert_eq!(d_tokens_minted, 249999794);
+
+            let reserve_0 = storage::get_res_data(&e, &underlying_0);
+            assert_eq!(
+                reserve_0.d_supply,
+                pre_res_0_data.d_supply + d_tokens_minted
+            );
+
+            let reserve_1 = storage::get_res_data(&e, &underlying_1);
+            assert_eq!(
+                reserve_1.b_supply,
+                pre_res_1_data.b_supply + b_tokens_minted
+            );
 
             assert_eq!(
                 underlying_0_client.balance(&pool),
@@ -1643,6 +1697,8 @@ mod tests {
             let pre_pool_balance_0 = underlying_0_client.balance(&pool);
             let pre_pool_balance_1 = underlying_1_client.balance(&pool);
 
+            let pre_res_0_data = storage::get_res_data(&e, &underlying_0);
+
             // pool has 100 supplied and 50 borrowed for asset_0
             // -> max util is 95%
             let flash_loan: FlashLoan = FlashLoan {
@@ -1655,7 +1711,7 @@ mod tests {
                 &e,
                 Request {
                     request_type: RequestType::Repay as u32,
-                    address: underlying_0,
+                    address: underlying_0.clone(),
                     amount: 25_0000010,
                 },
             ];
@@ -1664,6 +1720,9 @@ mod tests {
             assert_eq!(positions.liabilities.len(), 0);
             assert_eq!(positions.collateral.len(), 0);
             assert_eq!(positions.supply.len(), 0);
+
+            let reserve_0 = storage::get_res_data(&e, &underlying_0);
+            assert_eq!(reserve_0.d_supply, pre_res_0_data.d_supply);
 
             assert_eq!(underlying_0_client.balance(&pool), pre_pool_balance_0 + 1,);
             assert_eq!(underlying_1_client.balance(&pool), pre_pool_balance_1,);
@@ -2206,6 +2265,88 @@ mod tests {
                     request_type: RequestType::Repay as u32,
                     address: underlying_1,
                     amount: 4_9900000,
+                },
+            ];
+            execute_submit_with_flash_loan(&e, &samwise, flash_loan, requests);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1206)")]
+    fn test_submit_with_flash_loan_checks_pool_status() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let (oracle, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (flash_loan_receiver, _) = testutils::create_flashloan_receiver(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config, mut reserve_data) = testutils::default_reserve_meta();
+        reserve_config.max_util = 9500000;
+        reserve_data.b_supply = 100_0000000;
+        reserve_data.d_supply = 50_0000000;
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+
+        let (underlying_1, underlying_1_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 1_0000000, 5_0000000]);
+
+        let pool_config = PoolConfig {
+            oracle,
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 2,
+            max_positions: 4,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+
+            underlying_1_client.mint(&samwise, &25_0000000);
+            underlying_1_client.approve(&samwise, &pool, &100_0000000, &10000);
+
+            // pool has 100 supplied and 50 borrowed for asset_0
+            // -> max util is 95%
+            let flash_loan: FlashLoan = FlashLoan {
+                contract: flash_loan_receiver,
+                asset: underlying_0,
+                amount: 25_0000000,
+            };
+
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::SupplyCollateral as u32,
+                    address: underlying_1,
+                    amount: 25_0000000,
                 },
             ];
             execute_submit_with_flash_loan(&e, &samwise, flash_loan, requests);
