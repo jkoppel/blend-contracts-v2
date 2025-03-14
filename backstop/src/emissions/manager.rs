@@ -93,9 +93,11 @@ pub fn distribute(e: &Env) -> i128 {
         match EmitterClient::new(&e, &emitter).try_get_last_distro(&e.current_contract_address()) {
             Ok(distro) => {
                 is_backfill = false;
-                if last_backfill_status.is_some_and(|status| status) {
+                if last_backfill_status != Some(false) {
+                    // first time the backstop has gotten a distro time from the emitter
+                    // reset last distribution time if we were backfilling previously
+                    needs_reset = last_backfill_status == Some(true);
                     storage::set_backfill_status(e, &false);
-                    needs_reset = true;
                 }
                 distro.unwrap_optimized()
             }
@@ -103,7 +105,12 @@ pub fn distribute(e: &Env) -> i128 {
             Err(_) => {
                 is_backfill = true;
                 if last_backfill_status.is_none() {
+                    // first time calling with backfill emissions
                     storage::set_backfill_status(e, &true);
+                } else if last_backfill_status == Some(false) {
+                    // backfilling has already stopped. Getting an error from the emitter
+                    // is unexpected.
+                    panic_with_error!(e, BackstopError::BadRequest);
                 }
                 e.ledger().timestamp()
             }
@@ -523,6 +530,7 @@ mod tests {
         let start_pool_3_accrued: i128 = 20_000_0000000;
 
         e.as_contract(&backstop, || {
+            storage::set_backfill_status(&e, &false);
             storage::set_last_distribution_time(&e, &(emitter_distro_time - (60 * 60 * 24)));
             storage::set_reward_zone(&e, &reward_zone);
             storage::set_pool_balance(
@@ -572,9 +580,9 @@ mod tests {
             let pool_3_accrued = storage::get_rz_emis(&e, &pool_3);
             assert_eq!(pool_3_accrued, 43_200_0000000 + start_pool_3_accrued);
 
-            // backfill status remains unchanged if not set
+            // backfill status remains false
             let backfill_status = storage::get_backfill_status(&e);
-            assert_eq!(backfill_status, None);
+            assert_eq!(backfill_status, Some(false));
         });
     }
 
@@ -786,6 +794,88 @@ mod tests {
             assert_eq!(pool_2_accrued_1, 0);
             let pool_3_accrued_1 = storage::get_rz_emis(&e, &pool_3);
             assert_eq!(pool_3_accrued_1, 0);
+
+            // sets backfill status to false
+            let backfill_status = storage::get_backfill_status(&e);
+            assert_eq!(backfill_status, Some(false));
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_distribute_last_distro_panics_errors() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 1713139200,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let v1_backstop = create_backstop(&e);
+        let backstop = create_backstop(&e);
+        let emitter_distro_time = 1713139200 - 10;
+        // set backstop to another address to force a panic
+        create_emitter(
+            &e,
+            &v1_backstop,
+            &Address::generate(&e),
+            &Address::generate(&e),
+            emitter_distro_time,
+        );
+
+        let pool_1 = Address::generate(&e);
+        let pool_2 = Address::generate(&e);
+        let pool_3 = Address::generate(&e);
+        let reward_zone: Vec<Address> = vec![&e, pool_1.clone(), pool_2.clone(), pool_3.clone()];
+
+        let start_pool_2_accrued: i128 = 1_0000001;
+        let start_pool_3_accrued: i128 = 20_000_0000000;
+
+        e.as_contract(&backstop, || {
+            storage::set_backfill_status(&e, &false);
+            storage::set_last_distribution_time(&e, &(emitter_distro_time - (60 * 60 * 24)));
+            storage::set_reward_zone(&e, &reward_zone);
+            storage::set_pool_balance(
+                &e,
+                &pool_1,
+                // 300_000_0000000 unqueued tokens
+                &PoolBalance {
+                    tokens: 300_000_0000000,
+                    shares: 200_000_0000000,
+                    q4w: 0,
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool_2,
+                // 200_000_0000000 unqueued tokens
+                &PoolBalance {
+                    tokens: 400_000_0000000,
+                    shares: 200_000_0000000,
+                    q4w: 100_000_0000000,
+                },
+            );
+            storage::set_rz_emis(&e, &pool_2, &start_pool_2_accrued);
+            storage::set_pool_balance(
+                &e,
+                &pool_3,
+                // 500_000_0000000 unqueued tokens
+                &PoolBalance {
+                    tokens: 1_000_000_0000000,
+                    shares: 1_200_000_0000000,
+                    q4w: 600_000_0000000,
+                },
+            );
+            storage::set_rz_emis(&e, &pool_3, &start_pool_3_accrued);
+
+            distribute(&e);
         });
     }
 
