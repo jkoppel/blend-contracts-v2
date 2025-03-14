@@ -108,14 +108,33 @@ impl Reserve {
     }
 
     /// Fetch the current utilization rate for the reserve normalized to 7 decimals
+    ///
+    /// This is capped at 100% to ensure interest calculations are fair.
     pub fn utilization(&self, e: &Env) -> i128 {
+        let liabilities = self.total_liabilities(e);
+        let supply = self.total_supply(e);
+        if liabilities == 0 {
+            return 0;
+        } else if liabilities >= supply {
+            return SCALAR_7;
+        }
         self.total_liabilities(e)
             .fixed_div_ceil(e, &self.total_supply(e), &SCALAR_7)
     }
 
-    /// Require that the utilization rate is below the maximum allowed, or panic.
+    /// Require that the utilization rate is at or below the maximum allowed, or panic.
     pub fn require_utilization_below_max(&self, e: &Env) {
         if self.utilization(e) > i128(self.config.max_util) {
+            panic_with_error!(e, PoolError::InvalidUtilRate)
+        }
+    }
+
+    /// Require that the utilization rate is below 100%, or panic.
+    ///
+    /// Used to validate that the reserve has enough liquidity to support the requested action,
+    /// as some tokens held by the pool are reserved for the backstop.
+    pub fn require_utilization_below_100(&self, e: &Env) {
+        if self.utilization(e) >= SCALAR_7 {
             panic_with_error!(e, PoolError::InvalidUtilRate)
         }
     }
@@ -542,6 +561,51 @@ mod tests {
     }
 
     #[test]
+    fn test_utilization_empty() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.data.d_rate = 1_345_678_123_000;
+        reserve.data.b_rate = 1_123_456_789_000;
+        reserve.data.b_supply = 0;
+        reserve.data.d_supply = 0;
+
+        let result = reserve.utilization(&e);
+
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn test_utilization_no_liabilities() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.data.d_rate = 1_345_678_123_000;
+        reserve.data.b_rate = 1_123_456_789_000;
+        reserve.data.b_supply = 1_1234567;
+        reserve.data.d_supply = 0;
+
+        let result = reserve.utilization(&e);
+
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn test_utilization_more_liabilities() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.data.d_rate = 1_345_678_123_000;
+        reserve.data.b_rate = 1_123_456_789_000;
+        reserve.data.b_supply = 1_1234567;
+        reserve.data.d_supply = 2_1234567;
+
+        let result = reserve.utilization(&e);
+
+        assert_eq!(result, SCALAR_7);
+    }
+
+    #[test]
     fn test_require_utilization_below_max_pass() {
         let e = Env::default();
 
@@ -564,6 +628,31 @@ mod tests {
         reserve.data.d_supply = 95_0000100;
 
         reserve.require_utilization_below_max(&e);
+    }
+
+    #[test]
+    fn test_require_utilization_under_100_pass() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.data.b_supply = 100_0000000;
+        reserve.data.d_supply = 99_9000000;
+
+        reserve.require_utilization_below_100(&e);
+        // no panic
+        assert!(true);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1207)")]
+    fn test_require_utilization_under_100_panic() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.data.b_supply = 100_0000000;
+        reserve.data.d_supply = 100_0000000;
+
+        reserve.require_utilization_below_100(&e);
     }
 
     /***** Token Transfer Math *****/
