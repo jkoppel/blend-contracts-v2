@@ -55,23 +55,23 @@ fn test_backstop_rz_changes_handle_emissions() {
     let result = fixture.backstop.claim(
         &sam,
         &vec![&fixture.env, pool_fixture.pool.address.clone()],
-        &sam,
+        &0,
     );
-    assert_eq!(result, 6901542857142);
+    assert_eq!(result, 55_141_3083663);
 
     fixture.jump(60 * 60 * 24 * 4);
     let result = fixture.backstop.claim(
         &sam,
         &vec![&fixture.env, pool_fixture.pool.address.clone()],
-        &sam,
+        &0,
     );
-    assert_eq!(result, 6771681835261);
+    assert_eq!(result, 54_030_2461020);
 
     fixture.jump(1);
     let result = fixture.backstop.claim(
         &sam,
         &vec![&fixture.env, pool_fixture.pool.address.clone()],
-        &sam,
+        &0,
     );
     assert_eq!(result, 0);
 
@@ -89,5 +89,5 @@ fn test_backstop_rz_changes_handle_emissions() {
     let result = pool_fixture.pool.gulp_emissions();
 
     // Emissions are distributed to the pool because the reward zone was empty when the backstop was added
-    assert_eq!(result, 1814402999999); // (60 * 60 * 24 * 7 + 1) * 0.3
+    assert_eq!(result, 1814403000000); // (60 * 60 * 24 * 7 + 1) * 0.3
 }

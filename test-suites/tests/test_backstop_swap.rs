@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use backstop::BackstopClient;
-use blend_contract_sdk::emitter;
+use blend_contract_sdk::{backstop as v1_backstop, emitter};
 use pool::{PoolClient, Request, RequestType, ReserveEmissionMetadata};
 use pool_factory::{PoolFactoryClient, PoolInitMeta};
 use sep_40_oracle::testutils::Asset;
@@ -45,7 +45,7 @@ fn test_v1_to_v2_backstop_swap() {
     let usdc_client = MockTokenClient::new(&env, &usdc);
     let backstop_token_client = LPClient::new(&env, &backstop_token);
     let emitter_client = emitter::Client::new(&env, &emitter);
-    let v1_backstop_client = BackstopClient::new(&env, &v1_backstop);
+    let v1_backstop_client = v1_backstop::Client::new(&env, &v1_backstop);
     let v1_pool_client = PoolClient::new(&env, &v1_pool);
 
     // deploy v2 contracts
@@ -69,7 +69,7 @@ fn test_v1_to_v2_backstop_swap() {
     let v2_backstop_client = create_backstop(
         &env,
         &v2_backstop,
-        true,
+        false,
         &backstop_token,
         &emitter,
         &blnd,
@@ -156,7 +156,7 @@ fn test_v1_to_v2_backstop_swap() {
     v1_backstop_client.claim(&merry, &vec![&env, v1_pool.clone()], &merry);
     v1_pool_client.claim(&merry, &vec![&env, 3], &merry);
     assert!(v2_backstop_client
-        .try_claim(&samwise, &vec![&env, v2_pool_id.clone()], &samwise)
+        .try_claim(&samwise, &vec![&env, v2_pool_id.clone()], &0)
         .is_err());
     assert!(v2_pool_client
         .try_claim(&samwise, &vec![&env, 1, 3], &samwise)
@@ -231,7 +231,7 @@ fn test_v1_to_v2_backstop_swap() {
 
     // Test: Validate claim fails until gulp is run for v2
     assert!(v2_backstop_client
-        .try_claim(&samwise, &vec![&env, v2_pool_id.clone()], &samwise)
+        .try_claim(&samwise, &vec![&env, v2_pool_id.clone()], &0)
         .is_err());
     assert!(v2_pool_client
         .try_claim(&samwise, &vec![&env, 1, 3], &samwise)
@@ -251,15 +251,22 @@ fn test_v1_to_v2_backstop_swap() {
 
     // -> claim backfilled emisions of 35d
     // -> frodo gets virtually all backstop emissions (70% of emissions)
-    let v2_backstop_claim =
-        v2_backstop_client.claim(&frodo, &vec![&env, v2_pool_id.clone()], &frodo);
+    let pre_v2_backstop_claim_blnd = blnd_client.balance(&backstop_token);
+    let pre_v2_backstop_balance = v2_backstop_client.user_balance(&v2_pool_id, &frodo).shares;
+    let v2_tokens_minted = v2_backstop_client.claim(&frodo, &vec![&env, v2_pool_id.clone()], &0);
+    let v2_backstop_claim_blnd = blnd_client.balance(&backstop_token) - pre_v2_backstop_claim_blnd;
     assert_approx_eq_rel(
-        v2_backstop_claim,
+        v2_backstop_claim_blnd,
         backfill_tokens_emitted
             .fixed_mul_floor(0_7000000, SCALAR_7)
             .unwrap(),
         0_0500000,
     );
+    // shares are still 1 to 1
+    let v2_backstop_claim_added_tokens =
+        v2_backstop_client.user_balance(&v2_pool_id, &frodo).shares - pre_v2_backstop_balance;
+    assert_eq!(v2_backstop_claim_added_tokens, v2_tokens_minted);
+
     // -> sawise gets all pool emissions as only user (30% of emissions)
     let v2_pool_claim = v2_pool_client.claim(&samwise, &vec![&env, 1, 3], &samwise);
     assert_approx_eq_rel(
@@ -290,13 +297,20 @@ fn test_v1_to_v2_backstop_swap() {
     // -> claim v2 emissions and validate approx. 4 days worth of emissions are claimed
     let tokens_emitted: i128 = 4 * 24 * 60 * 60 * SCALAR_7;
     // -> frodo gets virtually all backstop emissions (0.7 tokens per second)
-    let v2_backstop_claim =
-        v2_backstop_client.claim(&frodo, &vec![&env, v2_pool_id.clone()], &frodo);
+    let pre_v2_backstop_claim_blnd = blnd_client.balance(&backstop_token);
+    let pre_v2_backstop_balance = v2_backstop_client.user_balance(&v2_pool_id, &frodo).shares;
+    let v2_tokens_minted = v2_backstop_client.claim(&frodo, &vec![&env, v2_pool_id.clone()], &0);
+    let v2_backstop_claim_blnd = blnd_client.balance(&backstop_token) - pre_v2_backstop_claim_blnd;
     assert_approx_eq_rel(
-        v2_backstop_claim,
+        v2_backstop_claim_blnd,
         tokens_emitted.fixed_mul_floor(0_7000000, SCALAR_7).unwrap(),
         0_0500000,
     );
+    // shares are still 1 to 1
+    let v2_backstop_claim_added_tokens =
+        v2_backstop_client.user_balance(&v2_pool_id, &frodo).shares - pre_v2_backstop_balance;
+    assert_eq!(v2_backstop_claim_added_tokens, v2_tokens_minted);
+
     // -> sawise gets all pool emissions as only user (0.3 tokens per second)
     let v2_pool_claim = v2_pool_client.claim(&samwise, &vec![&env, 1, 3], &samwise);
     assert_approx_eq_rel(

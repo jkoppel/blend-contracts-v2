@@ -138,7 +138,7 @@ impl BackstopEvents {
     ///
     /// ### Arguments
     /// * `from` - The address of the user claiming emissions
-    /// * `amount` - The amount of emissions claimed
+    /// * `amount` - The amount of LP tokens minted
     pub fn claim(e: &Env, from: Address, amount: i128) {
         let topics = (Symbol::new(e, "claim"), from);
         e.events().publish(topics, amount);

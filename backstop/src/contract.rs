@@ -114,16 +114,16 @@ pub trait Backstop {
 
     /// Claim backstop deposit emissions from a list of pools for `from`
     ///
-    /// Returns the amount of BLND emissions claimed
+    /// Returns the amount of LP tokens minted
     ///
     /// ### Arguments
     /// * `from` - The address of the user claiming emissions
     /// * `pool_addresses` - The Vec of addresses to claim backstop deposit emissions from
-    /// * `to` - The Address to send to emissions to
+    /// * `min_lp_tokens_out` - The minimum amount of LP tokens to mint with the claimed BLND
     ///
     /// ### Errors
     /// If an invalid pool address is included
-    fn claim(e: Env, from: Address, pool_addresses: Vec<Address>, to: Address) -> i128;
+    fn claim(e: Env, from: Address, pool_addresses: Vec<Address>, min_lp_tokens_out: i128) -> i128;
 
     /// Drop initial BLND to a list of addresses through the emitter
     fn drop(e: Env);
@@ -285,11 +285,11 @@ impl Backstop for BackstopContract {
         BackstopEvents::rw_zone_remove(&e, to_remove);
     }
 
-    fn claim(e: Env, from: Address, pool_addresses: Vec<Address>, to: Address) -> i128 {
+    fn claim(e: Env, from: Address, pool_addresses: Vec<Address>, min_lp_tokens_out: i128) -> i128 {
         storage::extend_instance(&e);
         from.require_auth();
 
-        let amount = emissions::execute_claim(&e, &from, &pool_addresses, &to);
+        let amount = emissions::execute_claim(&e, &from, &pool_addresses, &min_lp_tokens_out);
 
         BackstopEvents::claim(&e, from, amount);
         amount

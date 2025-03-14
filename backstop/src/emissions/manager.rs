@@ -1,14 +1,14 @@
 use cast::{i128, u64};
 use sep_41_token::TokenClient;
 use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{panic_with_error, unwrap::UnwrapOptimized, Address, Env, Vec};
+use soroban_sdk::{panic_with_error, unwrap::UnwrapOptimized, vec, Address, Env, Vec};
 
 use crate::{
     backstop::{load_pool_backstop_data, require_pool_above_threshold},
-    constants::{MAX_BACKFILLED_EMISSIONS, MAX_RZ_SIZE, SCALAR_14, SCALAR_7},
+    constants::{MAX_BACKFILLED_EMISSIONS, MAX_RZ_SIZE, SCALAR_7},
     dependencies::EmitterClient,
     errors::BackstopError,
-    storage::{self, BackstopEmissionData, RzEmissionData},
+    storage::{self, BackstopEmissionData},
     PoolBalance,
 };
 
@@ -17,7 +17,6 @@ use super::distributor::update_emission_data;
 /// Add a pool to the reward zone. If the reward zone is full, attempt to swap it with the pool to remove.
 pub fn add_to_reward_zone(e: &Env, to_add: Address, to_remove: Option<Address>) {
     let mut reward_zone = storage::get_reward_zone(e);
-    let rz_emission_index = storage::get_rz_emission_index(e);
 
     // ensure an entity in the reward zone cannot be included twice
     if reward_zone.contains(to_add.clone()) {
@@ -46,18 +45,6 @@ pub fn add_to_reward_zone(e: &Env, to_add: Address, to_remove: Option<Address>) 
                 reward_zone.push_front(to_add.clone());
             }
         }
-    }
-    // Set the new pool's backstop emissions index to the current gulp index
-    if let Some(to_add_emis_data) = storage::get_rz_emis_data(e, &to_add) {
-        set_rz_emissions(
-            e,
-            &to_add,
-            rz_emission_index,
-            to_add_emis_data.accrued,
-            false,
-        );
-    } else {
-        set_rz_emissions(e, &to_add, rz_emission_index, 0, false);
     }
     storage::set_reward_zone(e, &reward_zone);
 }
@@ -89,17 +76,14 @@ fn remove_pool(e: &Env, reward_zone: &mut Vec<Address>, to_remove: &Address) {
                 panic_with_error!(e, BackstopError::BadRequest);
             }
 
-            // update backstop emissions for the pool before removing it from the reward zone
-            // set emission index to i128::MAX to prevent further emissions
-            let to_remove_emis_data = storage::get_rz_emis_data(e, &to_remove).unwrap_optimized();
-            set_rz_emissions(e, &to_remove, i128::MAX, to_remove_emis_data.accrued, false);
-
             reward_zone.remove(idx);
         }
         None => panic_with_error!(e, BackstopError::InvalidRewardZoneEntry),
     }
 }
 
+/// Distribute emissions from the emitter to the reward zone and backstop depositors. This also implements
+/// backfilling emissions if the emitter has not distributed to this version of the backstop before.
 pub fn distribute(e: &Env) -> i128 {
     let is_backfill: bool;
     let mut needs_reset: bool = false;
@@ -170,21 +154,30 @@ pub fn distribute(e: &Env) -> i128 {
         storage::set_backfill_emissions(e, &cur_backfill);
     }
     storage::set_last_distribution_time(e, &emitter_last_distribution);
-    let prev_index = storage::get_rz_emission_index(e);
+
+    let mut rz_balance: Vec<(Address, PoolBalance)> = vec![e];
 
     // fetch total tokens of BLND in the reward zone
     let mut total_non_queued_tokens: i128 = 0;
-    for rz_pool_index in 0..rz_len {
-        let rz_pool = reward_zone.get(rz_pool_index).unwrap_optimized();
+    for rz_pool in reward_zone {
         let pool_balance = storage::get_pool_balance(e, &rz_pool);
         total_non_queued_tokens += pool_balance.non_queued_tokens();
+        rz_balance.push_back((rz_pool, pool_balance));
     }
 
-    let additional_index = new_emissions
-        .fixed_div_floor(total_non_queued_tokens, SCALAR_14)
-        .unwrap_optimized();
-    let new_index = prev_index + additional_index;
-    storage::set_rz_emission_index(e, &new_index);
+    // store emissions due for each reward zone pool
+    for (rz_pool, pool_balance) in rz_balance {
+        let pool_non_queued_tokens = pool_balance.non_queued_tokens();
+        let share = pool_non_queued_tokens
+            .fixed_div_floor(total_non_queued_tokens, SCALAR_7)
+            .unwrap_optimized();
+
+        let new_pool_emissions = share
+            .fixed_mul_floor(new_emissions, SCALAR_7)
+            .unwrap_optimized();
+        let accrued_emissions = storage::get_rz_emis(e, &rz_pool);
+        storage::set_rz_emis(e, &rz_pool, &(new_pool_emissions + accrued_emissions));
+    }
 
     return new_emissions;
 }
@@ -194,8 +187,7 @@ pub fn distribute(e: &Env) -> i128 {
 #[allow(clippy::zero_prefixed_literal)]
 pub fn gulp_emissions(e: &Env, pool: &Address) -> (i128, i128) {
     let pool_balance = storage::get_pool_balance(e, pool);
-
-    let new_emissions = update_rz_emis_data(e, pool, true);
+    let new_emissions = storage::get_rz_emis(e, pool);
     if new_emissions > 0 {
         let new_backstop_emissions = new_emissions
             .fixed_mul_floor(0_7000000, SCALAR_7)
@@ -214,41 +206,11 @@ pub fn gulp_emissions(e: &Env, pool: &Address) -> (i128, i128) {
             &(current_allowance + new_pool_emissions),
             &new_seq,
         );
-        set_backstop_emission_eps(e, &pool, &pool_balance, new_backstop_emissions);
+        storage::set_rz_emis(e, pool, &0i128);
+        set_backstop_emission_eps(e, pool, &pool_balance, new_backstop_emissions);
         return (new_backstop_emissions, new_pool_emissions);
     }
     return (0, 0);
-}
-
-pub fn update_rz_emis_data(e: &Env, pool: &Address, to_gulp: bool) -> i128 {
-    if let Some(emission_data) = storage::get_rz_emis_data(e, pool) {
-        let pool_balance = storage::get_pool_balance(e, pool);
-        let gulp_index = storage::get_rz_emission_index(e);
-        let mut accrued = emission_data.accrued;
-        if emission_data.index < gulp_index || to_gulp {
-            if pool_balance.non_queued_tokens() > 0 {
-                let new_emissions = pool_balance
-                    .non_queued_tokens()
-                    .fixed_mul_floor(gulp_index - emission_data.index, SCALAR_14)
-                    .unwrap_optimized();
-                accrued += new_emissions;
-                return set_rz_emissions(e, pool, gulp_index, accrued, to_gulp);
-            } else {
-                return set_rz_emissions(e, pool, gulp_index, accrued, to_gulp);
-            }
-        }
-    }
-    return 0;
-}
-
-fn set_rz_emissions(e: &Env, pool_id: &Address, index: i128, accrued: i128, to_gulp: bool) -> i128 {
-    if to_gulp {
-        storage::set_rz_emis_data(e, pool_id, &RzEmissionData { index, accrued: 0 });
-        accrued
-    } else {
-        storage::set_rz_emis_data(e, pool_id, &RzEmissionData { index, accrued });
-        0
-    }
 }
 
 /// Set a new EPS for the backstop
@@ -317,6 +279,77 @@ mod tests {
     /********** gulp_emissions **********/
 
     #[test]
+    fn test_gulp_emissions_outside_rz() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 1713139200,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let backstop = create_backstop(&e);
+        let blnd_token_client = create_blnd_token(&e, &backstop, &Address::generate(&e)).1;
+        let pool_1 = Address::generate(&e);
+        let pool_2 = Address::generate(&e);
+        let pool_3 = Address::generate(&e);
+        let reward_zone: Vec<Address> = vec![&e, pool_2.clone(), pool_3.clone()];
+
+        // setup pool 1 to have ongoing emissions - it was recently removed from RZ
+        let pool_1_emissions_data = BackstopEmissionData {
+            expiration: 1713139200 + 86400,
+            eps: 0_10000000000000,
+            index: 887766550000000,
+            last_time: 1713139200 - 12345,
+        };
+        let pool_1_accrued: i128 = 20_000_0000000;
+        let pool_1_allowance: i128 = 100_123_0000000;
+        e.as_contract(&backstop, || {
+            storage::set_reward_zone(&e, &reward_zone);
+            storage::set_backstop_emis_data(&e, &pool_1, &pool_1_emissions_data);
+            storage::set_pool_balance(
+                &e,
+                &pool_1,
+                // 35_000_0000000 unqeued shares
+                &PoolBalance {
+                    tokens: 150_000_0000000,
+                    shares: 40_000_0000000,
+                    q4w: 5_000_0000000,
+                },
+            );
+            blnd_token_client.approve(
+                &backstop,
+                &pool_1,
+                &pool_1_allowance,
+                &e.ledger().sequence(),
+            );
+            storage::set_rz_emis(&e, &pool_1, &pool_1_accrued);
+
+            gulp_emissions(&e, &pool_1);
+
+            assert_eq!(
+                blnd_token_client.allowance(&backstop, &pool_1),
+                pool_1_allowance + 6_000_0000000
+            );
+            let new_pool_1_data = storage::get_backstop_emis_data(&e, &pool_1).unwrap_optimized();
+            assert_eq!(new_pool_1_data.eps, 0_0374338_6243386);
+            assert_eq!(new_pool_1_data.expiration, 1713139200 + 7 * 24 * 60 * 60);
+            assert_eq!(
+                new_pool_1_data.index,
+                pool_1_emissions_data.index + 0_0352714_2857142
+            );
+            assert_eq!(new_pool_1_data.last_time, 1713139200);
+            assert_eq!(storage::get_rz_emis(&e, &pool_1), 0);
+        });
+    }
+
+    #[test]
     fn test_gulp_emissions() {
         let e = Env::default();
         e.cost_estimate().budget().reset_unlimited();
@@ -367,30 +400,6 @@ mod tests {
             storage::set_last_distribution_time(&e, &(emitter_distro_time - 7 * 24 * 60 * 60));
             storage::set_reward_zone(&e, &reward_zone);
             storage::set_backstop_emis_data(&e, &pool_1, &pool_1_emissions_data);
-            storage::set_rz_emis_data(
-                &e,
-                &pool_1,
-                &RzEmissionData {
-                    index: 0,
-                    accrued: 0,
-                },
-            );
-            storage::set_rz_emis_data(
-                &e,
-                &pool_2,
-                &RzEmissionData {
-                    index: 0,
-                    accrued: 0,
-                },
-            );
-            storage::set_rz_emis_data(
-                &e,
-                &pool_3,
-                &RzEmissionData {
-                    index: 0,
-                    accrued: 0,
-                },
-            );
             storage::set_backstop_emis_data(&e, &pool_2, &pool_2_emissions_data);
             storage::set_pool_balance(
                 &e,
@@ -459,18 +468,21 @@ mod tests {
             assert_eq!(new_pool_1_data.expiration, 1713139200 + 7 * 24 * 60 * 60);
             assert_eq!(new_pool_1_data.index, 9494910000000);
             assert_eq!(new_pool_1_data.last_time, 1713139200);
+            assert_eq!(storage::get_rz_emis(&e, &pool_1), 0);
 
             let new_pool_2_data = storage::get_backstop_emis_data(&e, &pool_2).unwrap_optimized();
             assert_eq!(new_pool_2_data.eps, 0_14000000000000);
             assert_eq!(new_pool_2_data.expiration, 1713139200 + 7 * 24 * 60 * 60);
             assert_eq!(new_pool_2_data.index, 4532340000000);
             assert_eq!(new_pool_2_data.last_time, 1713139200);
+            assert_eq!(storage::get_rz_emis(&e, &pool_2), 0);
 
             let new_pool_3_data = storage::get_backstop_emis_data(&e, &pool_3).unwrap_optimized();
             assert_eq!(new_pool_3_data.eps, 0_35000000000000);
             assert_eq!(new_pool_3_data.expiration, 1713139200 + 7 * 24 * 60 * 60);
             assert_eq!(new_pool_3_data.index, 0);
             assert_eq!(new_pool_3_data.last_time, 1713139200);
+            assert_eq!(storage::get_rz_emis(&e, &pool_3), 0);
         });
     }
 
@@ -507,12 +519,16 @@ mod tests {
         let pool_3 = Address::generate(&e);
         let reward_zone: Vec<Address> = vec![&e, pool_1.clone(), pool_2.clone(), pool_3.clone()];
 
+        let start_pool_2_accrued: i128 = 1_0000001;
+        let start_pool_3_accrued: i128 = 20_000_0000000;
+
         e.as_contract(&backstop, || {
             storage::set_last_distribution_time(&e, &(emitter_distro_time - (60 * 60 * 24)));
             storage::set_reward_zone(&e, &reward_zone);
             storage::set_pool_balance(
                 &e,
                 &pool_1,
+                // 300_000_0000000 unqueued tokens
                 &PoolBalance {
                     tokens: 300_000_0000000,
                     shares: 200_000_0000000,
@@ -522,30 +538,40 @@ mod tests {
             storage::set_pool_balance(
                 &e,
                 &pool_2,
+                // 200_000_0000000 unqueued tokens
                 &PoolBalance {
-                    tokens: 200_000_0000000,
-                    shares: 150_000_0000000,
-                    q4w: 0,
+                    tokens: 400_000_0000000,
+                    shares: 200_000_0000000,
+                    q4w: 100_000_0000000,
                 },
             );
+            storage::set_rz_emis(&e, &pool_2, &start_pool_2_accrued);
             storage::set_pool_balance(
                 &e,
                 &pool_3,
+                // 500_000_0000000 unqueued tokens
                 &PoolBalance {
-                    tokens: 500_000_0000000,
-                    shares: 600_000_0000000,
-                    q4w: 0,
+                    tokens: 1_000_000_0000000,
+                    shares: 1_200_000_0000000,
+                    q4w: 600_000_0000000,
                 },
             );
+            storage::set_rz_emis(&e, &pool_3, &start_pool_3_accrued);
 
             distribute(&e);
 
-            let gulp_index = storage::get_rz_emission_index(&e);
-            assert_eq!(gulp_index, 8640000000000);
             let last_distro_time = storage::get_last_distribution_time(&e);
             assert_eq!(last_distro_time, emitter_distro_time);
             let backfilled_emissions = storage::get_backfill_emissions(&e);
             assert_eq!(backfilled_emissions, 0);
+
+            let pool_1_accrued = storage::get_rz_emis(&e, &pool_1);
+            assert_eq!(pool_1_accrued, 25_920_0000000 + 0);
+            let pool_2_accrued = storage::get_rz_emis(&e, &pool_2);
+            assert_eq!(pool_2_accrued, 17_280_0000000 + start_pool_2_accrued);
+            let pool_3_accrued = storage::get_rz_emis(&e, &pool_3);
+            assert_eq!(pool_3_accrued, 43_200_0000000 + start_pool_3_accrued);
+
             // backfill status remains unchanged if not set
             let backfill_status = storage::get_backfill_status(&e);
             assert_eq!(backfill_status, None);
@@ -635,16 +661,13 @@ mod tests {
         let reward_zone: Vec<Address> = vec![&e, pool_1.clone(), pool_2.clone(), pool_3.clone()];
 
         // setup pool 1 to have ongoing emissions
-
         let pool_1_emissions_data = BackstopEmissionData {
             expiration: 1713139200 + 1000,
             eps: 0_1000000,
             index: 887766,
             last_time: 1713139200 - 12345,
         };
-
         // setup pool 2 to have expired emissions
-
         let pool_2_emissions_data = BackstopEmissionData {
             expiration: 1713139200 - 12345,
             eps: 0_0500000,
@@ -688,95 +711,6 @@ mod tests {
             );
 
             distribute(&e);
-        });
-    }
-
-    #[test]
-    fn test_distribute_gulp_no_overflow() {
-        let e = Env::default();
-        e.cost_estimate().budget().reset_unlimited();
-
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200 + 10_000_000_000,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-
-        let backstop = create_backstop(&e);
-        let (blnd_address, _) = create_blnd_token(&e, &backstop, &Address::generate(&e));
-
-        // Distribute 1 trillion tokens to 1 backstop token
-        let emitter_distro_time = 1713139200 + 10_000_000_000;
-        create_emitter(
-            &e,
-            &backstop,
-            &Address::generate(&e),
-            &blnd_address,
-            emitter_distro_time,
-        );
-        let pool_1 = Address::generate(&e);
-        let reward_zone: Vec<Address> = vec![&e, pool_1.clone()];
-
-        e.as_contract(&backstop, || {
-            storage::set_backfill_status(&e, &false);
-            storage::set_last_distribution_time(&e, &(&1713139200));
-            storage::set_reward_zone(&e, &reward_zone);
-            storage::set_rz_emis_data(
-                &e,
-                &pool_1,
-                &RzEmissionData {
-                    index: 0,
-                    accrued: 0,
-                },
-            );
-            storage::set_pool_balance(
-                &e,
-                &pool_1,
-                &PoolBalance {
-                    tokens: 1_0000000,
-                    shares: 1_0000000,
-                    q4w: 0,
-                },
-            );
-
-            let gulp_index = storage::get_rz_emission_index(&e);
-            assert_eq!(gulp_index, 0);
-        });
-        // Distribute 1 trillion tokens to 1 backstop token
-        for _ in 0..100 {
-            e.as_contract(&backstop, || {
-                distribute(&e);
-                gulp_emissions(&e, &pool_1);
-            });
-            e.ledger().set(LedgerInfo {
-                timestamp: e.ledger().timestamp() + 10_000_000_000,
-                protocol_version: 22,
-                sequence_number: 0,
-                network_id: Default::default(),
-                base_reserve: 10,
-                min_temp_entry_ttl: 10,
-                min_persistent_entry_ttl: 10,
-                max_entry_ttl: 3110400,
-            });
-            create_emitter(
-                &e,
-                &backstop,
-                &Address::generate(&e),
-                &blnd_address,
-                e.ledger().timestamp() + 10_000_000_000,
-            );
-        }
-        e.as_contract(&backstop, || {
-            let gulp_index = storage::get_rz_emission_index(&e);
-            assert_eq!(gulp_index, 101000000000000000000000000);
-            // backfill status remains unchanged if false
-            let backfill_status = storage::get_backfill_status(&e);
-            assert_eq!(backfill_status, Some(false));
         });
     }
 
@@ -846,6 +780,12 @@ mod tests {
             assert_eq!(new_emissions, 0);
             let last_distro_time = storage::get_last_distribution_time(&e);
             assert_eq!(last_distro_time, emitter_distro_time);
+            let pool_1_accrued_1 = storage::get_rz_emis(&e, &pool_1);
+            assert_eq!(pool_1_accrued_1, 0);
+            let pool_2_accrued_1 = storage::get_rz_emis(&e, &pool_2);
+            assert_eq!(pool_2_accrued_1, 0);
+            let pool_3_accrued_1 = storage::get_rz_emis(&e, &pool_3);
+            assert_eq!(pool_3_accrued_1, 0);
         });
     }
 
@@ -867,7 +807,7 @@ mod tests {
 
         let v1_backstop = create_backstop(&e);
         let backstop = create_backstop(&e);
-        let emitter_distro_time = 1713139200 - 10;
+        let emitter_distro_time = 1713139200 - 1000;
         create_emitter(
             &e,
             &v1_backstop,
@@ -881,13 +821,13 @@ mod tests {
         let pool_3 = Address::generate(&e);
         let reward_zone: Vec<Address> = vec![&e, pool_1.clone(), pool_2.clone(), pool_3.clone()];
         let start_backfilled_emissions = 1_000_000 * SCALAR_7;
-        let rz_emis_index: i128 = 1_0000000_0000000;
+        let start_pool_2_accrued: i128 = 1_0000001;
+        let start_pool_3_accrued: i128 = 20_000_0000000;
 
         e.as_contract(&backstop, || {
             storage::set_backfill_status(&e, &true);
             storage::set_backfill_emissions(&e, &start_backfilled_emissions);
-            storage::set_rz_emission_index(&e, &rz_emis_index);
-            storage::set_last_distribution_time(&e, &(emitter_distro_time - (60 * 60 * 24)));
+            storage::set_last_distribution_time(&e, &(1713139200 - (60 * 60 * 24)));
             storage::set_reward_zone(&e, &reward_zone);
             storage::set_pool_balance(
                 &e,
@@ -907,6 +847,7 @@ mod tests {
                     q4w: 0,
                 },
             );
+            storage::set_rz_emis(&e, &pool_2, &start_pool_2_accrued);
             storage::set_pool_balance(
                 &e,
                 &pool_3,
@@ -916,20 +857,26 @@ mod tests {
                     q4w: 0,
                 },
             );
+            storage::set_rz_emis(&e, &pool_3, &start_pool_3_accrued);
 
             distribute(&e);
 
-            let gulp_index = storage::get_rz_emission_index(&e);
-            assert_eq!(gulp_index, rz_emis_index + 8641000000000);
             let last_distro_time = storage::get_last_distribution_time(&e);
             assert_eq!(last_distro_time, e.ledger().timestamp());
             let backfilled_emissions = storage::get_backfill_emissions(&e);
             assert_eq!(
                 backfilled_emissions,
-                start_backfilled_emissions + (60 * 60 * 24 + 10) * SCALAR_7
+                start_backfilled_emissions + (60 * 60 * 24) * SCALAR_7
             );
             let is_backfill = storage::get_backfill_status(&e);
             assert_eq!(is_backfill, Some(true));
+
+            let pool_1_accrued = storage::get_rz_emis(&e, &pool_1);
+            assert_eq!(pool_1_accrued, 25_920_0000000 + 0);
+            let pool_2_accrued = storage::get_rz_emis(&e, &pool_2);
+            assert_eq!(pool_2_accrued, 17_280_0000000 + start_pool_2_accrued);
+            let pool_3_accrued = storage::get_rz_emis(&e, &pool_3);
+            assert_eq!(pool_3_accrued, 43_200_0000000 + start_pool_3_accrued);
         });
     }
 
@@ -997,14 +944,18 @@ mod tests {
 
             distribute(&e);
 
-            let gulp_index = storage::get_rz_emission_index(&e);
-            assert_eq!(gulp_index, 0);
             let last_distro_time = storage::get_last_distribution_time(&e);
             assert_eq!(last_distro_time, e.ledger().timestamp());
             let backfilled_emissions = storage::get_backfill_emissions(&e);
             assert_eq!(backfilled_emissions, 0);
             let is_backfill = storage::get_backfill_status(&e);
             assert_eq!(is_backfill, Some(true));
+            let pool_1_accrued = storage::get_rz_emis(&e, &pool_1);
+            assert_eq!(pool_1_accrued, 0);
+            let pool_2_accrued = storage::get_rz_emis(&e, &pool_2);
+            assert_eq!(pool_2_accrued, 0);
+            let pool_3_accrued = storage::get_rz_emis(&e, &pool_3);
+            assert_eq!(pool_3_accrued, 0);
         });
     }
 
@@ -1041,11 +992,9 @@ mod tests {
         let pool_3 = Address::generate(&e);
         let reward_zone: Vec<Address> = vec![&e, pool_1.clone(), pool_2.clone(), pool_3.clone()];
         let start_backfilled_emissions = MAX_BACKFILLED_EMISSIONS - (60 * 60 * 24 + 9) * SCALAR_7;
-        let rz_emis_index: i128 = 100_0000000_0000000;
 
         e.as_contract(&backstop, || {
             storage::set_backfill_emissions(&e, &start_backfilled_emissions);
-            storage::set_rz_emission_index(&e, &rz_emis_index);
             storage::set_last_distribution_time(&e, &(emitter_distro_time - (60 * 60 * 24)));
             storage::set_reward_zone(&e, &reward_zone);
             storage::set_pool_balance(
@@ -1111,13 +1060,14 @@ mod tests {
         let pool_3 = Address::generate(&e);
         let reward_zone: Vec<Address> = vec![&e, pool_1.clone(), pool_2.clone(), pool_3.clone()];
         let start_backfilled_emissions = 1_000_000 * SCALAR_7;
-        let rz_emis_index: i128 = 1_0000000_0000000;
         let last_distro_time = 1713139200 - 10000;
+
+        let start_pool_2_accrued: i128 = 1_0000001;
+        let start_pool_3_accrued: i128 = 20_000_0000000;
 
         e.as_contract(&backstop, || {
             storage::set_backfill_status(&e, &true);
             storage::set_backfill_emissions(&e, &start_backfilled_emissions);
-            storage::set_rz_emission_index(&e, &rz_emis_index);
             storage::set_last_distribution_time(&e, &last_distro_time);
             storage::set_reward_zone(&e, &reward_zone);
             storage::set_pool_balance(
@@ -1138,6 +1088,7 @@ mod tests {
                     q4w: 0,
                 },
             );
+            storage::set_rz_emis(&e, &pool_2, &start_pool_2_accrued);
             storage::set_pool_balance(
                 &e,
                 &pool_3,
@@ -1147,17 +1098,22 @@ mod tests {
                     q4w: 0,
                 },
             );
+            storage::set_rz_emis(&e, &pool_3, &start_pool_3_accrued);
 
             distribute(&e);
 
-            let gulp_index = storage::get_rz_emission_index(&e);
-            assert_eq!(gulp_index, rz_emis_index);
             let last_distro_time = storage::get_last_distribution_time(&e);
             assert_eq!(last_distro_time, emitter_distro_time);
             let backfilled_emissions = storage::get_backfill_emissions(&e);
             assert_eq!(backfilled_emissions, start_backfilled_emissions);
             let is_backfill = storage::get_backfill_status(&e);
             assert_eq!(is_backfill, Some(false));
+            let pool_1_accrued = storage::get_rz_emis(&e, &pool_1);
+            assert_eq!(pool_1_accrued, 0);
+            let pool_2_accrued = storage::get_rz_emis(&e, &pool_2);
+            assert_eq!(pool_2_accrued, start_pool_2_accrued);
+            let pool_3_accrued = storage::get_rz_emis(&e, &pool_3);
+            assert_eq!(pool_3_accrued, start_pool_3_accrued);
         });
     }
 
@@ -1213,7 +1169,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_to_rz_before_max_50() {
+    fn test_add_to_rz_before_max() {
         let e = Env::default();
         e.ledger().set(LedgerInfo {
             timestamp: 1713139200 - 100000,
@@ -1326,69 +1282,6 @@ mod tests {
     }
 
     #[test]
-    fn test_add_to_rz_increases_size_over_time() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200 + (1 << 23),
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-        e.mock_all_auths();
-
-        let bombadil = Address::generate(&e);
-        let backstop_id = create_backstop(&e);
-        let to_add = Address::generate(&e);
-
-        let (blnd_id, _) = create_blnd_token(&e, &backstop_id, &bombadil);
-        let (usdc_id, _) = create_usdc_token(&e, &backstop_id, &bombadil);
-        create_comet_lp_pool_with_tokens_per_share(
-            &e,
-            &backstop_id,
-            &bombadil,
-            &blnd_id,
-            5_0000000,
-            &usdc_id,
-            0_1000000,
-        );
-        let mut reward_zone: Vec<Address> = vec![
-            &e,
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-            Address::generate(&e),
-        ];
-
-        e.as_contract(&backstop_id, || {
-            storage::set_reward_zone(&e, &reward_zone);
-            storage::set_pool_balance(
-                &e,
-                &to_add,
-                &PoolBalance {
-                    shares: 90_000_0000000,
-                    tokens: 100_000_0000000,
-                    q4w: 1_000_0000000,
-                },
-            );
-
-            add_to_reward_zone(&e, to_add.clone(), None);
-            let actual_rz = storage::get_reward_zone(&e);
-            reward_zone.push_front(to_add);
-            assert_eq!(actual_rz, reward_zone);
-        });
-    }
-
-    #[test]
     #[should_panic(expected = "Error(Contract, #1009)")]
     fn test_add_to_rz_respects_max_size() {
         let e = Env::default();
@@ -1421,7 +1314,7 @@ mod tests {
             0_1000000,
         );
         let mut reward_zone: Vec<Address> = vec![&e];
-        for _ in 0..50 {
+        for _ in 0..30 {
             reward_zone.push_back(Address::generate(&e));
         }
         e.as_contract(&backstop_id, || {
@@ -1435,6 +1328,8 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
+
+            assert!(reward_zone.len() == 30);
 
             // This should fail due to the reward zone being full and not having a pool to remove
             add_to_reward_zone(&e, to_add.clone(), None);
@@ -1512,26 +1407,12 @@ mod tests {
                     last_time: 1713139200 - 12345,
                 },
             );
-            storage::set_rz_emis_data(
-                &e,
-                &to_remove,
-                &RzEmissionData {
-                    index: (1234 * SCALAR_7),
-                    accrued: 0,
-                },
-            );
-            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove.clone()));
             let actual_rz = storage::get_reward_zone(&e);
             assert_eq!(actual_rz.len(), 50);
             reward_zone.remove(7);
             reward_zone.push_front(to_add.clone());
             assert_eq!(actual_rz, reward_zone);
-
-            let to_remove_emis_data = storage::get_rz_emis_data(&e, &to_remove).unwrap_optimized();
-            let to_add_emis_data = storage::get_rz_emis_data(&e, &to_add).unwrap_optimized();
-            assert_eq!(to_add_emis_data.index, 5678 * SCALAR_7);
-            assert_eq!(to_remove_emis_data.index, i128::MAX);
         });
     }
 
@@ -1721,7 +1602,6 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            // storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove));
         });
@@ -1794,7 +1674,6 @@ mod tests {
                     q4w: 1_000_0000000,
                 },
             );
-            // storage::set_lp_token_val(&e, &(5_0000000, 0_1000000));
 
             add_to_reward_zone(&e, to_add.clone(), Some(to_remove.clone()));
         });
@@ -1869,22 +1748,11 @@ mod tests {
                     last_time: 1713139200 - 12345,
                 },
             );
-            storage::set_rz_emis_data(&e, &to_remove, {
-                &RzEmissionData {
-                    index: 1234 * SCALAR_7,
-                    accrued: 0,
-                }
-            });
-            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
             remove_from_reward_zone(&e, to_remove.clone());
             let actual_rz = storage::get_reward_zone(&e);
             reward_zone.remove(1);
             assert_eq!(actual_rz.len(), 1);
             assert_eq!(actual_rz, reward_zone);
-
-            let to_remove_rz_emis_data =
-                storage::get_rz_emis_data(&e, &to_remove).unwrap_optimized();
-            assert_eq!(to_remove_rz_emis_data.index, i128::MAX);
         });
     }
 
@@ -1947,13 +1815,7 @@ mod tests {
                     last_time: 1713139200 - 12345,
                 },
             );
-            storage::set_rz_emis_data(&e, &to_remove, {
-                &RzEmissionData {
-                    index: 1234 * SCALAR_7,
-                    accrued: 0,
-                }
-            });
-            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
+
             remove_from_reward_zone(&e, to_remove.clone());
         });
     }
@@ -2017,13 +1879,7 @@ mod tests {
                     last_time: 1713139200 - 12345,
                 },
             );
-            storage::set_rz_emis_data(&e, &to_remove, {
-                &RzEmissionData {
-                    index: 1234 * SCALAR_7,
-                    accrued: 0,
-                }
-            });
-            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
+
             remove_from_reward_zone(&e, to_remove.clone());
         });
     }
@@ -2083,310 +1939,7 @@ mod tests {
                     last_time: 1713139200 - 12345,
                 },
             );
-            storage::set_rz_emis_data(&e, &to_remove, {
-                &RzEmissionData {
-                    index: 1234 * SCALAR_7,
-                    accrued: 0,
-                }
-            });
-            storage::set_rz_emission_index(&e, &(5678 * SCALAR_7));
             remove_from_reward_zone(&e, to_remove.clone());
-        });
-    }
-
-    /********** update_rz_emis_data **********/
-
-    #[test]
-    fn test_update_rz_emis_data() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-        let backstop_id = create_backstop(&e);
-        let pool = Address::generate(&e);
-
-        e.as_contract(&backstop_id, || {
-            storage::set_rz_emission_index(&e, &22_00000000000000);
-            storage::set_rz_emis_data(
-                &e,
-                &pool,
-                &RzEmissionData {
-                    index: 11_00000000000000,
-                    accrued: 100_0000000,
-                },
-            );
-            storage::set_pool_balance(
-                &e,
-                &pool,
-                &PoolBalance {
-                    shares: 150_0000000,
-                    tokens: 200_0000000,
-                    q4w: 2_0000000,
-                },
-            );
-            let result = update_rz_emis_data(&e, &pool, false);
-            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
-            assert_eq!(result, 0);
-            assert_eq!(actual_data.index, 22_00000000000000);
-            assert_eq!(actual_data.accrued, 2270_6666674);
-        });
-    }
-
-    #[test]
-    fn test_update_rz_emis_data_consumes_accrued() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-        let backstop_id = create_backstop(&e);
-        let pool = Address::generate(&e);
-
-        e.as_contract(&backstop_id, || {
-            storage::set_rz_emission_index(&e, &22_00000000000000);
-            storage::set_rz_emis_data(
-                &e,
-                &pool,
-                &RzEmissionData {
-                    index: 11_00000000000000,
-                    accrued: 100_0000000,
-                },
-            );
-            storage::set_pool_balance(
-                &e,
-                &pool,
-                &PoolBalance {
-                    shares: 150_0000000,
-                    tokens: 200_0000000,
-                    q4w: 2_0000000,
-                },
-            );
-            let result = update_rz_emis_data(&e, &pool, true);
-            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
-            assert_eq!(result, 22706666674);
-            assert_eq!(actual_data.index, 22_00000000000000);
-            assert_eq!(actual_data.accrued, 0);
-        });
-    }
-
-    #[test]
-    fn test_update_rz_emis_data_zero_pool_tokens() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-        let backstop_id = create_backstop(&e);
-        let pool = Address::generate(&e);
-
-        e.as_contract(&backstop_id, || {
-            storage::set_rz_emission_index(&e, &22_00000000000000);
-            storage::set_rz_emis_data(
-                &e,
-                &pool,
-                &RzEmissionData {
-                    index: 11_00000000000000,
-                    accrued: 100_0000000,
-                },
-            );
-            storage::set_pool_balance(
-                &e,
-                &pool,
-                &PoolBalance {
-                    shares: 150_0000000,
-                    tokens: 0,
-                    q4w: 2_0000000,
-                },
-            );
-            let result = update_rz_emis_data(&e, &pool, false);
-            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
-            assert_eq!(result, 0);
-            assert_eq!(actual_data.index, 22_00000000000000);
-            assert_eq!(actual_data.accrued, 100_0000000);
-        });
-    }
-
-    #[test]
-    fn test_update_rz_emis_data_gulp_zero_pool_tokens() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-        let backstop_id = create_backstop(&e);
-        let pool = Address::generate(&e);
-
-        e.as_contract(&backstop_id, || {
-            storage::set_rz_emission_index(&e, &22_00000000000000);
-            storage::set_rz_emis_data(
-                &e,
-                &pool,
-                &RzEmissionData {
-                    index: 11_00000000000000,
-                    accrued: 100_0000000,
-                },
-            );
-            storage::set_pool_balance(
-                &e,
-                &pool,
-                &PoolBalance {
-                    shares: 150_0000000,
-                    tokens: 0,
-                    q4w: 2_0000000,
-                },
-            );
-            let result = update_rz_emis_data(&e, &pool, true);
-            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
-            assert_eq!(result, 100_0000000);
-            assert_eq!(actual_data.index, 22_00000000000000);
-            assert_eq!(actual_data.accrued, 0);
-        });
-    }
-
-    #[test]
-    fn test_update_rz_emis_data_index_already_updated() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-        let backstop_id = create_backstop(&e);
-        let pool = Address::generate(&e);
-
-        e.as_contract(&backstop_id, || {
-            storage::set_rz_emission_index(&e, &22_00000000000000);
-            storage::set_rz_emis_data(
-                &e,
-                &pool,
-                &RzEmissionData {
-                    index: 22_00000000000000,
-                    accrued: 100_0000000,
-                },
-            );
-            storage::set_pool_balance(
-                &e,
-                &pool,
-                &PoolBalance {
-                    shares: 150_0000000,
-                    tokens: 0,
-                    q4w: 2_0000000,
-                },
-            );
-
-            let result = update_rz_emis_data(&e, &pool, false);
-            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
-            assert_eq!(result, 0);
-            assert_eq!(actual_data.index, 22_00000000000000);
-            assert_eq!(actual_data.accrued, 100_0000000);
-        });
-    }
-
-    #[test]
-    fn test_update_rz_emis_data_gulp_updated_index() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-        let backstop_id = create_backstop(&e);
-        let pool = Address::generate(&e);
-
-        e.as_contract(&backstop_id, || {
-            storage::set_rz_emission_index(&e, &22_00000000000000);
-            storage::set_rz_emis_data(
-                &e,
-                &pool,
-                &RzEmissionData {
-                    index: 22_00000000000000,
-                    accrued: 100_0000000,
-                },
-            );
-            storage::set_pool_balance(
-                &e,
-                &pool,
-                &PoolBalance {
-                    shares: 150_0000000,
-                    tokens: 0,
-                    q4w: 2_0000000,
-                },
-            );
-            let result = update_rz_emis_data(&e, &pool, true);
-            let actual_data = storage::get_rz_emis_data(&e, &pool).unwrap_optimized();
-            assert_eq!(result, 100_0000000);
-            assert_eq!(actual_data.index, 22_00000000000000);
-            assert_eq!(actual_data.accrued, 0);
-        });
-    }
-
-    #[test]
-    fn test_update_rz_emis_data_no_emis_data() {
-        let e = Env::default();
-        e.ledger().set(LedgerInfo {
-            timestamp: 1713139200,
-            protocol_version: 22,
-            sequence_number: 0,
-            network_id: Default::default(),
-            base_reserve: 10,
-            min_temp_entry_ttl: 10,
-            min_persistent_entry_ttl: 10,
-            max_entry_ttl: 3110400,
-        });
-        let backstop_id = create_backstop(&e);
-        let pool = Address::generate(&e);
-
-        e.as_contract(&backstop_id, || {
-            storage::set_rz_emission_index(&e, &22_00000000000000);
-
-            storage::set_pool_balance(
-                &e,
-                &pool,
-                &PoolBalance {
-                    shares: 150_0000000,
-                    tokens: 0,
-                    q4w: 2_0000000,
-                },
-            );
-            let result = update_rz_emis_data(&e, &pool, false);
-            let actual_data = storage::get_rz_emis_data(&e, &pool);
-            assert_eq!(result, 0);
-            assert!(actual_data.is_none());
         });
     }
 }

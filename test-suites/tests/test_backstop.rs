@@ -127,8 +127,7 @@ fn test_backstop() {
         bstop_bstop_token_balance
     );
 
-    // Simulate the pool backstop making money and progress 6d23h (6d23hr total emissions for sam)
-    // @dev: setup jumps 1 hour and 1 minute
+    // Simulate the pool backstop making money and progress 6d23h (+6d23hr 20% emissions for sam)
     fixture.jump(60 * 60 * 24 * 7 - 60 * 60);
     // Start the next emission cycle
     fixture.emitter.distribute();
@@ -276,13 +275,14 @@ fn test_backstop() {
         bstop_bstop_token_balance
     );
 
-    // Start the next emission cycle and jump 7 days (13d23hr total emissions for sam)
+    // Start the next emission cycle and jump 7 days (No emissions earned for sam)
     fixture.jump(60 * 60 * 24 * 7);
     fixture.emitter.distribute();
     fixture.backstop.distribute();
     pool.gulp_emissions();
 
     // Sam dequeues half of the withdrawal
+    // -> sam now makes up 11% of the unqueued shares in the backstop
     let amount = 6_250 * SCALAR_7; // shares
     fixture
         .backstop
@@ -329,7 +329,7 @@ fn test_backstop() {
         bstop_bstop_token_balance
     );
 
-    // Start the next emission cycle and jump 7 days (20d23hr total emissions for sam)
+    // Start the next emission cycle and jump 7 days (+7d 11% emissions for sam)
     fixture.jump(60 * 60 * 24 * 7);
     fixture.emitter.distribute();
     fixture.backstop.distribute();
@@ -378,7 +378,7 @@ fn test_backstop() {
         bstop_bstop_token_balance
     );
 
-    // Jump to the end of the withdrawal period (27d23hr total emissions for sam)
+    // Jump to the end of the withdrawal period (+7d 11% emissions for sam, emissions expire)
     fixture.jump(60 * 60 * 24 * 16 + 1);
     // Sam withdraws the queue position
     let amount = 6_250 * SCALAR_7; // shares
@@ -436,9 +436,10 @@ fn test_backstop() {
     // Sam claims emissions earned on the backstop deposit
     let bstop_blend_balance = &fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address);
     let comet_blend_balance = &fixture.tokens[TokenIndex::BLND].balance(&fixture.lp.address);
-    fixture
-        .backstop
-        .claim(&sam, &vec![&fixture.env, pool.address.clone()], &sam);
+    let lp_tokens_minted =
+        fixture
+            .backstop
+            .claim(&sam, &vec![&fixture.env, pool.address.clone()], &0);
     assert_eq!(
         fixture.env.auths()[0],
         (
@@ -451,7 +452,7 @@ fn test_backstop() {
                         &fixture.env,
                         sam.to_val(),
                         vec![&fixture.env, pool.address.clone()].to_val(),
-                        sam.to_val(),
+                        0i128.into_val(&fixture.env),
                     ]
                 )),
                 sub_invocations: std::vec![]
@@ -459,15 +460,14 @@ fn test_backstop() {
         )
     );
 
-    //6d23hr at full
-    //7 days at none
-    //7 at 6250 + (60 * 60 * 24 * 16 + 1)
+    // 6d23hr at 20% of 0.7 BLND/sec
+    // 7d + 7d at 11% of 0.7 BLND/sec
     let emission_share_1 = 0_7000000.fixed_mul_floor(0_2000000, SCALAR_7).unwrap();
     let emission_share_2 = 0_7000000.fixed_mul_floor(0_1111111, SCALAR_7).unwrap();
     let emitted_blnd_1 = ((7 * 24 * 60 * 60 - 61 * 60) * SCALAR_7)
         .fixed_mul_floor(emission_share_1, SCALAR_7)
         .unwrap();
-    let emitted_blnd_2 = ((14 * 24 * 60 * 60 + 1) * SCALAR_7 + 2096012)
+    let emitted_blnd_2 = ((14 * 24 * 60 * 60 + 1) * SCALAR_7)
         .fixed_mul_floor(emission_share_2, SCALAR_7)
         .unwrap();
     let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
@@ -478,19 +478,19 @@ fn test_backstop() {
             (
                 fixture.backstop.address.clone(),
                 (Symbol::new(&fixture.env, "claim"), sam.clone()).into_val(&fixture.env),
-                (emitted_blnd_1 + emitted_blnd_2).into_val(&fixture.env),
+                lp_tokens_minted.into_val(&fixture.env),
             )
         ]
     );
 
     assert_approx_eq_abs(
-        fixture.tokens[TokenIndex::BLND].balance(&fixture.lp.address),
-        comet_blend_balance + emitted_blnd_1 + emitted_blnd_2,
+        fixture.tokens[TokenIndex::BLND].balance(&fixture.lp.address) - comet_blend_balance,
+        emitted_blnd_1 + emitted_blnd_2,
         SCALAR_7,
     );
     assert_approx_eq_abs(
-        fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
-        bstop_blend_balance - emitted_blnd_1 - emitted_blnd_2,
+        bstop_blend_balance - fixture.tokens[TokenIndex::BLND].balance(&fixture.backstop.address),
+        emitted_blnd_1 + emitted_blnd_2,
         SCALAR_7,
     );
 }
