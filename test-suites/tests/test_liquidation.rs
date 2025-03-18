@@ -1,15 +1,13 @@
 #![cfg(test)]
 use cast::i128;
-use pool::{AuctionData, PoolDataKey, Positions, Request, RequestType, ReserveConfig, ReserveData};
+use pool::{AuctionData, FlashLoan, PoolDataKey, Positions, Request, RequestType, ReserveConfig, ReserveData};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as AddressTestTrait, Events},
     vec, Address, Env, Error, FromVal, IntoVal, Symbol, TryFromVal, Val, Vec,
 };
 use test_suites::{
-    assertions::assert_approx_eq_abs,
-    create_fixture_with_data,
-    test_fixture::{TokenIndex, SCALAR_7},
+    assertions::assert_approx_eq_abs, create_fixture_with_data, moderc3156::create_flashloan_receiver, test_fixture::{TokenIndex, SCALAR_7}
 };
 
 fn assert_fill_auction_event_no_data(
@@ -1009,9 +1007,13 @@ fn test_user_restore_position_and_delete_liquidation() {
     let stable_pool_index = pool_fixture.reserves[&TokenIndex::STABLE];
     let xlm_pool_index = pool_fixture.reserves[&TokenIndex::XLM];
 
+    // Create a standard flash loan receiver
+    let (receiver_address, _receiver_client) = create_flashloan_receiver(&fixture.env);
+
     // Create a user that is supply STABLE (cf = 90%, $1) and borrowing XLM (lf = 75%, $0.10)
     let samwise = Address::generate(&fixture.env);
     fixture.tokens[TokenIndex::STABLE].mint(&samwise, &(1100 * 10i128.pow(6)));
+    fixture.tokens[TokenIndex::XLM].mint(&samwise, &(10000 * SCALAR_7));
 
     // deposit $1k stable and borrow to 90% borrow limit ($810)
     let setup_request: Vec<Request> = vec![
@@ -1118,6 +1120,39 @@ fn test_user_restore_position_and_delete_liquidation() {
     assert_eq!(
         short_repay_delete.err(),
         Some(Ok(Error::from_contract_error(1205)))
+    );
+
+    // validate positions can't be modified without deleting liquidation
+    let healthy_no_delete_request: Vec<Request> = vec![
+        &fixture.env,
+        Request {
+            request_type: RequestType::Repay as u32,
+            address: fixture.tokens[TokenIndex::XLM].address.clone(),
+            amount: 10000 * SCALAR_7,
+        },
+    ];
+    let healthy_no_delete =
+        pool_fixture
+            .pool
+            .try_submit(&samwise, &samwise, &samwise, &healthy_no_delete_request);
+    assert_eq!(
+        healthy_no_delete.err(),
+        Some(Ok(Error::from_contract_error(1212)))
+    );
+
+    // validate flash loan endpoint also requires liquidation to be deleted
+    let flash_loan = FlashLoan {
+        contract: receiver_address.clone(),
+        asset: fixture.tokens[TokenIndex::XLM].address.clone(),
+        amount: 1 * SCALAR_7,
+    };
+    let flash_loan_no_delete =
+        pool_fixture
+            .pool
+            .try_flash_loan(&samwise, &flash_loan, &healthy_no_delete_request);
+    assert_eq!(
+        flash_loan_no_delete.err(),
+        Some(Ok(Error::from_contract_error(1212)))
     );
 
     // validate liquidation can be deleted after restoring position
