@@ -1,13 +1,19 @@
 #![cfg(test)]
 use cast::i128;
-use pool::{AuctionData, FlashLoan, PoolDataKey, Positions, Request, RequestType, ReserveConfig, ReserveData};
+use pool::{
+    AuctionData, FlashLoan, PoolDataKey, Positions, Request, RequestType, ReserveConfig,
+    ReserveData,
+};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     testutils::{Address as AddressTestTrait, Events},
     vec, Address, Env, Error, FromVal, IntoVal, Symbol, TryFromVal, Val, Vec,
 };
 use test_suites::{
-    assertions::assert_approx_eq_abs, create_fixture_with_data, moderc3156::create_flashloan_receiver, test_fixture::{TokenIndex, SCALAR_7}
+    assertions::assert_approx_eq_abs,
+    create_fixture_with_data,
+    moderc3156::create_flashloan_receiver,
+    test_fixture::{TokenIndex, SCALAR_7},
 };
 
 fn assert_fill_auction_event_no_data(
