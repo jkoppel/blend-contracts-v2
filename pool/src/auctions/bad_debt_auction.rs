@@ -96,6 +96,7 @@ pub fn fill_bad_debt_auction(
     pool: &mut Pool,
     auction_data: &AuctionData,
     filler_state: &mut User,
+    percent_filled: u64,
 ) {
     let backstop_address = storage::get_backstop(e);
     if filler_state.address == backstop_address {
@@ -118,8 +119,9 @@ pub fn fill_bad_debt_auction(
         );
     }
 
-    // If the backstop still has liabilities and less than 5% of the backstop threshold burn bad debt
-    if !backstop_state.positions.liabilities.is_empty() {
+    // If the backstop still has liabilities after the auction is completely filled
+    // and less than 5% of the backstop threshold, default the rest of the bad debt
+    if percent_filled == 100 && !backstop_state.positions.liabilities.is_empty() {
         let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
         let threshold = calc_pool_backstop_threshold(&pool_backstop_data);
         if threshold < 0_0000003 {
@@ -1640,7 +1642,7 @@ mod tests {
 
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 100);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 50_000_0000000 - 47_6000000
@@ -1785,7 +1787,7 @@ mod tests {
             let pre_fill_b_rate_1 = reserve_data_1.b_rate;
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 100);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 1_000_0000000 - 47_6000000
@@ -1822,6 +1824,166 @@ mod tests {
             let reserve_data_1 = storage::get_res_data(&e, &underlying_1);
             assert_eq!(reserve_data_1.d_supply, pre_fill_d_supply_1 - 0_6250000);
             assert!(reserve_data_1.b_rate < pre_fill_b_rate_1);
+        });
+    }
+
+    #[test]
+    fn test_fill_bad_debt_auction_leftover_debt_small_backstop_does_not_burn_if_not_full_liq() {
+        let e = Env::default();
+        e.mock_all_auths_allowing_non_root_auth();
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 12345,
+            protocol_version: 22,
+            sequence_number: 51,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool_address = create_pool(&e);
+
+        let (blnd, blnd_client) = testutils::create_blnd_token(&e, &pool_address, &bombadil);
+        let (usdc, usdc_client) = testutils::create_token_contract(&e, &bombadil);
+        let (lp_token, lp_token_client) =
+            testutils::create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
+        let (backstop_address, backstop_client) =
+            testutils::create_backstop(&e, &pool_address, &lp_token, &usdc, &blnd);
+        // mint lp tokens
+        blnd_client.mint(&samwise, &500_001_0000000);
+        blnd_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        usdc_client.mint(&samwise, &12_501_0000000);
+        usdc_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        lp_token_client.join_pool(
+            &50_000_0000000,
+            &vec![&e, 500_001_0000000, 12_501_0000000],
+            &samwise,
+        );
+        backstop_client.deposit(&samwise, &pool_address, &1_000_0000000);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
+        reserve_data_0.d_rate = 1_100_000_000_000;
+        reserve_data_0.last_time = 12345;
+        reserve_config_0.index = 0;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_0,
+            &reserve_config_0,
+            &reserve_data_0,
+        );
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
+        reserve_data_1.d_rate = 1_200_000_000_000;
+        reserve_data_1.last_time = 12345;
+        reserve_config_1.index = 1;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_1,
+            &reserve_config_1,
+            &reserve_data_1,
+        );
+
+        let (underlying_2, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_2, mut reserve_data_2) = testutils::default_reserve_meta();
+        reserve_data_2.b_rate = 1_100_000_000_000;
+        reserve_data_2.last_time = 12345;
+        reserve_config_2.index = 1;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_2,
+            &reserve_config_2,
+            &reserve_data_2,
+        );
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 4,
+        };
+        let mut auction_data = AuctionData {
+            bid: map![
+                &e,
+                (underlying_0.clone(), 10_0000000 - 2_5000000),
+                (underlying_1.clone(), 2_5000000 - 6250000)
+            ],
+            lot: map![&e, (lp_token.clone(), 47_6000000)],
+            block: 51,
+        };
+        let positions: Positions = Positions {
+            collateral: map![&e],
+            liabilities: map![
+                &e,
+                (reserve_config_0.index, 10_0000000),
+                (reserve_config_1.index, 2_5000000)
+            ],
+            supply: map![&e],
+        };
+
+        e.as_contract(&pool_address, || {
+            storage::set_auction(
+                &e,
+                &(AuctionType::BadDebtAuction as u32),
+                &backstop_address,
+                &auction_data,
+            );
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_user_positions(&e, &backstop_address, &positions);
+
+            let mut pool = Pool::load(&e);
+            let mut samwise_state = User::load(&e, &samwise);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 99);
+            assert_eq!(
+                lp_token_client.balance(&backstop_address),
+                1_000_0000000 - 47_6000000
+            );
+            assert_eq!(
+                lp_token_client.balance(&samwise),
+                50_000_0000000 - 1_000_0000000 + 47_6000000
+            );
+            let samwise_positions = samwise_state.positions;
+            assert_eq!(
+                samwise_positions
+                    .liabilities
+                    .get(reserve_config_0.index)
+                    .unwrap(),
+                10_0000000 - 2_5000000
+            );
+            assert_eq!(
+                samwise_positions
+                    .liabilities
+                    .get(reserve_config_1.index)
+                    .unwrap(),
+                2_5000000 - 0_6250000
+            );
+            let backstop_positions = storage::get_user_positions(&e, &backstop_address);
+            assert_eq!(backstop_positions.liabilities.len(), 2);
+            assert_eq!(backstop_positions.collateral.len(), 0);
+            assert_eq!(backstop_positions.supply.len(), 0);
+            assert_eq!(
+                backstop_positions
+                    .liabilities
+                    .get(reserve_config_0.index)
+                    .unwrap(),
+                10_0000000 - (10_0000000 - 2_5000000)
+            );
+            assert_eq!(
+                backstop_positions
+                    .liabilities
+                    .get(reserve_config_1.index)
+                    .unwrap(),
+                2_5000000 - (2_5000000 - 0_6250000)
+            );
         });
     }
 
@@ -1944,7 +2106,7 @@ mod tests {
             let pre_fill_b_rate_1 = reserve_data_1.b_rate;
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 100);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 2_500_0000000 - 47_6000000
@@ -2107,7 +2269,7 @@ mod tests {
 
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 100);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 50_000_0000000 - 47_6000000
@@ -2246,7 +2408,7 @@ mod tests {
 
             let mut pool = Pool::load(&e);
             let mut backstop_state = User::load(&e, &backstop_address);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut backstop_state);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut backstop_state, 100);
         });
     }
 }

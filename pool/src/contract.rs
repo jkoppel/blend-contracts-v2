@@ -156,21 +156,6 @@ pub trait Pool {
         requests: Vec<Request>,
     ) -> Positions;
 
-    /// Manage bad debt. Debt is considered "bad" if there is no longer has any collateral posted.
-    ///
-    /// To manage a user's bad debt, all collateralized reserves for the user must be liquidated
-    /// before debt can be transferred to the backstop.
-    ///
-    /// To manage a backstop's bad debt, the backstop module must be below a critical threshold
-    /// to allow bad debt to be burnt.
-    ///
-    /// ### Arguments
-    /// * `user` - The user who currently possesses bad debt
-    ///
-    /// ### Panics
-    /// If the user has collateral posted
-    fn bad_debt(e: Env, user: Address);
-
     /// Update the pool status based on the backstop state - backstop triggered status' are odd numbers
     /// * 1 = backstop active - if the minimum backstop deposit has been reached
     ///                and 30% of backstop deposits are not queued for withdrawal
@@ -466,10 +451,6 @@ impl Pool for PoolContract {
         from.require_auth();
 
         pool::execute_submit_with_flash_loan(&e, &from, flash_loan, requests)
-    }
-
-    fn bad_debt(e: Env, user: Address) {
-        pool::transfer_bad_debt_to_backstop(&e, &user);
     }
 
     fn update_status(e: Env) -> u32 {

@@ -135,11 +135,16 @@ pub fn fill(
     let auction_data = storage::get_auction(e, &auction_type, user);
     let (to_fill_auction, remaining_auction) = scale_auction(e, &auction_data, percent_filled);
     match AuctionType::from_u32(e, auction_type) {
-        AuctionType::UserLiquidation => {
-            fill_user_liq_auction(e, pool, &to_fill_auction, user, filler_state)
-        }
+        AuctionType::UserLiquidation => fill_user_liq_auction(
+            e,
+            pool,
+            &to_fill_auction,
+            user,
+            filler_state,
+            percent_filled,
+        ),
         AuctionType::BadDebtAuction => {
-            fill_bad_debt_auction(e, pool, &to_fill_auction, filler_state)
+            fill_bad_debt_auction(e, pool, &to_fill_auction, filler_state, percent_filled);
         }
         AuctionType::InterestAuction => {
             fill_interest_auction(e, pool, &to_fill_auction, &filler_state.address)
