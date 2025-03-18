@@ -13,7 +13,8 @@ use crate::{
 #[contracttype]
 pub struct PoolBackstopData {
     pub tokens: i128,  // the number of backstop tokens held in the pool's backstop
-    pub q4w_pct: i128, // the percentage of tokens queued for withdrawal
+    pub shares: i128,  // the number of shares the pool's backstop has issued
+    pub q4w_pct: i128, // the percentage of shares/tokens queued for withdrawal
     pub blnd: i128,    // the amount of blnd held in the pool's backstop via backstop tokens
     pub usdc: i128,    // the amount of usdc held in the pool's backstop via backstop tokens
 }
@@ -56,6 +57,7 @@ pub fn load_pool_backstop_data(e: &Env, address: &Address) -> PoolBackstopData {
             .unwrap_optimized();
         PoolBackstopData {
             tokens: pool_balance.tokens,
+            shares: pool_balance.shares,
             q4w_pct,
             blnd,
             usdc,
@@ -63,6 +65,7 @@ pub fn load_pool_backstop_data(e: &Env, address: &Address) -> PoolBackstopData {
     } else {
         PoolBackstopData {
             tokens: 0,
+            shares: pool_balance.shares,
             q4w_pct,
             blnd: 0,
             usdc: 0,
@@ -394,6 +397,7 @@ mod tests {
             blnd: 200000_0000000,
             q4w_pct: 0,
             tokens: 20_000_0000000,
+            shares: 15_000_0000000,
             usdc: 6_249_0000000,
         }; // ~99% threshold
 
@@ -410,6 +414,7 @@ mod tests {
             blnd: 5_000_0000000,
             q4w_pct: 0,
             tokens: 500_0000000,
+            shares: 500_0000000,
             usdc: 1_000_0000000,
         }; // ~3.6% threshold - rounds to zero in calc
 
@@ -426,6 +431,7 @@ mod tests {
             blnd: 200001_0000000,
             q4w_pct: 0,
             tokens: 15_000_0000000,
+            shares: 14_000_0000000,
             usdc: 6_250_0000000,
         }; // 100% threshold
 
@@ -442,6 +448,7 @@ mod tests {
             blnd: 50_000_000_0000000,
             q4w_pct: 0,
             tokens: 999_999_0000000,
+            shares: 1_099_999_0000000,
             usdc: 10_000_000_0000000,
         }; // 362x threshold
 

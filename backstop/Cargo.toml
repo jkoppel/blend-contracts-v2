@@ -27,3 +27,4 @@ soroban-sdk = { workspace = true, features = ["testutils"] }
 mock-pool-factory = { path = "../mocks/mock-pool-factory", features = ["testutils"] }
 sep-41-token = { workspace = true, features = ["testutils"] }
 blend-contract-sdk = { workspace = true, features = ["testutils"] }
+mock-pool = { path = "../mocks/mock-pool", features = ["testutils"] }

@@ -1087,6 +1087,7 @@ mod tests {
             blnd: 175_000_0000000,
             q4w_pct: 0,
             tokens: 20_000_0000000,
+            shares: 50_000_0000000,
             usdc: 6_500_0000000,
         }; // ~90.5% threshold
 
@@ -1103,6 +1104,7 @@ mod tests {
             blnd: 5_000_0000000,
             q4w_pct: 0,
             tokens: 500_0000000,
+            shares: 1_000_0000000,
             usdc: 1_000_0000000,
         }; // ~3.6% threshold
 
@@ -1119,6 +1121,7 @@ mod tests {
             blnd: 200_000_0000000,
             q4w_pct: 0,
             tokens: 15_000_0000000,
+            shares: 1_000_0000000,
             usdc: 6_250_0000000,
         }; // 100% threshold
 
@@ -1135,6 +1138,7 @@ mod tests {
             blnd: 50_000_000_0000000,
             q4w_pct: 0,
             tokens: 999_999_0000000,
+            shares: 999_999_0000000,
             usdc: 10_000_000_0000000,
         }; // 362x threshold
 
@@ -1151,6 +1155,7 @@ mod tests {
             blnd: 20_000_0000000,
             q4w_pct: 0,
             tokens: 1_000_0000000,
+            shares: 1_000_0000000,
             usdc: 625_0000000,
         }; // 10% threshold
 
@@ -1167,6 +1172,7 @@ mod tests {
             blnd: 10_000_0000000,
             q4w_pct: 0,
             tokens: 999_999_0000000,
+            shares: 999_999_0000000,
             usdc: 312_5000000,
         }; // 5% threshold
 

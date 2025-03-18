@@ -1,9 +1,7 @@
 use sep_41_token::TokenClient;
 use soroban_sdk::{Address, Env};
 
-use crate::storage;
-
-use super::Reserve;
+use super::{Pool, RequestType, Reserve};
 
 /// Gulps the excess tokens in the pool, determined by the difference between the pool token balance
 /// and the reserve total supply, backstop credit, and liabiltiies.
@@ -13,9 +11,17 @@ use super::Reserve;
 ///
 /// ### Returns
 /// * The gulped token delta accrued to the backstop credit
+///
+/// ### Panics
+/// * If borrowing is not enabled on the pool. This ensures that the backstop can safely process
+/// interest auctions.
 pub fn execute_gulp(e: &Env, asset: &Address) -> i128 {
-    let pool_config = storage::get_pool_config(e);
-    let mut reserve = Reserve::load(e, &pool_config, asset);
+    let pool = Pool::load(e);
+
+    // ensure the backstop can safely accept new interest
+    pool.require_action_allowed(e, RequestType::Borrow as u32);
+
+    let mut reserve = Reserve::load(e, &pool.config, asset);
     let pool_token_balance = TokenClient::new(e, asset).balance(&e.current_contract_address());
     let reserve_token_balance =
         reserve.total_supply(e) + reserve.data.backstop_credit - reserve.total_liabilities(e);
@@ -25,8 +31,8 @@ pub fn execute_gulp(e: &Env, asset: &Address) -> i128 {
     }
 
     reserve.data.backstop_credit += token_balance_delta;
-
     reserve.store(e);
+
     return token_balance_delta;
 }
 
@@ -77,7 +83,7 @@ mod tests {
                 oracle,
                 min_collateral: 1_0000000,
                 bstop_rate: 0_1000000,
-                status: 0,
+                status: 1,
                 max_positions: 4,
             };
             storage::set_pool_config(&e, &pool_config);
@@ -245,6 +251,52 @@ mod tests {
             assert_eq!(new_reserve_data.b_rate, 1_000_000_000_000);
             assert_eq!(new_reserve_data.last_time, 0);
             assert_eq!(new_reserve_data.backstop_credit, 0);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1206)")]
+    fn test_execute_gulp_checks_status() {
+        let e = Env::default();
+        e.mock_all_auths();
+        e.ledger().set(LedgerInfo {
+            timestamp: 100,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let bombadil = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let (oracle, _) = testutils::create_mock_oracle(&e);
+
+        let initial_backstop_credit = 500;
+        let (underlying, underlying_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, mut reserve_data) = testutils::default_reserve_meta();
+        reserve_data.b_rate = 1_000_000_000_000;
+        reserve_data.d_rate = 1_000_000_000_000;
+        reserve_data.d_supply = 500 * SCALAR_7;
+        reserve_data.b_supply = 1000 * SCALAR_7;
+        reserve_data.backstop_credit = initial_backstop_credit;
+        reserve_data.last_time = 100;
+        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
+
+        let additional_tokens = 10 * SCALAR_7;
+        underlying_client.mint(&pool, &additional_tokens);
+        e.as_contract(&pool, || {
+            let pool_config = PoolConfig {
+                oracle,
+                min_collateral: 1_0000000,
+                bstop_rate: 0_1000000,
+                status: 2,
+                max_positions: 4,
+            };
+            storage::set_pool_config(&e, &pool_config);
+
+            execute_gulp(&e, &underlying);
         });
     }
 }
