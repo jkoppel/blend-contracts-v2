@@ -4,7 +4,6 @@ use cast::i128;
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{unwrap::UnwrapOptimized, Address, Env};
 
-use super::update_rz_emis_data;
 use crate::{
     backstop::{PoolBalance, UserBalance},
     constants::{SCALAR_14, SCALAR_7},
@@ -20,7 +19,6 @@ pub fn update_emissions(
     user_id: &Address,
     user_balance: &UserBalance,
 ) {
-    update_rz_emis_data(e, pool_id, false);
     if let Some(emis_data) = update_emission_data(e, pool_id, pool_balance) {
         update_user_emissions(e, pool_id, user_id, &emis_data, user_balance, false);
     }
@@ -40,7 +38,6 @@ pub(super) fn claim_emissions(
     user_id: &Address,
     user_balance: &UserBalance,
 ) -> i128 {
-    update_rz_emis_data(e, pool_id, false);
     if let Some(emis_data) = update_emission_data(e, pool_id, pool_balance) {
         update_user_emissions(e, pool_id, user_id, &emis_data, user_balance, true)
     } else {
@@ -73,10 +70,16 @@ pub fn update_emission_data(
 
             let unqueued_shares = pool_balance.shares - pool_balance.q4w;
             require_nonnegative(e, unqueued_shares);
-            // Eps is in 14 decimals and needs to be converted to 7 decimals to match emission token decimals
-            let additional_idx = (i128(max_timestamp - emis_data.last_time) * i128(emis_data.eps))
-                .fixed_div_floor(unqueued_shares, SCALAR_7)
-                .unwrap_optimized();
+            let additional_idx: i128;
+            if unqueued_shares == 0 {
+                // all shares q4w, omit emissions
+                additional_idx = 0;
+            } else {
+                // Eps is in 14 decimals and needs to be converted to 7 decimals to match emission token decimals
+                additional_idx = (i128(max_timestamp - emis_data.last_time) * i128(emis_data.eps))
+                    .fixed_div_floor(unqueued_shares, SCALAR_7)
+                    .unwrap_optimized();
+            }
             let new_data = BackstopEmissionData {
                 eps: emis_data.eps,
                 expiration: emis_data.expiration,
@@ -158,7 +161,6 @@ mod tests {
         testutils::{Address as _, Ledger, LedgerInfo},
         vec,
     };
-    use storage::RzEmissionData;
 
     /********** update_emissions **********/
 
@@ -195,15 +197,6 @@ mod tests {
             storage::set_last_distribution_time(&e, &1713139200);
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
-            storage::set_rz_emission_index(&e, &1_00000000000000);
-            storage::set_rz_emis_data(
-                &e,
-                &pool_1,
-                &RzEmissionData {
-                    index: 0,
-                    accrued: 0,
-                },
-            );
 
             let pool_balance = PoolBalance {
                 shares: 150_0000000,
@@ -225,10 +218,6 @@ mod tests {
             assert_eq!(new_backstop_data.index, 82488886666666);
             assert_eq!(new_user_data.accrued, 7_4140001);
             assert_eq!(new_user_data.index, 82488886666666);
-
-            let new_rz_data_1 = storage::get_rz_emis_data(&e, &pool_1).unwrap_optimized();
-            assert_eq!(new_rz_data_1.index, 100000000000000);
-            assert_eq!(new_rz_data_1.accrued, 2000000000);
         });
     }
 
@@ -439,6 +428,67 @@ mod tests {
     }
 
     #[test]
+    fn test_update_emissions_fully_q4w_emissions_lost() {
+        let e = Env::default();
+        let block_timestamp = 1713139200 + 1234;
+        e.ledger().set(LedgerInfo {
+            timestamp: block_timestamp,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let backstop_id = create_backstop(&e);
+        let pool_1 = Address::generate(&e);
+        let samwise = Address::generate(&e);
+
+        let backstop_emissions_data = BackstopEmissionData {
+            expiration: 1713139200 + 7 * 24 * 60 * 60,
+            eps: 0_10000000000000,
+            index: 222220000000,
+            last_time: 1713139200,
+        };
+        let user_emissions_data = UserEmissionData {
+            index: 111110000000,
+            accrued: 3,
+        };
+        e.as_contract(&backstop_id, || {
+            storage::set_last_distribution_time(&e, &1713139200);
+
+            storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
+            storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
+
+            let pool_balance = PoolBalance {
+                shares: 150_0000000,
+                tokens: 200_0000000,
+                q4w: 150_0000000,
+            };
+            let q4w: Q4W = Q4W {
+                amount: (150_0000000),
+                exp: (5000),
+            };
+            let user_balance = UserBalance {
+                shares: 4_5000000,
+                q4w: vec![&e, q4w],
+            };
+
+            update_emissions(&e, &pool_1, &pool_balance, &samwise, &user_balance);
+
+            let new_backstop_data = storage::get_backstop_emis_data(&e, &pool_1).unwrap_optimized();
+            let new_user_data =
+                storage::get_user_emis_data(&e, &pool_1, &samwise).unwrap_optimized();
+            assert_eq!(new_backstop_data.last_time, block_timestamp);
+            assert_eq!(new_backstop_data.index, backstop_emissions_data.index);
+            assert_eq!(new_user_data.accrued, 50002);
+            assert_eq!(new_user_data.index, backstop_emissions_data.index);
+        });
+    }
+
+    #[test]
     fn test_claim_emissions() {
         let e = Env::default();
         let block_timestamp = 1713139200 + 1234;
@@ -472,15 +522,6 @@ mod tests {
 
             storage::set_backstop_emis_data(&e, &pool_1, &backstop_emissions_data);
             storage::set_user_emis_data(&e, &pool_1, &samwise, &user_emissions_data);
-            storage::set_rz_emission_index(&e, &1_00000000000000);
-            storage::set_rz_emis_data(
-                &e,
-                &pool_1,
-                &RzEmissionData {
-                    index: 0,
-                    accrued: 0,
-                },
-            );
 
             let pool_balance = PoolBalance {
                 shares: 150_0000000,
@@ -503,10 +544,6 @@ mod tests {
             assert_eq!(new_backstop_data.index, 82488886666666);
             assert_eq!(new_user_data.accrued, 0);
             assert_eq!(new_user_data.index, 82488886666666);
-
-            let new_rz_data_1 = storage::get_rz_emis_data(&e, &pool_1).unwrap_optimized();
-            assert_eq!(new_rz_data_1.index, 100000000000000);
-            assert_eq!(new_rz_data_1.accrued, 2000000000);
         });
     }
 

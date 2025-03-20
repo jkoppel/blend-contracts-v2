@@ -115,6 +115,11 @@ impl User {
         }
     }
 
+    /// Check if the user has collateral
+    pub fn has_collateral(&self) -> bool {
+        !self.positions.collateral.is_empty()
+    }
+
     /// Get the collateralized blendToken position for the reserve at the given index
     pub fn get_collateral(&self, reserve_index: u32) -> i128 {
         self.positions.collateral.get(reserve_index).unwrap_or(0)
@@ -691,24 +696,35 @@ mod tests {
         };
         e.as_contract(&pool, || {
             assert_eq!(user.get_collateral(0), 0);
+            assert_eq!(user.has_collateral(), false);
 
             user.add_collateral(&e, &mut reserve_0, 123);
             assert_eq!(user.get_collateral(0), 123);
             assert_eq!(reserve_0.data.b_supply, starting_b_supply_0 + 123);
+            assert_eq!(user.has_collateral(), true);
 
             user.add_collateral(&e, &mut reserve_1, 456);
             assert_eq!(user.get_collateral(0), 123);
             assert_eq!(user.get_collateral(1), 456);
             assert_eq!(reserve_1.data.b_supply, starting_b_supply_1 + 456);
+            assert_eq!(user.has_collateral(), true);
 
             user.remove_collateral(&e, &mut reserve_1, 100);
             assert_eq!(user.get_collateral(1), 356);
             assert_eq!(reserve_1.data.b_supply, starting_b_supply_1 + 356);
+            assert_eq!(user.has_collateral(), true);
 
             user.remove_collateral(&e, &mut reserve_1, 356);
             assert_eq!(user.get_collateral(1), 0);
             assert_eq!(user.positions.collateral.len(), 1);
             assert_eq!(reserve_1.data.b_supply, starting_b_supply_1);
+            assert_eq!(user.has_collateral(), true);
+
+            user.remove_collateral(&e, &mut reserve_0, 123);
+            assert_eq!(user.get_collateral(0), 0);
+            assert_eq!(user.positions.collateral.len(), 0);
+            assert_eq!(reserve_0.data.b_supply, starting_b_supply_0);
+            assert_eq!(user.has_collateral(), false);
         });
     }
 

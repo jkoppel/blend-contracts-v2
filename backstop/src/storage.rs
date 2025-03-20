@@ -19,14 +19,6 @@ pub(crate) const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER + 20 * ONE_DAY_LE
 
 /********** Storage Types **********/
 
-// The emission data for a reward zone pool
-#[derive(Clone)]
-#[contracttype]
-pub struct RzEmissionData {
-    pub index: i128,
-    pub accrued: i128,
-}
-
 // The emission data for a pool's backstop
 #[derive(Clone)]
 #[contracttype]
@@ -41,12 +33,13 @@ pub struct BackstopEmissionData {
     pub last_time: u64,
 }
 
-/// The user emission data for the reserve b or d token
+/// The user emission data pool's backstop tokens
 #[derive(Clone)]
 #[contracttype]
 pub struct UserEmissionData {
     // The user's last accrued emission index (14 decimals)
     pub index: i128,
+    // The user's total accrued emissions
     pub accrued: i128,
 }
 
@@ -60,7 +53,6 @@ const USDC_TOKEN_KEY: &str = "USDCTkn";
 const LAST_DISTRO_KEY: &str = "LastDist";
 const REWARD_ZONE_KEY: &str = "RZ";
 const DROP_LIST_KEY: &str = "DropList";
-const RZ_EMISSION_INDEX_KEY: &str = "RZEmissionIndex";
 const BACKFILL_EMISSIONS_KEY: &str = "BackfillEmis";
 const BACKFILL_STATUS_KEY: &str = "Backfill";
 
@@ -77,7 +69,7 @@ pub enum BackstopDataKey {
     UserBalance(PoolUserKey),
     PoolBalance(Address),
     PoolUSDC(Address),
-    RzEmisData(Address),
+    RzEmis(Address),
     BEmisData(Address),
     UEmisData(PoolUserKey),
 }
@@ -241,6 +233,9 @@ pub fn set_user_balance(e: &Env, pool: &Address, user: &Address, balance: &UserB
     e.storage()
         .persistent()
         .set::<BackstopDataKey, UserBalance>(&key, balance);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }
 
 /********** Pool Balance **********/
@@ -387,65 +382,37 @@ pub fn set_backfill_status(e: &Env, status: &bool) {
     );
 }
 
-/********** Backstop Depositor Emissions **********/
-
-/// Get the reward zone emission index
-/// The index is used to calculate the amount of tokens to distribute to the backstop
-pub fn get_rz_emission_index(e: &Env) -> i128 {
+/// Get the emission accrued to a reward zone pool
+///
+/// ### Arguments
+/// * `pool` - The pool
+pub fn get_rz_emis(e: &Env, pool: &Address) -> i128 {
+    let key = BackstopDataKey::RzEmis(pool.clone());
     get_persistent_default(
         e,
-        &Symbol::new(&e, RZ_EMISSION_INDEX_KEY),
+        &key,
         || 0i128,
         LEDGER_THRESHOLD_SHARED,
         LEDGER_BUMP_SHARED,
     )
 }
 
-/// Set the reward zone emission index
-/// The index is used to calculate the amount of tokens to distribute to the backstop
-///
-/// ### Arguments
-/// * 'index' - The index of the backstop's emissions
-pub fn set_rz_emission_index(e: &Env, index: &i128) {
-    e.storage()
-        .persistent()
-        .set::<Symbol, i128>(&Symbol::new(&e, RZ_EMISSION_INDEX_KEY), index);
-    e.storage().persistent().extend_ttl(
-        &Symbol::new(&e, RZ_EMISSION_INDEX_KEY),
-        LEDGER_THRESHOLD_SHARED,
-        LEDGER_BUMP_SHARED,
-    );
-}
-
-/// Get the emission data for the reward zone pool
+/// Set the emission accrued to a reward zone pool
 ///
 /// ### Arguments
 /// * `pool` - The pool
-pub fn get_rz_emis_data(e: &Env, pool: &Address) -> Option<RzEmissionData> {
-    let key = BackstopDataKey::RzEmisData(pool.clone());
-    get_persistent_default(
-        e,
-        &key,
-        || None,
-        LEDGER_THRESHOLD_SHARED,
-        LEDGER_BUMP_SHARED,
-    )
-}
-
-/// Set the emission data for the reward zone pool
-///
-/// ### Arguments
-/// * `pool` - The pool
-/// * `index` - The index of the backstop's emissions
-pub fn set_rz_emis_data(e: &Env, pool: &Address, emis_data: &RzEmissionData) {
-    let key = BackstopDataKey::RzEmisData(pool.clone());
+/// * `emissions` - The index of the backstop's emissions
+pub fn set_rz_emis(e: &Env, pool: &Address, emissions: &i128) {
+    let key = BackstopDataKey::RzEmis(pool.clone());
     e.storage()
         .persistent()
-        .set::<BackstopDataKey, RzEmissionData>(&key, emis_data);
+        .set::<BackstopDataKey, i128>(&key, emissions);
     e.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD_SHARED, LEDGER_BUMP_SHARED);
 }
+
+/********** Backstop Depositor Emissions **********/
 
 /// Get the pool's backstop emissions data
 ///
@@ -472,6 +439,9 @@ pub fn set_backstop_emis_data(e: &Env, pool: &Address, backstop_emis_data: &Back
     e.storage()
         .persistent()
         .set::<BackstopDataKey, BackstopEmissionData>(&key, backstop_emis_data);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD_SHARED, LEDGER_BUMP_SHARED);
 }
 
 /// Get the user's backstop emissions data
@@ -506,6 +476,9 @@ pub fn set_user_emis_data(
     e.storage()
         .persistent()
         .set::<BackstopDataKey, UserEmissionData>(&key, user_emis_data);
+    e.storage()
+        .persistent()
+        .extend_ttl(&key, LEDGER_THRESHOLD_USER, LEDGER_BUMP_USER);
 }
 
 /********** Drop Emissions **********/

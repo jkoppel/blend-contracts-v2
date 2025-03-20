@@ -17,7 +17,7 @@ pub struct Q4W {
 #[derive(Clone)]
 #[contracttype]
 pub struct UserBalance {
-    pub shares: i128,  // the balance of shares the user owns
+    pub shares: i128,  // the balance of shares the user owns, excludes Q4W
     pub q4w: Vec<Q4W>, // a list of queued withdrawals
 }
 

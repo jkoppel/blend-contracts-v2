@@ -66,6 +66,7 @@ pub struct Actions {
     pub spender_transfer: Map<Address, i128>,
     pub pool_transfer: Map<Address, i128>,
     pub check_health: bool,
+    pub check_max_util: Vec<Address>,
 }
 
 impl Actions {
@@ -75,6 +76,7 @@ impl Actions {
             spender_transfer: Map::new(e),
             pool_transfer: Map::new(e),
             check_health: false,
+            check_max_util: Vec::new(e),
         }
     }
 
@@ -98,6 +100,14 @@ impl Actions {
     // to switch it back to false once set to true.
     pub fn do_check_health(&mut self) {
         self.check_health = true
+    }
+
+    // Add "reserve" to the list of reserves to check max utilization for
+    pub fn do_check_max_util(&mut self, reserve: &Address) {
+        if self.check_max_util.contains(reserve) {
+            return;
+        }
+        self.check_max_util.push_back(reserve.clone());
     }
 }
 
@@ -307,6 +317,7 @@ fn apply_withdraw(
         tokens_out = reserve.to_asset_from_b_token(e, cur_b_tokens);
     }
     user.remove_supply(e, &mut reserve, to_burn);
+    reserve.require_utilization_below_100(e);
     actions.add_for_pool_transfer(&reserve.asset, tokens_out);
     pool.cache_reserve(reserve);
     (tokens_out, to_burn)
@@ -357,6 +368,7 @@ fn apply_withdraw_collateral(
         tokens_out = reserve.to_asset_from_b_token(e, cur_b_tokens);
     }
     user.remove_collateral(e, &mut reserve, to_burn);
+    reserve.require_utilization_below_100(e);
     actions.add_for_pool_transfer(&reserve.asset, tokens_out);
     actions.do_check_health();
     pool.cache_reserve(reserve);
@@ -379,7 +391,8 @@ fn apply_borrow(
     reserve.require_action_allowed(e, request.request_type);
     let d_tokens_minted = reserve.to_d_token_up(e, request.amount);
     user.add_liabilities(e, &mut reserve, d_tokens_minted);
-    reserve.require_utilization_below_max(e);
+    reserve.require_utilization_below_100(e);
+    actions.do_check_max_util(&reserve.asset);
     actions.add_for_pool_transfer(&reserve.asset, request.amount);
     actions.do_check_health();
     pool.cache_reserve(reserve);
@@ -569,6 +582,7 @@ mod tests {
             let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, false);
+            assert_eq!(actions.check_max_util.len(), 0);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -643,6 +657,7 @@ mod tests {
             let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, false);
+            assert_eq!(actions.check_max_util.len(), 0);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -661,7 +676,8 @@ mod tests {
     }
 
     #[test]
-    fn test_build_actions_from_request_withdraw_allows_over_max_util() {
+    #[should_panic(expected = "Error(Contract, #1207")]
+    fn test_build_actions_from_request_withdraw_blocks_over_100_util() {
         let e = Env::default();
         e.mock_all_auths();
 
@@ -674,6 +690,7 @@ mod tests {
         reserve_config.max_util = 0_9000000;
         reserve_data.b_supply = 100_0000000;
         reserve_data.d_supply = 89_0000000;
+        reserve_data.backstop_credit = 10_0000000;
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
         e.ledger().set(LedgerInfo {
@@ -710,25 +727,11 @@ mod tests {
                 Request {
                     request_type: RequestType::Withdraw as u32,
                     address: underlying.clone(),
-                    amount: 2_0000000,
+                    amount: 11_0000000,
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
-
-            assert_eq!(actions.check_health, false);
-
-            let spender_transfer = actions.spender_transfer;
-            let pool_transfer = actions.pool_transfer;
-            assert_eq!(spender_transfer.len(), 0);
-            assert_eq!(pool_transfer.len(), 1);
-            assert_eq!(pool_transfer.get_unchecked(underlying.clone()), 2_0000000);
-
-            let positions = user.positions.clone();
-            assert_eq!(positions.liabilities.len(), 0);
-            assert_eq!(positions.collateral.len(), 0);
-            assert_eq!(positions.supply.len(), 1);
-            assert_eq!(user.get_supply(0), 18_0000111);
+            build_actions_from_request(&e, &mut pool, &mut user, requests);
         });
     }
 
@@ -860,6 +863,7 @@ mod tests {
             let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
+            assert_eq!(actions.check_max_util.len(), 0);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -934,6 +938,7 @@ mod tests {
             let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
+            assert_eq!(actions.check_max_util.len(), 0);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -952,7 +957,8 @@ mod tests {
     }
 
     #[test]
-    fn test_build_actions_from_request_withdraw_collateral_allows_over_max_util() {
+    #[should_panic(expected = "Error(Contract, #1207")]
+    fn test_build_actions_from_request_withdraw_collateral_blocks_over_100_util() {
         let e = Env::default();
         e.mock_all_auths();
 
@@ -965,6 +971,7 @@ mod tests {
         reserve_config.max_util = 0_9000000;
         reserve_data.b_supply = 100_0000000;
         reserve_data.d_supply = 89_0000000;
+        reserve_data.backstop_credit = 10_0000000;
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
         e.ledger().set(LedgerInfo {
@@ -1001,25 +1008,11 @@ mod tests {
                 Request {
                     request_type: RequestType::WithdrawCollateral as u32,
                     address: underlying.clone(),
-                    amount: 2_0000000,
+                    amount: 11_0000000,
                 },
             ];
             let mut user = User::load(&e, &samwise);
-            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
-
-            assert_eq!(actions.check_health, true);
-
-            let spender_transfer = actions.spender_transfer;
-            let pool_transfer = actions.pool_transfer;
-            assert_eq!(spender_transfer.len(), 0);
-            assert_eq!(pool_transfer.len(), 1);
-            assert_eq!(pool_transfer.get_unchecked(underlying.clone()), 2_0000000);
-
-            let positions = user.positions.clone();
-            assert_eq!(positions.liabilities.len(), 0);
-            assert_eq!(positions.collateral.len(), 1);
-            assert_eq!(positions.supply.len(), 0);
-            assert_eq!(user.get_collateral(0), 18_0000111);
+            build_actions_from_request(&e, &mut pool, &mut user, requests);
         });
     }
 
@@ -1071,6 +1064,7 @@ mod tests {
             let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
 
             assert_eq!(actions.check_health, true);
+            assert_eq!(actions.check_max_util, vec![&e, underlying.clone()]);
 
             let spender_transfer = actions.spender_transfer;
             let pool_transfer = actions.pool_transfer;
@@ -1090,8 +1084,95 @@ mod tests {
     }
 
     #[test]
+    fn test_build_actions_from_request_borrow_adds_check_util_safely() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 4,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+
+            let mut pool = Pool::load(&e);
+
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::Borrow as u32,
+                    address: underlying_0.clone(),
+                    amount: 1_0000000,
+                },
+                Request {
+                    request_type: RequestType::Borrow as u32,
+                    address: underlying_1.clone(),
+                    amount: 1_0000000,
+                },
+                Request {
+                    request_type: RequestType::Borrow as u32,
+                    address: underlying_0.clone(),
+                    amount: 2_0000000,
+                },
+            ];
+            let mut user = User::load(&e, &samwise);
+            let actions = build_actions_from_request(&e, &mut pool, &mut user, requests);
+
+            assert_eq!(actions.check_health, true);
+            assert_eq!(
+                actions.check_max_util,
+                vec![&e, underlying_0.clone(), underlying_1.clone()]
+            );
+
+            let spender_transfer = actions.spender_transfer;
+            let pool_transfer = actions.pool_transfer;
+            assert_eq!(spender_transfer.len(), 0);
+            assert_eq!(pool_transfer.len(), 2);
+            assert_eq!(pool_transfer.get_unchecked(underlying_0.clone()), 3_0000000);
+            assert_eq!(pool_transfer.get_unchecked(underlying_1.clone()), 1_0000000);
+
+            let positions = user.positions.clone();
+            assert_eq!(positions.liabilities.len(), 2);
+            assert_eq!(positions.collateral.len(), 0);
+            assert_eq!(positions.supply.len(), 0);
+            assert_eq!(user.get_liabilities(0), 2_9999967);
+            assert_eq!(user.get_liabilities(1), 9999989);
+
+            let reserve_0 = pool.load_reserve(&e, &underlying_0, false);
+            assert_eq!(reserve_0.data.d_supply, reserve_data.d_supply + 2_9999967);
+            let reserve_1 = pool.load_reserve(&e, &underlying_1, false);
+            assert_eq!(reserve_1.data.d_supply, reserve_data.d_supply + 9999989);
+        });
+    }
+
+    #[test]
     #[should_panic(expected = "Error(Contract, #1207)")]
-    fn test_build_actions_from_request_borrow_errors_over_max_util() {
+    fn test_build_actions_from_request_borrow_blocks_over_100_util() {
         let e = Env::default();
         e.mock_all_auths();
 
@@ -1104,6 +1185,7 @@ mod tests {
         reserve_config.max_util = 0_9000000;
         reserve_data.b_supply = 100_0000000;
         reserve_data.d_supply = 89_0000000;
+        reserve_data.backstop_credit = 10_0000000;
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
         e.ledger().set(LedgerInfo {
@@ -1140,7 +1222,7 @@ mod tests {
                 Request {
                     request_type: RequestType::Borrow as u32,
                     address: underlying.clone(),
-                    amount: 2_0000000,
+                    amount: 11_0000000,
                 },
             ];
             let mut user = User::load(&e, &samwise);

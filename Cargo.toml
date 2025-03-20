@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "backstop",
     "pool",
+    "mocks/mock-pool",
     "mocks/mock-pool-factory",
     "mocks/moderc3156",
     "pool-factory",

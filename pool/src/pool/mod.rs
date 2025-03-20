@@ -1,9 +1,6 @@
 mod actions;
 pub use actions::{FlashLoan, Request, RequestType};
 
-mod bad_debt;
-pub use bad_debt::transfer_bad_debt_to_backstop;
-
 mod config;
 pub use config::{
     execute_cancel_queued_set_reserve, execute_initialize, execute_queue_set_reserve,

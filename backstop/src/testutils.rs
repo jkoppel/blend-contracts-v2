@@ -7,6 +7,7 @@ use crate::{
     BackstopContract,
 };
 
+use mock_pool::{MockPool, MockPoolClient};
 use soroban_sdk::{
     testutils::{Address as _, Ledger, LedgerInfo},
     unwrap::UnwrapOptimized,
@@ -215,6 +216,15 @@ pub(crate) fn create_comet_lp_pool_with_tokens_per_share<'a>(
     });
 
     (contract_address, client)
+}
+
+pub(crate) fn create_mock_pool<'a>(e: &Env) -> (Address, MockPoolClient<'a>) {
+    let contract_address = e.register(MockPool {}, ());
+
+    (
+        contract_address.clone(),
+        MockPoolClient::new(e, &contract_address),
+    )
 }
 
 /********** Comparison Helpers **********/
