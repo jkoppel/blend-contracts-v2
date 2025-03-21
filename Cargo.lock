@@ -790,6 +790,7 @@ dependencies = [
 name = "moderc3156-example"
 version = "0.1.0"
 dependencies = [
+ "pool",
  "soroban-sdk",
 ]
 

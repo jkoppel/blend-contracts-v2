@@ -2,6 +2,7 @@
 use pool::{FlashLoan, Request, RequestType};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
+    map,
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events},
     vec, Address, IntoVal, Symbol, Val, Vec,
 };
@@ -218,5 +219,116 @@ fn test_flashloan() {
     assert_eq!(
         stable.balance(&samwise),
         starting_stable_balance - supply_amount
+    );
+}
+
+#[test]
+fn test_flashloan_reentrancy_disabled() {
+    let fixture = create_fixture_with_data(true);
+    let pool_fixture = &fixture.pools[0];
+
+    let xlm = &fixture.tokens[TokenIndex::XLM];
+    let xlm_address = xlm.address.clone();
+    let stable = &fixture.tokens[TokenIndex::STABLE];
+    let stable_address = stable.address.clone();
+
+    let (receiver_address, receiver_client) = create_flashloan_receiver(&fixture.env);
+
+    let samwise = Address::generate(&fixture.env);
+    let merry = Address::generate(&fixture.env);
+
+    let starting_xlm_balance = 100 * SCALAR_7;
+    let starting_stable_balance = 100 * SCALAR_7;
+    let approval_ledger = fixture.env.ledger().sequence() + 17280;
+
+    xlm.mint(&samwise, &starting_xlm_balance);
+    xlm.approve(
+        &samwise,
+        &pool_fixture.pool.address,
+        &i128::MAX,
+        &approval_ledger,
+    );
+    stable.mint(&samwise, &starting_stable_balance);
+    stable.approve(
+        &samwise,
+        &pool_fixture.pool.address,
+        &starting_stable_balance,
+        &approval_ledger,
+    );
+
+    // test that the flash loan contract works
+    receiver_client.set_re_entrant(&pool_fixture.pool.address);
+    xlm.mint(&receiver_address, &starting_xlm_balance);
+    stable.mint(&merry, &starting_stable_balance);
+
+    // 1. supply collateral so merry can borrow XLM
+    pool_fixture.pool.submit(
+        &merry,
+        &merry,
+        &merry,
+        &vec![
+            &fixture.env,
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: stable_address.clone(),
+                amount: starting_stable_balance,
+            },
+        ],
+    );
+
+    // 2. call receiver contract to borrow XLM on behalf of merry, and return the flash loan amount
+    receiver_client.exec_op(&merry, &xlm.address, &starting_xlm_balance, &0);
+
+    let merry_positions = pool_fixture.pool.get_positions(&merry);
+    assert_eq!(
+        merry_positions.liabilities,
+        map![&fixture.env, (1, 999974126)]
+    );
+    assert_eq!(
+        merry_positions.collateral,
+        map![&fixture.env, (0, 999995310)]
+    );
+    assert_eq!(starting_xlm_balance * 2, xlm.balance(&merry));
+
+    // attempt to do reentrancy attack. setup samwise with enough collateral
+    // to complete the malicious borrow
+    pool_fixture.pool.submit(
+        &samwise,
+        &samwise,
+        &samwise,
+        &vec![
+            &fixture.env,
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: stable_address.clone(),
+                amount: starting_stable_balance,
+            },
+        ],
+    );
+
+    let flash_loan = FlashLoan {
+        contract: receiver_address.clone(),
+        asset: xlm_address.clone(),
+        amount: 100 * SCALAR_7,
+    };
+    let requests: Vec<Request> = vec![
+        &fixture.env,
+        Request {
+            request_type: RequestType::Repay as u32,
+            address: xlm_address.clone(),
+            amount: 101 * SCALAR_7,
+        },
+    ];
+
+    // validate re-entrancy attack is protected against by the env
+    let result = pool_fixture
+        .pool
+        .try_flash_loan(&samwise, &flash_loan, &requests);
+    assert_eq!(
+        result.err(),
+        Some(Ok(soroban_sdk::Error::from_type_and_code(
+            soroban_sdk::xdr::ScErrorType::Context,
+            soroban_sdk::xdr::ScErrorCode::InvalidAction
+        )))
     );
 }
