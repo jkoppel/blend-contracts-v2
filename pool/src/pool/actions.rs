@@ -2,6 +2,7 @@ use soroban_sdk::Map;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, Vec};
 
 use crate::events::PoolEvents;
+use crate::AuctionType;
 use crate::{auctions, errors::PoolError, validator::require_nonnegative};
 
 use super::pool::Pool;
@@ -267,7 +268,11 @@ pub fn build_actions_from_request(
                 // Note: request object is ignored besides type
                 auctions::delete_liquidation(e, &from_state.address);
                 actions.do_check_health();
-                PoolEvents::delete_liquidation_auction(e, from_state.address.clone());
+                PoolEvents::delete_auction(
+                    e,
+                    AuctionType::UserLiquidation as u32,
+                    from_state.address.clone(),
+                );
             }
         }
     }

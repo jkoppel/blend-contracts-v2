@@ -318,7 +318,7 @@ impl PoolEvents {
 
     /// Emitted when a new auction is created
     ///
-    /// - topics - `["new_auction", user: Address, auction_type: u32]`
+    /// - topics - `["new_auction", auction_type: u32, user: Address]`
     /// - data - `[percent: u32, auction_data: AuctionData]`
     ///
     /// ### Arguments
@@ -339,7 +339,7 @@ impl PoolEvents {
 
     /// Emitted when an auction is filled
     ///
-    /// - topics - `["fill_auction", user: Address, auction_type: u32]`
+    /// - topics - `["fill_auction", auction_type: u32, user: Address]`
     /// - data - `[filler: Address, fill_percent: i128, filled_auction_data: AuctionData]`
     ///
     /// ### Arguments
@@ -363,13 +363,14 @@ impl PoolEvents {
 
     /// Emitted when a liquidation auction is deleted
     ///
-    /// - topics - `["delete_liquidation_auction", from: Address]`
+    /// - topics - `["delete_auction", user: Address, auction_type: u32]`
     /// - data - `()`
     ///
     /// ### Arguments
-    /// * from - The address of the liquidated user
-    pub fn delete_liquidation_auction(e: &Env, from: Address) {
-        let topics = (Symbol::new(&e, "delete_liquidation_auction"), from);
+    /// * auction_type - The type of auction
+    /// * user - The address of the user
+    pub fn delete_auction(e: &Env, auction_type: u32, user: Address) {
+        let topics = (Symbol::new(&e, "delete_auction"), auction_type, user);
         e.events().publish(topics, ());
     }
 }

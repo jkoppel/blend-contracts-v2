@@ -286,6 +286,21 @@ pub trait Pool {
     /// ### Panics
     /// If the auction does not exist
     fn get_auction(e: Env, auction_type: u32, user: Address) -> AuctionData;
+
+    /// Delete a stale auction. A stale auction is one that has been running for 500 blocks
+    /// without being filled. This likely means something went wrong with the auction creation,
+    /// and it should be re-created.
+    ///
+    /// Requires nothing to change on auction creation, only fill.
+    ///
+    /// ### Arguments
+    /// * `auction_type` - The type of auction, 0 for liquidation auction, 1 for bad debt auction, and 2 for interest auction
+    /// * `user` - The Address involved in the auction
+    ///
+    /// ### Panics
+    /// If the auction does not exist
+    /// If the auction is not stale
+    fn del_auction(e: Env, auction_type: u32, user: Address);
 }
 
 #[contractimpl]
@@ -538,5 +553,13 @@ impl Pool for PoolContract {
 
     fn get_auction(e: Env, auction_type: u32, user: Address) -> AuctionData {
         storage::get_auction(&e, &auction_type, &user)
+    }
+
+    fn del_auction(e: Env, auction_type: u32, user: Address) {
+        storage::extend_instance(&e);
+
+        auctions::delete_auction(&e, auction_type, &user);
+
+        PoolEvents::delete_auction(&e, auction_type, user);
     }
 }

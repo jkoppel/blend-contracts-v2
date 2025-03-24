@@ -73,20 +73,25 @@ pub fn create_bad_debt_auction_data(
 
     // get value of backstop_token (BLND-USDC LP token) to base
     let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
-    let backstop_value_base = pool_backstop_data
-        .usdc
-        .fixed_mul_floor(e, &oracle_scalar, &SCALAR_7) // adjust for oracle scalar
-        * 5; // Since the backstop LP token is an 80/20 split of USDC/BLND, we multiply by 5 to get the value of the BLND portion
-    let backstop_token_to_base =
-        backstop_value_base.fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
 
-    // determine lot amount of backstop tokens needed to safely cover bad debt, or post
-    // all backstop tokens if there isn't enough to cover the bad debt
-    let mut lot_amount = debt_value
-        .fixed_mul_floor(e, &1_2000000, &SCALAR_7)
-        .fixed_div_floor(e, &backstop_token_to_base, &SCALAR_7);
-    lot_amount = pool_backstop_data.tokens.min(lot_amount);
-    auction_data.lot.set(backstop_token, lot_amount);
+    if pool_backstop_data.tokens == 0 {
+        // no tokens left in backstop to auction off
+        auction_data.lot.set(backstop_token, 0);
+    } else {
+        let backstop_value_base = (pool_backstop_data.usdc * 5) // Since the backstop LP token is an 80/20 split of USDC/BLND, we multiply by 5 to get the value of the BLND portion
+            .fixed_mul_floor(e, &oracle_scalar, &SCALAR_7); // adjust for oracle scalar
+        let backstop_token_to_base =
+            backstop_value_base.fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
+
+        // determine lot amount of backstop tokens needed to safely cover bad debt, or post
+        // all backstop tokens if there isn't enough to cover the bad debt
+        let mut lot_amount = debt_value
+            .fixed_mul_floor(e, &1_2000000, &SCALAR_7)
+            .fixed_div_floor(e, &backstop_token_to_base, &SCALAR_7);
+        lot_amount = pool_backstop_data.tokens.min(lot_amount);
+        auction_data.lot.set(backstop_token, lot_amount);
+    }
+
     auction_data
 }
 
@@ -96,7 +101,7 @@ pub fn fill_bad_debt_auction(
     pool: &mut Pool,
     auction_data: &AuctionData,
     filler_state: &mut User,
-    percent_filled: u64,
+    is_full_fill: bool,
 ) {
     let backstop_address = storage::get_backstop(e);
     if filler_state.address == backstop_address {
@@ -121,7 +126,7 @@ pub fn fill_bad_debt_auction(
 
     // If the backstop still has liabilities after the auction is completely filled
     // and less than 5% of the backstop threshold, default the rest of the bad debt
-    if percent_filled == 100 && !backstop_state.positions.liabilities.is_empty() {
+    if is_full_fill && !backstop_state.positions.liabilities.is_empty() {
         let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
         let threshold = calc_pool_backstop_threshold(&pool_backstop_data);
         if threshold < 0_0000003 {
@@ -1642,7 +1647,7 @@ mod tests {
 
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 100);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, true);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 50_000_0000000 - 47_6000000
@@ -1787,7 +1792,7 @@ mod tests {
             let pre_fill_b_rate_1 = reserve_data_1.b_rate;
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 100);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, true);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 1_000_0000000 - 47_6000000
@@ -1942,7 +1947,7 @@ mod tests {
 
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 99);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, false);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 1_000_0000000 - 47_6000000
@@ -2106,7 +2111,7 @@ mod tests {
             let pre_fill_b_rate_1 = reserve_data_1.b_rate;
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 100);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, true);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 2_500_0000000 - 47_6000000
@@ -2269,7 +2274,7 @@ mod tests {
 
             let mut pool = Pool::load(&e);
             let mut samwise_state = User::load(&e, &samwise);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, 100);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut samwise_state, true);
             assert_eq!(
                 lp_token_client.balance(&backstop_address),
                 50_000_0000000 - 47_6000000
@@ -2408,7 +2413,7 @@ mod tests {
 
             let mut pool = Pool::load(&e);
             let mut backstop_state = User::load(&e, &backstop_address);
-            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut backstop_state, 100);
+            fill_bad_debt_auction(&e, &mut pool, &mut auction_data, &mut backstop_state, true);
         });
     }
 }

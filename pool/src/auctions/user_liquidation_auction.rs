@@ -3,8 +3,9 @@ use soroban_fixed_point_math::SorobanFixedPoint;
 use soroban_sdk::{map, panic_with_error, Address, Env, Vec};
 
 use crate::auctions::auction::AuctionData;
+use crate::dependencies::BackstopClient;
 use crate::events::PoolEvents;
-use crate::pool::{Pool, PositionData, User};
+use crate::pool::{calc_pool_backstop_threshold, Pool, PositionData, User};
 use crate::Positions;
 use crate::{errors::PoolError, storage};
 
@@ -210,28 +211,45 @@ pub fn fill_user_liq_auction(
     auction_data: &AuctionData,
     user: &Address,
     filler_state: &mut User,
-    percent_filled: u64,
+    is_full_fill: bool,
 ) {
     let mut user_state = User::load(e, user);
     user_state.rm_positions(e, pool, auction_data.lot.clone(), auction_data.bid.clone());
     filler_state.add_positions(e, pool, auction_data.lot.clone(), auction_data.bid.clone());
 
-    if percent_filled == 100 && user_state.has_liabilities() && !user_state.has_collateral() {
+    if is_full_fill && user_state.has_liabilities() && !user_state.has_collateral() {
         // no more collateral left to liquidate for this user
         // pass the rest of the debt to the backstop as bad debt
         let reserve_list = storage::get_res_list(e);
         let backstop_address = storage::get_backstop(e);
-        let mut backstop_state = User::load(e, &backstop_address);
-        for (reserve_index, liability_balance) in user_state.positions.liabilities.iter() {
-            let asset = reserve_list.get_unchecked(reserve_index);
-            let mut reserve = pool.load_reserve(e, &asset, true);
-            backstop_state.add_liabilities(e, &mut reserve, liability_balance);
-            user_state.remove_liabilities(e, &mut reserve, liability_balance);
-            pool.cache_reserve(reserve);
 
-            PoolEvents::bad_debt(e, user.clone(), asset, liability_balance);
+        // if the backstop balance is below the minimim auction threshold, default the debt
+        let backstop_client = BackstopClient::new(e, &backstop_address);
+        let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
+        let threshold = calc_pool_backstop_threshold(&pool_backstop_data);
+        if threshold < 0_0000003 {
+            // <5% of threshold
+            for (reserve_index, liability_balance) in user_state.positions.liabilities.iter() {
+                let res_asset_address = reserve_list.get_unchecked(reserve_index);
+                let mut reserve = pool.load_reserve(e, &res_asset_address, true);
+                user_state.default_liabilities(e, &mut reserve, liability_balance);
+                pool.cache_reserve(reserve);
+
+                PoolEvents::defaulted_debt(e, res_asset_address, liability_balance);
+            }
+        } else {
+            let mut backstop_state = User::load(e, &backstop_address);
+            for (reserve_index, liability_balance) in user_state.positions.liabilities.iter() {
+                let asset = reserve_list.get_unchecked(reserve_index);
+                let mut reserve = pool.load_reserve(e, &asset, true);
+                backstop_state.add_liabilities(e, &mut reserve, liability_balance);
+                user_state.remove_liabilities(e, &mut reserve, liability_balance);
+                pool.cache_reserve(reserve);
+
+                PoolEvents::bad_debt(e, user.clone(), asset, liability_balance);
+            }
+            backstop_state.store(e);
         }
-        backstop_state.store(e);
     }
     user_state.store(e);
 }
@@ -243,7 +261,10 @@ mod tests {
         auctions::auction::AuctionType,
         pool::Positions,
         storage::{self, PoolConfig},
-        testutils::{self, create_pool},
+        testutils::{
+            self, create_backstop, create_blnd_token, create_comet_lp_pool, create_pool,
+            create_token_contract,
+        },
     };
 
     use super::*;
@@ -2561,7 +2582,7 @@ mod tests {
                 &mut auction_data,
                 &samwise,
                 &mut frodo_state,
-                100,
+                true,
             );
             let frodo_positions = frodo_state.positions;
             assert_eq!(
@@ -2743,7 +2764,7 @@ mod tests {
                 &mut auction_data,
                 &samwise,
                 &mut frodo_state,
-                100,
+                true,
             );
             let samwise_positions = storage::get_user_positions(&e, &samwise);
             let samwise_hf =
@@ -2886,7 +2907,7 @@ mod tests {
                 &mut auction_data,
                 &samwise,
                 &mut frodo_state,
-                100,
+                true,
             );
             let frodo_positions = frodo_state.positions;
             assert_eq!(
@@ -2945,12 +2966,29 @@ mod tests {
             max_entry_ttl: 9999999,
         });
 
+        let pool_address = create_pool(&e);
         let bombadil = Address::generate(&e);
         let samwise = Address::generate(&e);
         let frodo = Address::generate(&e);
 
-        let backstop_address = Address::generate(&e);
-        let pool_address = create_pool(&e);
+        let (blnd, blnd_client) = create_blnd_token(&e, &pool_address, &bombadil);
+        let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
+        let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
+        let (backstop_address, backstop_client) =
+            create_backstop(&e, &pool_address, &lp_token, &usdc, &blnd);
+
+        // mint lp tokens and deposit them into the pool's backstop
+        let backstop_tokens = 1_500_0000000; // over 5% of threshold
+        blnd_client.mint(&samwise, &500_001_0000000);
+        blnd_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        usdc_client.mint(&samwise, &12_501_0000000);
+        usdc_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        lp_token_client.join_pool(
+            &backstop_tokens,
+            &vec![&e, 500_001_0000000, 12_501_0000000],
+            &samwise,
+        );
+        backstop_client.deposit(&samwise, &pool_address, &backstop_tokens);
 
         let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
 
@@ -3064,7 +3102,7 @@ mod tests {
                 &mut auction_data,
                 &samwise,
                 &mut frodo_state,
-                100,
+                true,
             );
             let frodo_positions = frodo_state.positions;
             assert_eq!(frodo_positions.liabilities.len(), 2);
@@ -3134,13 +3172,29 @@ mod tests {
             max_entry_ttl: 9999999,
         });
 
+        let pool_address = create_pool(&e);
         let bombadil = Address::generate(&e);
         let samwise = Address::generate(&e);
         let frodo = Address::generate(&e);
 
-        let backstop_address = Address::generate(&e);
-        let pool_address = create_pool(&e);
+        let (blnd, blnd_client) = create_blnd_token(&e, &pool_address, &bombadil);
+        let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
+        let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
+        let (backstop_address, backstop_client) =
+            create_backstop(&e, &pool_address, &lp_token, &usdc, &blnd);
 
+        // mint lp tokens and deposit them into the pool's backstop
+        let backstop_tokens = 1_500_0000000; // over 5% of threshold
+        blnd_client.mint(&samwise, &500_001_0000000);
+        blnd_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        usdc_client.mint(&samwise, &12_501_0000000);
+        usdc_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        lp_token_client.join_pool(
+            &backstop_tokens,
+            &vec![&e, 500_001_0000000, 12_501_0000000],
+            &samwise,
+        );
+        backstop_client.deposit(&samwise, &pool_address, &backstop_tokens);
         let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
 
         // creating reserves for a pool exhausts the budget
@@ -3257,7 +3311,7 @@ mod tests {
                 &mut auction_data,
                 &samwise,
                 &mut frodo_state,
-                100,
+                true,
             );
             let frodo_positions = frodo_state.positions;
             assert_eq!(frodo_positions.liabilities.len(), 2);
@@ -3315,6 +3369,426 @@ mod tests {
             assert_eq!(backstop_positions.liabilities.len(), 0);
             assert_eq!(backstop_positions.collateral.len(), 0);
             assert_eq!(backstop_positions.supply.len(), 0);
+        });
+    }
+
+    #[test]
+    fn test_fill_user_liquidation_auction_no_bad_debt_if_not_100_fill() {
+        let e = Env::default();
+
+        e.mock_all_auths();
+        e.ledger().set(LedgerInfo {
+            timestamp: 12345,
+            protocol_version: 22,
+            sequence_number: 175,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 17280,
+            min_persistent_entry_ttl: 17280,
+            max_entry_ttl: 9999999,
+        });
+
+        let pool_address = create_pool(&e);
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let frodo = Address::generate(&e);
+
+        let (blnd, blnd_client) = create_blnd_token(&e, &pool_address, &bombadil);
+        let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
+        let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
+        let (backstop_address, backstop_client) =
+            create_backstop(&e, &pool_address, &lp_token, &usdc, &blnd);
+
+        // mint lp tokens and deposit them into the pool's backstop
+        let backstop_tokens = 1_500_0000000; // over 5% of threshold
+        blnd_client.mint(&samwise, &500_001_0000000);
+        blnd_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        usdc_client.mint(&samwise, &12_501_0000000);
+        usdc_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        lp_token_client.join_pool(
+            &backstop_tokens,
+            &vec![&e, 500_001_0000000, 12_501_0000000],
+            &samwise,
+        );
+        backstop_client.deposit(&samwise, &pool_address, &backstop_tokens);
+
+        let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
+
+        // creating reserves for a pool exhausts the budget
+        e.cost_estimate().budget().reset_unlimited();
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
+        reserve_data_0.last_time = 12345;
+        reserve_data_0.b_rate = 1_100_000_000_000;
+        reserve_config_0.c_factor = 0_8500000;
+        reserve_config_0.l_factor = 0_9000000;
+        reserve_config_0.index = 0;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_0,
+            &reserve_config_0,
+            &reserve_data_0,
+        );
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
+        reserve_data_1.b_rate = 1_200_000_000_000;
+        reserve_config_1.c_factor = 0_7500000;
+        reserve_config_1.l_factor = 0_7500000;
+        reserve_data_1.last_time = 12345;
+        reserve_config_1.index = 1;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_1,
+            &reserve_config_1,
+            &reserve_data_1,
+        );
+
+        let (underlying_2, reserve_2_asset) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_2, reserve_data_2) = testutils::default_reserve_meta();
+        reserve_config_2.c_factor = 0_0000000;
+        reserve_config_2.l_factor = 0_7000000;
+        reserve_config_2.index = 2;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_2,
+            &reserve_config_2,
+            &reserve_data_2,
+        );
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+                Asset::Stellar(underlying_2.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 2_0000000, 4_0000000, 50_0000000]);
+
+        reserve_2_asset.mint(&frodo, &0_8000000);
+        reserve_2_asset.approve(&frodo, &pool_address, &i128::MAX, &1000000);
+
+        let mut auction_data = AuctionData {
+            bid: map![
+                &e,
+                (underlying_1.clone(), 8_0000000),
+                (underlying_2.clone(), 1_5000000)
+            ],
+            lot: map![&e, (underlying_0.clone(), 90_9100000),],
+            block: 176,
+        };
+        let pool_config = PoolConfig {
+            oracle: oracle_address,
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 4,
+        };
+        let positions: Positions = Positions {
+            collateral: map![&e, (reserve_config_0.index, 90_9100000),],
+            liabilities: map![
+                &e,
+                (reserve_config_1.index, 12_0000000),
+                (reserve_config_2.index, 2_0000000),
+            ],
+            supply: map![&e],
+        };
+        e.as_contract(&pool_address, || {
+            storage::set_backstop(&e, &backstop_address);
+            storage::set_user_positions(&e, &samwise, &positions);
+            storage::set_pool_config(&e, &pool_config);
+
+            e.ledger().set(LedgerInfo {
+                timestamp: 12345 + 220 * 5,
+                protocol_version: 22,
+                sequence_number: 176 + 220,
+                network_id: Default::default(),
+                base_reserve: 10,
+                min_temp_entry_ttl: 17280,
+                min_persistent_entry_ttl: 17280,
+                max_entry_ttl: 9999999,
+            });
+            let mut pool = Pool::load(&e);
+            let mut frodo_state = User::load(&e, &frodo);
+            // note - having no collateral remaining on the user without a 100%
+            // fill is not possible. However, this test ensures it is checked to avoid
+            // any edge cases.
+            fill_user_liq_auction(
+                &e,
+                &mut pool,
+                &mut auction_data,
+                &samwise,
+                &mut frodo_state,
+                false,
+            );
+            let frodo_positions = frodo_state.positions;
+            assert_eq!(frodo_positions.liabilities.len(), 2);
+            assert_eq!(frodo_positions.collateral.len(), 1);
+            assert_eq!(frodo_positions.supply.len(), 0);
+            assert_eq!(
+                frodo_positions
+                    .collateral
+                    .get(reserve_config_0.index)
+                    .unwrap(),
+                90_9100000
+            );
+            assert_eq!(
+                frodo_positions
+                    .liabilities
+                    .get(reserve_config_1.index)
+                    .unwrap(),
+                8_0000000
+            );
+            assert_eq!(
+                frodo_positions
+                    .liabilities
+                    .get(reserve_config_2.index)
+                    .unwrap(),
+                1_5000000
+            );
+
+            let samwise_positions = storage::get_user_positions(&e, &samwise);
+            assert_eq!(samwise_positions.liabilities.len(), 2);
+            assert_eq!(samwise_positions.collateral.len(), 0);
+            assert_eq!(samwise_positions.supply.len(), 0);
+            assert_eq!(
+                samwise_positions
+                    .liabilities
+                    .get(reserve_config_1.index)
+                    .unwrap(),
+                4_0000000
+            );
+            assert_eq!(
+                samwise_positions
+                    .liabilities
+                    .get(reserve_config_2.index)
+                    .unwrap(),
+                0_5000000
+            );
+
+            let backstop_positions = storage::get_user_positions(&e, &backstop_address);
+            assert_eq!(backstop_positions.liabilities.len(), 0);
+            assert_eq!(backstop_positions.collateral.len(), 0);
+            assert_eq!(backstop_positions.supply.len(), 0);
+        });
+    }
+
+    #[test]
+    fn test_fill_user_liquidation_auction_defaults_debt_if_backstop_under_min_threshold() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths();
+        e.ledger().set(LedgerInfo {
+            timestamp: 12345,
+            protocol_version: 22,
+            sequence_number: 175,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 17280,
+            min_persistent_entry_ttl: 17280,
+            max_entry_ttl: 9999999,
+        });
+
+        let pool_address = create_pool(&e);
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let frodo = Address::generate(&e);
+
+        let (blnd, blnd_client) = create_blnd_token(&e, &pool_address, &bombadil);
+        let (usdc, usdc_client) = create_token_contract(&e, &bombadil);
+        let (lp_token, lp_token_client) = create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
+        let (backstop_address, backstop_client) =
+            create_backstop(&e, &pool_address, &lp_token, &usdc, &blnd);
+
+        // mint lp tokens and deposit them into the pool's backstop
+        let backstop_tokens = 1_000_0000000; // under 5% of threshold
+        blnd_client.mint(&samwise, &500_001_0000000);
+        blnd_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        usdc_client.mint(&samwise, &12_501_0000000);
+        usdc_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        lp_token_client.join_pool(
+            &backstop_tokens,
+            &vec![&e, 500_001_0000000, 12_501_0000000],
+            &samwise,
+        );
+        backstop_client.deposit(&samwise, &pool_address, &backstop_tokens);
+
+        let (oracle_address, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
+        reserve_data_0.last_time = 12345;
+        reserve_data_0.b_rate = 1_100_000_000_000;
+        reserve_config_0.c_factor = 0_8500000;
+        reserve_config_0.l_factor = 0_9000000;
+        reserve_config_0.index = 0;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_0,
+            &reserve_config_0,
+            &reserve_data_0,
+        );
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
+        reserve_data_1.b_rate = 1_200_000_000_000;
+        reserve_config_1.c_factor = 0_7500000;
+        reserve_config_1.l_factor = 0_7500000;
+        reserve_data_1.last_time = 12345;
+        reserve_config_1.index = 1;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_1,
+            &reserve_config_1,
+            &reserve_data_1,
+        );
+
+        let (underlying_2, reserve_2_asset) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_2, reserve_data_2) = testutils::default_reserve_meta();
+        reserve_data_0.last_time = 12345;
+        reserve_config_2.c_factor = 0_0000000;
+        reserve_config_2.l_factor = 0_7000000;
+        reserve_config_2.index = 2;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_2,
+            &reserve_config_2,
+            &reserve_data_2,
+        );
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+                Asset::Stellar(underlying_2.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 2_0000000, 4_0000000, 50_0000000]);
+
+        reserve_2_asset.mint(&frodo, &0_8000000);
+        reserve_2_asset.approve(&frodo, &pool_address, &i128::MAX, &1000000);
+
+        let mut auction_data = AuctionData {
+            bid: map![
+                &e,
+                (underlying_1.clone(), 8_0000000),
+                (underlying_2.clone(), 1_5000000)
+            ],
+            lot: map![&e, (underlying_0.clone(), 90_9100000),],
+            block: 176,
+        };
+        let pool_config = PoolConfig {
+            oracle: oracle_address,
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 4,
+        };
+        let positions: Positions = Positions {
+            collateral: map![&e, (reserve_config_0.index, 90_9100000),],
+            liabilities: map![
+                &e,
+                (reserve_config_1.index, 12_0000000),
+                (reserve_config_2.index, 2_0000000),
+            ],
+            supply: map![&e],
+        };
+        e.as_contract(&pool_address, || {
+            storage::set_backstop(&e, &backstop_address);
+            storage::set_user_positions(&e, &samwise, &positions);
+            storage::set_pool_config(&e, &pool_config);
+
+            e.ledger().set(LedgerInfo {
+                timestamp: 12345,
+                protocol_version: 22,
+                sequence_number: 176 + 220,
+                network_id: Default::default(),
+                base_reserve: 10,
+                min_temp_entry_ttl: 17280,
+                min_persistent_entry_ttl: 17280,
+                max_entry_ttl: 9999999,
+            });
+            let mut pool = Pool::load(&e);
+            let mut frodo_state = User::load(&e, &frodo);
+
+            let reserve_data_1_pre = storage::get_res_data(&e, &underlying_1);
+            let reserve_data_2_pre = storage::get_res_data(&e, &underlying_2);
+
+            fill_user_liq_auction(
+                &e,
+                &mut pool,
+                &mut auction_data,
+                &samwise,
+                &mut frodo_state,
+                true,
+            );
+            let frodo_positions = frodo_state.positions;
+            assert_eq!(frodo_positions.liabilities.len(), 2);
+            assert_eq!(frodo_positions.collateral.len(), 1);
+            assert_eq!(frodo_positions.supply.len(), 0);
+            assert_eq!(
+                frodo_positions
+                    .collateral
+                    .get(reserve_config_0.index)
+                    .unwrap(),
+                90_9100000
+            );
+            assert_eq!(
+                frodo_positions
+                    .liabilities
+                    .get(reserve_config_1.index)
+                    .unwrap(),
+                8_0000000
+            );
+            assert_eq!(
+                frodo_positions
+                    .liabilities
+                    .get(reserve_config_2.index)
+                    .unwrap(),
+                1_5000000
+            );
+
+            let samwise_positions = storage::get_user_positions(&e, &samwise);
+            assert_eq!(samwise_positions.liabilities.len(), 0);
+            assert_eq!(samwise_positions.collateral.len(), 0);
+            assert_eq!(samwise_positions.supply.len(), 0);
+
+            let backstop_positions = storage::get_user_positions(&e, &backstop_address);
+            assert_eq!(backstop_positions.liabilities.len(), 0);
+            assert_eq!(backstop_positions.collateral.len(), 0);
+            assert_eq!(backstop_positions.supply.len(), 0);
+
+            // verify the default was applied
+            let reserve_1_post = pool.load_reserve(&e, &underlying_1, false);
+            assert_eq!(
+                reserve_1_post.data.d_supply,
+                reserve_data_1_pre.d_supply - 4_0000000
+            );
+            assert_eq!(reserve_1_post.data.b_supply, reserve_data_1_pre.b_supply);
+            assert!(reserve_1_post.data.b_rate < reserve_data_1_pre.b_rate);
+            let reserve_2_post = pool.load_reserve(&e, &underlying_2, false);
+            assert_eq!(
+                reserve_2_post.data.d_supply,
+                reserve_data_2_pre.d_supply - 0_5000000
+            );
+            assert_eq!(reserve_2_post.data.b_supply, reserve_data_2_pre.b_supply);
+            assert!(reserve_2_post.data.b_rate < reserve_data_2_pre.b_rate);
         });
     }
 }
