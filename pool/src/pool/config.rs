@@ -121,10 +121,7 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
         let mut reserve = pool.load_reserve(e, asset, false);
         index = reserve.config.index;
         let reserve_config = storage::get_res_config(e, asset);
-        // decimals cannot change
-        if reserve_config.decimals != config.decimals {
-            panic_with_error!(e, PoolError::InvalidReserveMetadata);
-        }
+        require_valid_reserve_metadata_changes(e, &reserve_config, config);
         // if any of the IR parameters were changed reset the IR modifier
         if reserve_config.r_base != config.r_base
             || reserve_config.r_one != config.r_one
@@ -161,7 +158,7 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
         r_two: config.r_two,
         r_three: config.r_three,
         reactivity: config.reactivity,
-        collateral_cap: config.collateral_cap,
+        supply_cap: config.supply_cap,
         enabled: config.enabled,
     };
     storage::set_res_config(e, asset, &reserve_config);
@@ -512,7 +509,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         let pool_config = PoolConfig {
@@ -563,7 +560,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         let pool_config = PoolConfig {
@@ -617,7 +614,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         let pool_config = PoolConfig {
@@ -660,7 +657,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         let pool_config = PoolConfig {
@@ -874,7 +871,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         e.as_contract(&pool, || {
@@ -914,7 +911,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         e.as_contract(&pool, || {
@@ -963,7 +960,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         e.as_contract(&pool, || {
@@ -1173,7 +1170,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 105,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
 
@@ -1221,7 +1218,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         e.as_contract(&pool, || {
@@ -1261,7 +1258,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1286,7 +1283,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1309,7 +1306,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1332,7 +1329,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1355,7 +1352,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1378,7 +1375,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1401,7 +1398,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1424,7 +1421,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1447,7 +1444,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1470,7 +1467,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0_0001001,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);

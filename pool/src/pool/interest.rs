@@ -119,7 +119,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0_0000020,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
@@ -157,7 +157,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0_0000020,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
@@ -195,7 +195,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0_0000020,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
@@ -233,7 +233,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0_0000020,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
@@ -270,7 +270,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0_0000020,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
@@ -307,7 +307,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
@@ -345,7 +345,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0_0000020,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
@@ -383,7 +383,7 @@ mod tests {
             r_two: 0,
             r_three: 0,
             reactivity: 0_0000020,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             index: 0,
             enabled: true,
         };
