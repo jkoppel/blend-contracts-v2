@@ -75,6 +75,9 @@ pub trait Backstop {
     /// Fetch the backstop token for the backstop
     fn backstop_token(e: Env) -> Address;
 
+    /// Fetch the reward zone for the backstop
+    fn reward_zone(e: Env) -> Vec<Address>;
+
     /********** Emissions **********/
 
     /// Update the backstop with new emissions for all reward zone pools
@@ -250,6 +253,10 @@ impl Backstop for BackstopContract {
 
     fn backstop_token(e: Env) -> Address {
         storage::get_backstop_token(&e)
+    }
+
+    fn reward_zone(e: Env) -> Vec<Address> {
+        storage::get_reward_zone(&e)
     }
 
     /********** Emissions **********/

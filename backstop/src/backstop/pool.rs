@@ -95,7 +95,7 @@ pub fn require_is_from_pool_factory(e: &Env, address: &Address, balance: i128) {
 /// Calculate the threshold for the pool's backstop balance
 ///
 /// Returns true if the pool's backstop balance is above the threshold
-pub fn require_pool_above_threshold(pool_backstop_data: &PoolBackstopData) -> bool {
+pub fn is_pool_above_threshold(pool_backstop_data: &PoolBackstopData) -> bool {
     // @dev: Calculation for pools product constant of underlying will often overflow i128
     //       so saturating mul is used. This is safe because the threshold is below i128::MAX and the
     //       protocol does not need to differentiate between pools over the threshold product constant.
@@ -401,7 +401,7 @@ mod tests {
             usdc: 6_249_0000000,
         }; // ~99% threshold
 
-        let result = require_pool_above_threshold(&pool_backstop_data);
+        let result = is_pool_above_threshold(&pool_backstop_data);
         assert!(!result);
     }
 
@@ -418,7 +418,7 @@ mod tests {
             usdc: 1_000_0000000,
         }; // ~3.6% threshold - rounds to zero in calc
 
-        let result = require_pool_above_threshold(&pool_backstop_data);
+        let result = is_pool_above_threshold(&pool_backstop_data);
         assert!(!result);
     }
 
@@ -435,7 +435,7 @@ mod tests {
             usdc: 6_250_0000000,
         }; // 100% threshold
 
-        let result = require_pool_above_threshold(&pool_backstop_data);
+        let result = is_pool_above_threshold(&pool_backstop_data);
         assert!(result);
     }
 
@@ -452,7 +452,7 @@ mod tests {
             usdc: 10_000_000_0000000,
         }; // 362x threshold
 
-        let result = require_pool_above_threshold(&pool_backstop_data);
+        let result = is_pool_above_threshold(&pool_backstop_data);
         assert!(result);
     }
 
