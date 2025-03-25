@@ -99,9 +99,9 @@ pub fn delete_auction(e: &Env, auction_type: u32, user: &Address) {
         panic_with_error!(e, PoolError::BadRequest);
     }
 
-    let aucton = storage::get_auction(e, &auction_type, user);
+    let auction = storage::get_auction(e, &auction_type, user);
     // require auction is stale, or older than 500 blocks
-    if aucton.block + 500 > e.ledger().sequence() {
+    if auction.block + 500 > e.ledger().sequence() {
         panic_with_error!(e, PoolError::BadRequest);
     }
 

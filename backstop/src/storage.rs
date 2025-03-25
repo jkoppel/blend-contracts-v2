@@ -113,7 +113,7 @@ fn get_persistent_default<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>, F: FnOn
 
 /********** Instance Storage **********/
 
-/// Fetch the pool factory id
+/// Fetch the emitter id
 pub fn get_emitter(e: &Env) -> Address {
     e.storage()
         .instance()
@@ -124,11 +124,11 @@ pub fn get_emitter(e: &Env) -> Address {
 /// Set the pool factory
 ///
 /// ### Arguments
-/// * `pool_factory_id` - The ID of the pool factory
-pub fn set_emitter(e: &Env, pool_factory_id: &Address) {
+/// * `emitter_id` - The ID of the emitter contract
+pub fn set_emitter(e: &Env, emitter_id: &Address) {
     e.storage()
         .instance()
-        .set::<Symbol, Address>(&Symbol::new(e, EMITTER_KEY), pool_factory_id);
+        .set::<Symbol, Address>(&Symbol::new(e, EMITTER_KEY), emitter_id);
 }
 
 /// Fetch the pool factory id

@@ -60,7 +60,7 @@ pub fn create_bad_debt_auction_data(
         }
     }
 
-    if auction_data.bid.is_empty() || debt_value == 0 {
+    if auction_data.bid.is_empty() || debt_value <= 0 {
         panic_with_error!(e, PoolError::InvalidBid);
     }
 
@@ -78,8 +78,9 @@ pub fn create_bad_debt_auction_data(
         // no tokens left in backstop to auction off
         auction_data.lot.set(backstop_token, 0);
     } else {
-        let backstop_value_base = (pool_backstop_data.usdc * 5) // Since the backstop LP token is an 80/20 split of USDC/BLND, we multiply by 5 to get the value of the BLND portion
-            .fixed_mul_floor(e, &oracle_scalar, &SCALAR_7); // adjust for oracle scalar
+        // Since the backstop LP token is an 80/20 split of USDC/BLND, we multiply by 5 to include the value of the BLND portion
+        let backstop_value_base =
+            (pool_backstop_data.usdc * 5).fixed_mul_floor(e, &oracle_scalar, &SCALAR_7); // adjust for oracle scalar
         let backstop_token_to_base =
             backstop_value_base.fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
 

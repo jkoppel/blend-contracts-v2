@@ -61,7 +61,7 @@ pub fn create_interest_auction_data(
     }
 
     // Ensure that the interest value is at least 200 USDC
-    if interest_value <= (200 * 10i128.pow(pool.load_price_decimals(e))) {
+    if interest_value < (200 * 10i128.pow(pool.load_price_decimals(e))) {
         panic_with_error!(e, PoolError::InterestTooSmall);
     }
 

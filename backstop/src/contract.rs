@@ -39,7 +39,7 @@ pub trait Backstop {
     /// * `amount` - The amount of shares to queue for withdraw
     fn queue_withdrawal(e: Env, from: Address, pool_address: Address, amount: i128) -> Q4W;
 
-    /// Dequeue a currently queued pool share withdraw for "form" from the backstop of a pool
+    /// Dequeue a currently queued pool share withdraw for "from" from the backstop of a pool
     ///
     /// ### Arguments
     /// * `from` - The address whose deposits are being queued for withdrawal
