@@ -136,12 +136,12 @@ fn update_reserve_emission_eps(
         }
         // determine the amount of tokens not emitted from the last config
         if emission_data.expiration > e.ledger().timestamp() {
-            let time_left_tell_exp = emission_data.expiration - e.ledger().timestamp();
+            let time_left_till_exp = emission_data.expiration - e.ledger().timestamp();
 
             // Eps is scaled by 14 decimals
-            let tokens_to_emit_tell_exp =
-                i128(emission_data.eps).fixed_mul_floor(e, &i128(time_left_tell_exp), &SCALAR_7);
-            tokens_left_to_emit += tokens_to_emit_tell_exp;
+            let tokens_to_emit_till_exp =
+                i128(emission_data.eps).fixed_mul_floor(e, &i128(time_left_till_exp), &SCALAR_7);
+            tokens_left_to_emit += tokens_to_emit_till_exp;
         }
 
         let eps = u64(tokens_left_to_emit * SCALAR_7 / (7 * 24 * 60 * 60)).unwrap_optimized();

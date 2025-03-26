@@ -428,6 +428,8 @@ impl Pool for PoolContract {
     }
 
     fn set_reserve(e: Env, asset: Address) -> u32 {
+        storage::extend_instance(&e);
+
         let index = pool::execute_set_reserve(&e, &asset);
 
         PoolEvents::set_reserve(&e, asset, index);
