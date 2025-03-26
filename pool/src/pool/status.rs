@@ -1089,6 +1089,7 @@ mod tests {
             tokens: 20_000_0000000,
             shares: 50_000_0000000,
             usdc: 6_500_0000000,
+            token_spot_price: 0_5000000,
         }; // ~90.5% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
@@ -1106,6 +1107,7 @@ mod tests {
             tokens: 500_0000000,
             shares: 1_000_0000000,
             usdc: 1_000_0000000,
+            token_spot_price: 0_5000000,
         }; // ~3.6% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
@@ -1123,6 +1125,7 @@ mod tests {
             tokens: 15_000_0000000,
             shares: 1_000_0000000,
             usdc: 6_250_0000000,
+            token_spot_price: 0_5000000,
         }; // 100% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
@@ -1140,6 +1143,7 @@ mod tests {
             tokens: 999_999_0000000,
             shares: 999_999_0000000,
             usdc: 10_000_000_0000000,
+            token_spot_price: 0_5000000,
         }; // 362x threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
@@ -1157,6 +1161,7 @@ mod tests {
             tokens: 1_000_0000000,
             shares: 1_000_0000000,
             usdc: 625_0000000,
+            token_spot_price: 0_5000000,
         }; // 10% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);
@@ -1174,6 +1179,7 @@ mod tests {
             tokens: 999_999_0000000,
             shares: 999_999_0000000,
             usdc: 312_5000000,
+            token_spot_price: 0_5000000,
         }; // 5% threshold
 
         let result = calc_pool_backstop_threshold(&pool_backstop_data);

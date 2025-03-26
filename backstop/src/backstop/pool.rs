@@ -17,6 +17,7 @@ pub struct PoolBackstopData {
     pub q4w_pct: i128, // the percentage of shares/tokens queued for withdrawal
     pub blnd: i128,    // the amount of blnd held in the pool's backstop via backstop tokens
     pub usdc: i128,    // the amount of usdc held in the pool's backstop via backstop tokens
+    pub token_spot_price: i128, // the spot price sans fees in USDC of the backstop token (7 decimals)
 }
 
 pub fn load_pool_backstop_data(e: &Env, address: &Address) -> PoolBackstopData {
@@ -30,23 +31,27 @@ pub fn load_pool_backstop_data(e: &Env, address: &Address) -> PoolBackstopData {
         0
     };
 
+    let backstop_token = storage::get_backstop_token(e);
+    let blnd_token = storage::get_blnd_token(e);
+    let usdc_token = storage::get_usdc_token(e);
+    let comet_client = CometClient::new(e, &backstop_token);
+    let total_comet_shares = comet_client.get_total_supply();
+    let total_blnd = comet_client.get_balance(&blnd_token);
+    let total_usdc = comet_client.get_balance(&usdc_token);
+
+    // underlying per LP token
+    let blnd_per_tkn = total_blnd
+        .fixed_div_floor(total_comet_shares, SCALAR_7)
+        .unwrap_optimized();
+    let usdc_per_tkn = total_usdc
+        .fixed_div_floor(total_comet_shares, SCALAR_7)
+        .unwrap_optimized();
+
+    // spot price of backstop token in USDC, exlcuding slippage/fees
+    // LP token is 20% USDC, so 5x is the spot price without slippage/fees
+    let tkn_spot_price_sans_fee = usdc_per_tkn * 5;
+
     if pool_balance.tokens > 0 {
-        let backstop_token = storage::get_backstop_token(e);
-        let blnd_token = storage::get_blnd_token(e);
-        let usdc_token = storage::get_usdc_token(e);
-        let comet_client = CometClient::new(e, &backstop_token);
-        let total_comet_shares = comet_client.get_total_supply();
-        let total_blnd = comet_client.get_balance(&blnd_token);
-        let total_usdc = comet_client.get_balance(&usdc_token);
-
-        // underlying per LP token
-        let blnd_per_tkn = total_blnd
-            .fixed_div_floor(total_comet_shares, SCALAR_7)
-            .unwrap_optimized();
-        let usdc_per_tkn = total_usdc
-            .fixed_div_floor(total_comet_shares, SCALAR_7)
-            .unwrap_optimized();
-
         let blnd = pool_balance
             .tokens
             .fixed_mul_floor(blnd_per_tkn, SCALAR_7)
@@ -61,6 +66,8 @@ pub fn load_pool_backstop_data(e: &Env, address: &Address) -> PoolBackstopData {
             q4w_pct,
             blnd,
             usdc,
+            // backstop token is 20% USDC, so 5x is the spot price without slippage/fees
+            token_spot_price: usdc_per_tkn * 5,
         }
     } else {
         PoolBackstopData {
@@ -69,6 +76,7 @@ pub fn load_pool_backstop_data(e: &Env, address: &Address) -> PoolBackstopData {
             q4w_pct,
             blnd: 0,
             usdc: 0,
+            token_spot_price: tkn_spot_price_sans_fee,
         }
     }
 }
@@ -250,6 +258,7 @@ mod tests {
             assert_eq!(pool_data.q4w_pct, 0_3333334); // rounds up
             assert_eq!(pool_data.blnd, 1_250_0000000);
             assert_eq!(pool_data.usdc, 12_5000000);
+            assert_eq!(pool_data.token_spot_price, 0_2500000);
         });
     }
 
@@ -291,6 +300,7 @@ mod tests {
             assert_eq!(pool_data.q4w_pct, 0);
             assert_eq!(pool_data.blnd, 1_250_0000000);
             assert_eq!(pool_data.usdc, 12_5000000);
+            assert_eq!(pool_data.token_spot_price, 0_2500000);
         });
     }
 
@@ -332,6 +342,7 @@ mod tests {
             assert_eq!(pool_data.q4w_pct, 0);
             assert_eq!(pool_data.blnd, 0);
             assert_eq!(pool_data.usdc, 0);
+            assert_eq!(pool_data.token_spot_price, 0_2500000);
         });
     }
 
@@ -399,6 +410,7 @@ mod tests {
             tokens: 20_000_0000000,
             shares: 15_000_0000000,
             usdc: 6_249_0000000,
+            token_spot_price: 0_1000000,
         }; // ~99% threshold
 
         let result = is_pool_above_threshold(&pool_backstop_data);
@@ -416,6 +428,7 @@ mod tests {
             tokens: 500_0000000,
             shares: 500_0000000,
             usdc: 1_000_0000000,
+            token_spot_price: 0_1000000,
         }; // ~3.6% threshold - rounds to zero in calc
 
         let result = is_pool_above_threshold(&pool_backstop_data);
@@ -433,6 +446,7 @@ mod tests {
             tokens: 15_000_0000000,
             shares: 14_000_0000000,
             usdc: 6_250_0000000,
+            token_spot_price: 0_1000000,
         }; // 100% threshold
 
         let result = is_pool_above_threshold(&pool_backstop_data);
@@ -450,6 +464,7 @@ mod tests {
             tokens: 999_999_0000000,
             shares: 1_099_999_0000000,
             usdc: 10_000_000_0000000,
+            token_spot_price: 0_1000000,
         }; // 362x threshold
 
         let result = is_pool_above_threshold(&pool_backstop_data);
