@@ -4,9 +4,11 @@ use crate::{
     events::PoolEvents,
     pool::{self, FlashLoan, Positions, Request, Reserve},
     storage::{self, ReserveConfig},
-    PoolConfig, ReserveEmissionData, UserEmissionData,
+    PoolConfig, PoolError, ReserveEmissionData, UserEmissionData,
 };
-use soroban_sdk::{contract, contractclient, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{
+    contract, contractclient, contractimpl, panic_with_error, Address, Env, String, Vec,
+};
 
 /// ### Pool
 ///
@@ -16,14 +18,22 @@ pub struct PoolContract;
 
 #[contractclient(name = "PoolClient")]
 pub trait Pool {
-    /// (Admin only) Set a new address as the admin of this pool
+    /// (Admin only) Set a new address to become the admin of the pool. This
+    /// must be accepted by the new admin w/ `accept_admin` to take effect.
     ///
     /// ### Arguments
     /// * `new_admin` - The new admin address
     ///
     /// ### Panics
     /// If the caller is not the admin
-    fn set_admin(e: Env, new_admin: Address);
+    fn propose_admin(e: Env, new_admin: Address);
+
+    /// (Proposed admin only) Accept the admin role. Ensures the new admin
+    /// can safely submit transactions before taking over the pool admin role.
+    ///
+    /// ### Panics
+    /// If the caller is not the proposed admin
+    fn accept_admin(e: Env);
 
     /// (Admin only) Update the pool
     ///
@@ -56,7 +66,7 @@ pub trait Pool {
     /// If the caller is not the admin or the reserve is not queued for initialization
     fn cancel_set_reserve(e: Env, asset: Address);
 
-    /// (Admin only) Executes the queued set of a reserve in the pool
+    /// Executes the queued set of a reserve in the pool
     ///
     /// ### Arguments
     /// * `asset` - The underlying asset to add as a reserve
@@ -348,15 +358,27 @@ impl PoolContract {
 
 #[contractimpl]
 impl Pool for PoolContract {
-    fn set_admin(e: Env, new_admin: Address) {
+    fn propose_admin(e: Env, new_admin: Address) {
         storage::extend_instance(&e);
         let admin = storage::get_admin(&e);
         admin.require_auth();
-        new_admin.require_auth();
 
-        storage::set_admin(&e, &new_admin);
+        storage::set_proposed_admin(&e, &new_admin);
+    }
 
-        PoolEvents::set_admin(&e, admin, new_admin);
+    fn accept_admin(e: Env) {
+        storage::extend_instance(&e);
+
+        if let Some(proposed_admin) = storage::get_proposed_admin(&e) {
+            proposed_admin.require_auth();
+            let cur_admin = storage::get_admin(&e);
+
+            storage::set_admin(&e, &proposed_admin);
+
+            PoolEvents::set_admin(&e, cur_admin, proposed_admin);
+        } else {
+            panic_with_error!(&e, PoolError::BadRequest);
+        }
     }
 
     fn update_pool(e: Env, backstop_take_rate: u32, max_positions: u32, min_collateral: i128) {

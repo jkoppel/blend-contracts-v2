@@ -99,6 +99,7 @@ pub struct UserEmissionData {
 /********** Storage Key Types **********/
 
 const ADMIN_KEY: &str = "Admin";
+const PROPOSED_ADMIN_KEY: &str = "PropAdmin";
 const NAME_KEY: &str = "Name";
 const BACKSTOP_KEY: &str = "Backstop";
 const BLND_TOKEN_KEY: &str = "BLNDTkn";
@@ -200,7 +201,7 @@ pub fn set_user_positions(e: &Env, user: &Address, positions: &Positions) {
 
 /********** Admin **********/
 
-// Fetch the current admin Address
+/// Fetch the current admin Address
 ///
 /// ### Panics
 /// If the admin does not exist
@@ -219,6 +220,31 @@ pub fn set_admin(e: &Env, new_admin: &Address) {
     e.storage()
         .instance()
         .set::<Symbol, Address>(&Symbol::new(e, ADMIN_KEY), new_admin);
+}
+
+/// Fetch the current proposed admin Address
+///
+/// ### Panics
+/// If the admin does not exist
+pub fn get_proposed_admin(e: &Env) -> Option<Address> {
+    e.storage()
+        .temporary()
+        .get(&Symbol::new(e, PROPOSED_ADMIN_KEY))
+}
+
+/// Set a new proposed admin
+///
+/// ### Arguments
+/// * `proposed_admin` - The Address for the proposed admin
+pub fn set_proposed_admin(e: &Env, proposed_admin: &Address) {
+    e.storage()
+        .temporary()
+        .set::<Symbol, Address>(&Symbol::new(e, PROPOSED_ADMIN_KEY), proposed_admin);
+    e.storage().temporary().extend_ttl(
+        &Symbol::new(e, PROPOSED_ADMIN_KEY),
+        10 * ONE_DAY_LEDGERS,
+        10 * ONE_DAY_LEDGERS,
+    );
 }
 
 /********** Metadata **********/

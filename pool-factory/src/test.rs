@@ -216,7 +216,7 @@ fn test_pool_factory_invalid_pool_init_args_max_positions_large() {
     let bombadil = Address::generate(&e);
     let oracle = Address::generate(&e);
     let backstop_rate: u32 = 0_1000000;
-    let max_positions: u32 = 101;
+    let max_positions: u32 = 61;
     let min_collateral: i128 = 1_0000000;
 
     let name1 = String::from_str(&e, "pool1");
@@ -255,7 +255,7 @@ fn test_pool_factory_invalid_pool_init_args_min_collateral() {
     let bombadil = Address::generate(&e);
     let oracle = Address::generate(&e);
     let backstop_rate: u32 = 0_1000000;
-    let max_positions: u32 = 100;
+    let max_positions: u32 = 60;
     let min_collateral: i128 = -1;
 
     let name1 = String::from_str(&e, "pool1");

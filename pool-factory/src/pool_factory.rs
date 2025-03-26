@@ -78,8 +78,8 @@ impl PoolFactory for PoolFactoryContract {
         }
 
         // verify max positions is at least 2 and less than 64
-        // pools have a max of 50 reserves, so 100 is the max number of positions
-        if max_positions < 2 || max_positions > 100 {
+        // pools have a max of 30 reserves, so 60 is the max number of positions
+        if max_positions < 2 || max_positions > 60 {
             panic_with_error!(&e, PoolFactoryError::InvalidPoolInitArgs);
         }
 

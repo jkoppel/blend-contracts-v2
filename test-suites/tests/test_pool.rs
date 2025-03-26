@@ -715,8 +715,10 @@ fn test_pool_config() {
     assert_eq!(new_reserve_config.index, 3);
 
     // Set admin (admin only)
+
+    // step 1 - propose new admin
     let new_admin = Address::generate(&fixture.env);
-    pool_fixture.pool.set_admin(&new_admin);
+    pool_fixture.pool.propose_admin(&new_admin);
     assert_eq!(
         fixture.env.auths()[0],
         (
@@ -724,22 +726,28 @@ fn test_pool_config() {
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
                     pool_fixture.pool.address.clone(),
-                    Symbol::new(&fixture.env, "set_admin"),
+                    Symbol::new(&fixture.env, "propose_admin"),
                     vec![&fixture.env, new_admin.to_val(),]
                 )),
                 sub_invocations: std::vec![]
             }
         )
     );
+    assert_eq!(fixture.bombadil, pool_fixture.pool.get_admin());
+
+    fixture.jump_with_sequence(100);
+
+    // step 2 - accept new admin
+    pool_fixture.pool.accept_admin();
     assert_eq!(
-        fixture.env.auths()[1],
+        fixture.env.auths()[0],
         (
             new_admin.clone(),
             AuthorizedInvocation {
                 function: AuthorizedFunction::Contract((
                     pool_fixture.pool.address.clone(),
-                    Symbol::new(&fixture.env, "set_admin"),
-                    vec![&fixture.env, new_admin.to_val(),]
+                    Symbol::new(&fixture.env, "accept_admin"),
+                    vec![&fixture.env]
                 )),
                 sub_invocations: std::vec![]
             }
@@ -761,6 +769,7 @@ fn test_pool_config() {
             )
         ]
     );
+    assert_eq!(new_admin, pool_fixture.pool.get_admin());
 
     // Set status (admin only)
     pool_fixture.pool.set_status(&2);
