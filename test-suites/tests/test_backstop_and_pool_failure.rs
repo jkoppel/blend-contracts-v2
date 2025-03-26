@@ -314,57 +314,18 @@ fn test_backstop_and_pool_failure() {
     assert_eq!(pippin_position_post.liabilities.len(), 0);
     let backstop_post_liq_2 = pool_fixture.pool.get_positions(&fixture.backstop.address);
     assert_eq!(backstop_post_liq_2.collateral.len(), 0);
-    assert_eq!(backstop_post_liq_2.liabilities.len(), 0);
-    // let bad_debt_2 = backstop_post_liq_2
-    //     .liabilities
-    //     .get_unchecked(stable_pool_index);
-    // // d_rate is barely above 1
-    // assert_approx_eq_rel(bad_debt_2, 60_000 * stable_scalar, 0_001000);
+    assert_eq!(backstop_post_liq_2.liabilities.len(), 1);
+    let bad_debt_2 = backstop_post_liq_2
+        .liabilities
+        .get_unchecked(stable_pool_index);
+    // d_rate is barely above 1
+    assert_approx_eq_rel(bad_debt_2, 60_000 * stable_scalar, 0_001000);
 
-    // // create bad debt auction to empty the backstop
-    // let bad_debt_auction = pool_fixture.pool.new_auction(
-    //     &1,
-    //     &fixture.backstop.address,
-    //     &vec![&fixture.env, stable.address.clone()],
-    //     &vec![&fixture.env, fixture.lp.address.clone()],
-    //     &100,
-    // );
-    // assert_eq!(bad_debt_auction.bid.len(), 1);
-    // assert_eq!(
-    //     bad_debt_auction.bid.get_unchecked(stable.address.clone()),
-    //     bad_debt_2
-    // );
-    // assert_eq!(bad_debt_auction.lot.len(), 1);
-    // assert_eq!(
-    //     bad_debt_auction
-    //         .lot
-    //         .get_unchecked(fixture.lp.address.clone()),
-    //     0
-    // );
-
-    // // wait 400 blocks (plus 1 block for auction to start)
-    // // to fill the auction
-    // fixture.jump_with_sequence(400 * 5 + 5);
-
-    // pool_fixture.pool.submit(
-    //     &elrond,
-    //     &elrond,
-    //     &elrond,
-    //     &vec![
-    //         &fixture.env,
-    //         Request {
-    //             request_type: RequestType::FillBadDebtAuction as u32,
-    //             address: fixture.backstop.address.clone(),
-    //             amount: 100,
-    //         },
-    //     ],
-    // );
-
-    let post_stable_reserve = pool_fixture.pool.get_reserve(&stable.address);
-
-    fixture.jump_with_sequence(100);
+    // default the bad debt
+    pool_fixture.pool.bad_debt(&fixture.backstop.address);
 
     // check b_rate loss (7 decimals)
+    let post_stable_reserve = pool_fixture.pool.get_reserve(&stable.address);
     let supply_value = post_stable_reserve
         .data
         .b_rate
@@ -377,6 +338,8 @@ fn test_backstop_and_pool_failure() {
         .unwrap();
 
     assert_approx_eq_abs(est_loss, supply_loss, 0_0001000);
+
+    fixture.jump_with_sequence(100);
 
     // ***** Frodo and Gandalf withdraw all STABLE funds *****
 

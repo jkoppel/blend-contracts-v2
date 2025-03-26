@@ -308,9 +308,25 @@ pub trait Pool {
     /// * `user` - The Address involved in the auction
     ///
     /// ### Panics
-    /// If the auction does not exist
-    /// If the auction is not stale
+    /// * If the auction does not exist
+    /// * If the auction is not stale
     fn del_auction(e: Env, auction_type: u32, user: Address);
+
+    /// Check and handle bad debt for a user.
+    ///
+    /// If the user is not the backstop and they have bad debt, the backstop will take over the debt, unless the backstop is
+    /// not healthy enough to do so, in which case it will be defaulted.
+    ///
+    /// If the user is the backstop, the backstop health will be checked, and if it is unhealthy, the backstop will default it's
+    /// remaining debt.
+    ///
+    /// ### Arguments
+    /// * `user` - The address of the user to check for bad debt
+    ///
+    /// ### Panics
+    /// * If there is no bad debt to handle
+    /// * If there is an ongoing auction for the user
+    fn bad_debt(e: Env, user: Address);
 }
 
 #[contractimpl]
@@ -580,8 +596,14 @@ impl Pool for PoolContract {
     fn del_auction(e: Env, auction_type: u32, user: Address) {
         storage::extend_instance(&e);
 
-        auctions::delete_auction(&e, auction_type, &user);
+        auctions::delete_stale_auction(&e, auction_type, &user);
 
         PoolEvents::delete_auction(&e, auction_type, user);
+    }
+
+    fn bad_debt(e: Env, user: Address) {
+        storage::extend_instance(&e);
+
+        pool::bad_debt(&e, &user);
     }
 }

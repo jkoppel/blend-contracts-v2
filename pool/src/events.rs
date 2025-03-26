@@ -361,9 +361,9 @@ impl PoolEvents {
             .publish(topics, (filler, fill_percent, filled_auction_data));
     }
 
-    /// Emitted when a liquidation auction is deleted
+    /// Emitted when an auction is deleted
     ///
-    /// - topics - `["delete_auction", user: Address, auction_type: u32]`
+    /// - topics - `["delete_auction", auction_type: u32, user: Address]`
     /// - data - `()`
     ///
     /// ### Arguments

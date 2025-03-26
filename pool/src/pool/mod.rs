@@ -1,6 +1,9 @@
 mod actions;
 pub use actions::{FlashLoan, Request, RequestType};
 
+mod bad_debt;
+pub use bad_debt::{bad_debt, check_and_handle_backstop_bad_debt, check_and_handle_user_bad_debt};
+
 mod config;
 pub use config::{
     execute_cancel_queued_set_reserve, execute_initialize, execute_queue_set_reserve,

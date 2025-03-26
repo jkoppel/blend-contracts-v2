@@ -2,8 +2,7 @@ use crate::{
     constants::SCALAR_7,
     dependencies::BackstopClient,
     errors::PoolError,
-    events::PoolEvents,
-    pool::{calc_pool_backstop_threshold, Pool, User},
+    pool::{check_and_handle_backstop_bad_debt, Pool, User},
     storage,
 };
 use cast::i128;
@@ -74,24 +73,24 @@ pub fn create_bad_debt_auction_data(
     // get value of backstop_token (BLND-USDC LP token) to base
     let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
 
-    if pool_backstop_data.tokens == 0 {
+    if pool_backstop_data.tokens <= 0 {
         // no tokens left in backstop to auction off
-        auction_data.lot.set(backstop_token, 0);
-    } else {
-        // Since the backstop LP token is an 80/20 split of USDC/BLND, we multiply by 5 to include the value of the BLND portion
-        let backstop_value_base =
-            (pool_backstop_data.usdc * 5).fixed_mul_floor(e, &oracle_scalar, &SCALAR_7); // adjust for oracle scalar
-        let backstop_token_to_base =
-            backstop_value_base.fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
-
-        // determine lot amount of backstop tokens needed to safely cover bad debt, or post
-        // all backstop tokens if there isn't enough to cover the bad debt
-        let mut lot_amount = debt_value
-            .fixed_mul_floor(e, &1_2000000, &SCALAR_7)
-            .fixed_div_floor(e, &backstop_token_to_base, &SCALAR_7);
-        lot_amount = pool_backstop_data.tokens.min(lot_amount);
-        auction_data.lot.set(backstop_token, lot_amount);
+        panic_with_error!(e, PoolError::InvalidLot);
     }
+
+    // Since the backstop LP token is an 80/20 split of USDC/BLND, we multiply by 5 to include the value of the BLND portion
+    let backstop_value_base =
+        (pool_backstop_data.usdc * 5).fixed_mul_floor(e, &oracle_scalar, &SCALAR_7); // adjust for oracle scalar
+    let backstop_token_to_base =
+        backstop_value_base.fixed_div_floor(e, &pool_backstop_data.tokens, &SCALAR_7);
+
+    // determine lot amount of backstop tokens needed to safely cover bad debt, or post
+    // all backstop tokens if there isn't enough to cover the bad debt
+    let mut lot_amount = debt_value
+        .fixed_mul_floor(e, &1_2000000, &SCALAR_7)
+        .fixed_div_floor(e, &backstop_token_to_base, &SCALAR_7);
+    lot_amount = pool_backstop_data.tokens.min(lot_amount);
+    auction_data.lot.set(backstop_token, lot_amount);
 
     auction_data
 }
@@ -125,23 +124,9 @@ pub fn fill_bad_debt_auction(
         );
     }
 
-    // If the backstop still has liabilities after the auction is completely filled
-    // and less than 5% of the backstop threshold, default the rest of the bad debt
-    if is_full_fill && !backstop_state.positions.liabilities.is_empty() {
-        let pool_backstop_data = backstop_client.pool_data(&e.current_contract_address());
-        let threshold = calc_pool_backstop_threshold(&pool_backstop_data);
-        if threshold < 0_0000003 {
-            // ~5% of threshold
-            let reserve_list = storage::get_res_list(e);
-            for (reserve_index, liability_balance) in backstop_state.positions.liabilities.iter() {
-                let res_asset_address = reserve_list.get_unchecked(reserve_index);
-                let mut reserve = pool.load_reserve(e, &res_asset_address, true);
-                backstop_state.default_liabilities(e, &mut reserve, liability_balance);
-                pool.cache_reserve(reserve);
-
-                PoolEvents::defaulted_debt(e, res_asset_address, liability_balance);
-            }
-        }
+    if is_full_fill {
+        // defaults rest of bad debt if insufficient backstop tokens remain in the backstop
+        check_and_handle_backstop_bad_debt(e, pool, &backstop_address, &mut backstop_state);
     }
     backstop_state.store(e);
 }
@@ -726,6 +711,100 @@ mod tests {
                 &backstop_address,
                 &vec![&e, underlying_0.clone()],
                 &vec![&e, underlying_0.clone()],
+                100,
+            );
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1222)")]
+    fn test_create_bad_debt_auction_no_backstop_tokens() {
+        let e = Env::default();
+        e.mock_all_auths_allowing_non_root_auth();
+        e.cost_estimate().budget().reset_unlimited(); // setup exhausts budget
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 12345,
+            protocol_version: 22,
+            sequence_number: 50,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool_address = create_pool(&e);
+
+        let (blnd, blnd_client) = testutils::create_blnd_token(&e, &pool_address, &bombadil);
+        let (usdc, usdc_client) = testutils::create_token_contract(&e, &bombadil);
+        let (lp_token, lp_token_client) =
+            testutils::create_comet_lp_pool(&e, &bombadil, &blnd, &usdc);
+        let (backstop_address, _) =
+            testutils::create_backstop(&e, &pool_address, &lp_token, &usdc, &blnd);
+        // mint lp tokens
+        blnd_client.mint(&samwise, &500_001_0000000);
+        blnd_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        usdc_client.mint(&samwise, &12_501_0000000);
+        usdc_client.approve(&samwise, &lp_token, &i128::MAX, &99999);
+        lp_token_client.join_pool(
+            &50_000_0000000,
+            &vec![&e, 500_001_0000000, 12_501_0000000],
+            &samwise,
+        );
+
+        let (oracle_id, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
+        reserve_data_0.d_rate = 1_100_000_000_000;
+        reserve_data_0.last_time = 12345;
+        reserve_config_0.index = 0;
+        testutils::create_reserve(
+            &e,
+            &pool_address,
+            &underlying_0,
+            &reserve_config_0,
+            &reserve_data_0,
+        );
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(usdc),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 2_0000000, 4_0000000]);
+
+        let positions: Positions = Positions {
+            collateral: map![&e],
+            liabilities: map![&e, (reserve_config_0.index, 10_0000000),],
+            supply: map![&e],
+        };
+
+        let pool_config = PoolConfig {
+            oracle: oracle_id,
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 4,
+        };
+        e.as_contract(&pool_address, || {
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_user_positions(&e, &backstop_address, &positions);
+
+            create_bad_debt_auction_data(
+                &e,
+                &backstop_address,
+                &vec![&e, underlying_0.clone()],
+                &vec![&e, lp_token.clone()],
                 100,
             );
         });

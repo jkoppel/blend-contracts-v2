@@ -294,6 +294,63 @@ mod tests {
     }
 
     #[test]
+    fn test_reserve_cache_does_nothing_if_nothing_marked() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 123456 * 5,
+            protocol_version: 22,
+            sequence_number: 123456,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let oracle = Address::generate(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config, reserve_data_0) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data_0);
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let mut reserve_data_1 = reserve_data_0.clone();
+        reserve_config.index = 1;
+        reserve_data_1.d_rate = 1_001_000_000_000;
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data_1);
+
+        let pool_config = PoolConfig {
+            oracle,
+            min_collateral: 1_0000000,
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            let mut pool = Pool::load(&e);
+            let mut reserve_0 = pool.load_reserve(&e, &underlying_0, false);
+            reserve_0.data.d_rate = 0;
+            let mut reserve_1 = pool.load_reserve(&e, &underlying_1, false);
+            reserve_1.data.d_rate = 0;
+
+            pool.cache_reserve(reserve_0.clone());
+            pool.cache_reserve(reserve_1.clone());
+
+            // store all cached reserves and verify the temp one was not stored
+            pool.store_cached_reserves(&e);
+            let new_reserve_data = storage::get_res_data(&e, &underlying_0);
+            assert_eq!(new_reserve_data.d_rate, reserve_data_0.d_rate);
+            let new_reserve_data = storage::get_res_data(&e, &underlying_1);
+            assert_eq!(new_reserve_data.d_rate, reserve_data_1.d_rate);
+        });
+    }
+
+    #[test]
     #[should_panic(expected = "Error(Contract, #1209)")]
     fn test_reserve_cache_panics_if_missing_reserve_to_store() {
         let e = Env::default();
