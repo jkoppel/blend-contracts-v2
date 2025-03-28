@@ -66,8 +66,7 @@ pub fn load_pool_backstop_data(e: &Env, address: &Address) -> PoolBackstopData {
             q4w_pct,
             blnd,
             usdc,
-            // backstop token is 20% USDC, so 5x is the spot price without slippage/fees
-            token_spot_price: usdc_per_tkn * 5,
+            token_spot_price: tkn_spot_price_sans_fee,
         }
     } else {
         PoolBackstopData {
