@@ -83,21 +83,18 @@ pub trait Pool {
     /// Fetch the admin address of the pool
     fn get_admin(e: Env) -> Address;
 
+    /// Fetch the a vec addresses of all reserves in the pool. The index of the reserve
+    /// in this vec defines the index of the reserve in the pool, used in places like `Positions`.
+    fn get_reserve_list(e: Env) -> Vec<Address>;
+
     /// Fetch information about a reserve, updated to the current ledger
     ///
     /// ### Arguments
     /// * `asset` - The address of the reserve asset
     fn get_reserve(e: Env, asset: Address) -> Reserve;
 
-    /// Fetch data about the pool and its reserves.
-    ///
-    /// Useful for external integrations that need to load all data about the pool
-    ///
-    /// Returns a tuple with the pool configuration and a vector of reserves, where each reserve
-    /// is updated to the current ledger.
-    fn get_market(e: Env) -> (PoolConfig, Vec<Reserve>);
-
-    /// Fetch the positions for an address
+    /// Fetch the positions for an address. For each position type, there is a map of the reserve index
+    /// to the position for that reserve, if it exists.
     ///
     /// ### Arguments
     /// * `address` - The address to fetch positions for
@@ -444,20 +441,13 @@ impl Pool for PoolContract {
         storage::get_admin(&e)
     }
 
+    fn get_reserve_list(e: Env) -> Vec<Address> {
+        storage::get_res_list(&e)
+    }
+
     fn get_reserve(e: Env, asset: Address) -> Reserve {
         let pool_config = storage::get_pool_config(&e);
         Reserve::load(&e, &pool_config, &asset)
-    }
-
-    fn get_market(e: Env) -> (PoolConfig, Vec<Reserve>) {
-        let pool_config = storage::get_pool_config(&e);
-        let res_list = storage::get_res_list(&e);
-        let mut reserves = Vec::<Reserve>::new(&e);
-        for res_address in res_list.iter() {
-            let res = Reserve::load(&e, &pool_config, &res_address);
-            reserves.push_back(res);
-        }
-        (pool_config, reserves)
     }
 
     fn get_positions(e: Env, address: Address) -> Positions {
