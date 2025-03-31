@@ -2,7 +2,9 @@ use crate::{dependencies::CometClient, errors::BackstopError, events::BackstopEv
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
     auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
-    panic_with_error, vec, Address, Env, IntoVal, Map, Symbol, Val, Vec,
+    panic_with_error,
+    unwrap::UnwrapOptimized,
+    vec, Address, Env, IntoVal, Map, Symbol, Val, Vec,
 };
 
 use super::distributor::claim_emissions;
@@ -25,6 +27,11 @@ pub fn execute_claim(
         let user_balance = storage::get_user_balance(e, &pool_id, from);
         let claim_amt = claim_emissions(e, &pool_id, &pool_balance, from, &user_balance);
         claimed += claim_amt;
+        // panic if the user has already claimed for this pool
+        // or if the claim amount is 0
+        if claims.get(pool_id.clone()).is_some() {
+            panic_with_error!(e, BackstopError::BadRequest);
+        }
         claims.set(pool_id.clone(), claim_amt);
     }
 
@@ -57,22 +64,24 @@ pub fn execute_claim(
             &e.current_contract_address(),
         );
         for pool_id in pool_addresses.iter() {
-            let claim_amount = claims.get(pool_id.clone()).unwrap();
+            let claim_amount = claims.get(pool_id.clone()).unwrap_optimized();
             let deposit_amount = lp_tokens_out
                 .fixed_mul_floor(claim_amount, claimed)
-                .unwrap();
-            let mut pool_balance = storage::get_pool_balance(e, &pool_id);
-            let mut user_balance = storage::get_user_balance(e, &pool_id, from);
+                .unwrap_optimized();
+            if deposit_amount > 0 {
+                let mut pool_balance = storage::get_pool_balance(e, &pool_id);
+                let mut user_balance = storage::get_user_balance(e, &pool_id, from);
 
-            // Deposit LP tokens into pool backstop
-            let to_mint = pool_balance.convert_to_shares(deposit_amount);
-            pool_balance.deposit(deposit_amount, to_mint);
-            user_balance.add_shares(to_mint);
+                // Deposit LP tokens into pool backstop
+                let to_mint = pool_balance.convert_to_shares(deposit_amount);
+                pool_balance.deposit(deposit_amount, to_mint);
+                user_balance.add_shares(to_mint);
 
-            storage::set_pool_balance(e, &pool_id, &pool_balance);
-            storage::set_user_balance(e, &pool_id, from, &user_balance);
+                storage::set_pool_balance(e, &pool_id, &pool_balance);
+                storage::set_user_balance(e, &pool_id, from, &user_balance);
 
-            BackstopEvents::deposit(e, pool_id, from.clone(), deposit_amount, to_mint);
+                BackstopEvents::deposit(e, pool_id, from.clone(), deposit_amount, to_mint);
+            }
         }
         lp_tokens_out
     } else {
@@ -642,6 +651,307 @@ mod tests {
             assert_eq!(new_backstop_2_data.index, 67000000000000);
             assert_eq!(new_user_2_data.accrued, 0);
             assert_eq!(new_user_2_data.index, 67000000000000);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_claim_duplicate() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let block_timestamp = 1500000000 + 12345;
+        e.ledger().set(LedgerInfo {
+            timestamp: block_timestamp,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        e.cost_estimate().budget().reset_unlimited();
+
+        let backstop_address = create_backstop(&e);
+        let pool_1_id = Address::generate(&e);
+        let pool_2_id = Address::generate(&e);
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+
+        let (blnd_address, blnd_token_client) = create_blnd_token(&e, &backstop_address, &bombadil);
+        let (usdc_address, _) = create_usdc_token(&e, &backstop_address, &bombadil);
+        blnd_token_client.mint(&backstop_address, &100_0000000);
+
+        let backstop_1_emissions_data = BackstopEmissionData {
+            expiration: 1500000000 + 7 * 24 * 60 * 60,
+            eps: 0_10000000000000,
+            index: 222220000000,
+            last_time: 1500000000,
+        };
+        let user_1_emissions_data = UserEmissionData {
+            index: 111110000000,
+            accrued: 1_2345678,
+        };
+
+        let backstop_2_emissions_data = BackstopEmissionData {
+            expiration: 1500000000 + 7 * 24 * 60 * 60,
+            eps: 0_02000000000000,
+            index: 0,
+            last_time: 1500010000,
+        };
+        let user_2_emissions_data = UserEmissionData {
+            index: 0,
+            accrued: 0,
+        };
+        let (lp_address, _) = create_comet_lp_pool(&e, &bombadil, &blnd_address, &usdc_address);
+        e.as_contract(&backstop_address, || {
+            storage::set_backstop_emis_data(&e, &pool_1_id, &backstop_1_emissions_data);
+            storage::set_user_emis_data(&e, &pool_1_id, &samwise, &user_1_emissions_data);
+            storage::set_backstop_emis_data(&e, &pool_2_id, &backstop_2_emissions_data);
+            storage::set_user_emis_data(&e, &pool_2_id, &samwise, &user_2_emissions_data);
+            storage::set_backstop_token(&e, &lp_address);
+            storage::set_blnd_token(&e, &blnd_address);
+            storage::set_pool_balance(
+                &e,
+                &pool_1_id,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 200_0000000,
+                    q4w: 2_0000000,
+                },
+            );
+            storage::set_user_balance(
+                &e,
+                &pool_1_id,
+                &samwise,
+                &UserBalance {
+                    shares: 9_0000000,
+                    q4w: vec![&e],
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool_2_id,
+                &PoolBalance {
+                    shares: 70_0000000,
+                    tokens: 75_0000000,
+                    q4w: 3_5000000,
+                },
+            );
+            storage::set_user_balance(
+                &e,
+                &pool_2_id,
+                &samwise,
+                &UserBalance {
+                    shares: 7_5000000,
+                    q4w: vec![&e],
+                },
+            );
+            execute_claim(
+                &e,
+                &samwise,
+                &vec![&e, pool_1_id.clone(), pool_2_id.clone(), pool_1_id.clone()],
+                &6_4000000,
+            );
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_claim_empty() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let block_timestamp = 1500000000 + 12345;
+        e.ledger().set(LedgerInfo {
+            timestamp: block_timestamp,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        e.cost_estimate().budget().reset_unlimited();
+
+        let backstop_address = create_backstop(&e);
+        let pool_1_id = Address::generate(&e);
+        let pool_2_id = Address::generate(&e);
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+
+        let (blnd_address, blnd_token_client) = create_blnd_token(&e, &backstop_address, &bombadil);
+        let (usdc_address, _) = create_usdc_token(&e, &backstop_address, &bombadil);
+        blnd_token_client.mint(&backstop_address, &100_0000000);
+
+        let backstop_1_emissions_data = BackstopEmissionData {
+            expiration: 1500000000 + 7 * 24 * 60 * 60,
+            eps: 0_10000000000000,
+            index: 222220000000,
+            last_time: 1500000000,
+        };
+        let user_1_emissions_data = UserEmissionData {
+            index: 111110000000,
+            accrued: 1_2345678,
+        };
+
+        let backstop_2_emissions_data = BackstopEmissionData {
+            expiration: 1500000000 + 7 * 24 * 60 * 60,
+            eps: 0_02000000000000,
+            index: 0,
+            last_time: 1500010000,
+        };
+        let user_2_emissions_data = UserEmissionData {
+            index: 0,
+            accrued: 0,
+        };
+        let (lp_address, _) = create_comet_lp_pool(&e, &bombadil, &blnd_address, &usdc_address);
+        e.as_contract(&backstop_address, || {
+            storage::set_backstop_emis_data(&e, &pool_1_id, &backstop_1_emissions_data);
+            storage::set_user_emis_data(&e, &pool_1_id, &samwise, &user_1_emissions_data);
+            storage::set_backstop_emis_data(&e, &pool_2_id, &backstop_2_emissions_data);
+            storage::set_user_emis_data(&e, &pool_2_id, &samwise, &user_2_emissions_data);
+            storage::set_backstop_token(&e, &lp_address);
+            storage::set_blnd_token(&e, &blnd_address);
+            storage::set_pool_balance(
+                &e,
+                &pool_1_id,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 200_0000000,
+                    q4w: 2_0000000,
+                },
+            );
+            storage::set_user_balance(
+                &e,
+                &pool_1_id,
+                &samwise,
+                &UserBalance {
+                    shares: 9_0000000,
+                    q4w: vec![&e],
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool_2_id,
+                &PoolBalance {
+                    shares: 70_0000000,
+                    tokens: 75_0000000,
+                    q4w: 3_5000000,
+                },
+            );
+            storage::set_user_balance(
+                &e,
+                &pool_2_id,
+                &samwise,
+                &UserBalance {
+                    shares: 7_5000000,
+                    q4w: vec![&e],
+                },
+            );
+            execute_claim(&e, &samwise, &vec![&e], &6_4000000);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_claim_random_adddress() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let block_timestamp = 1500000000 + 12345;
+        e.ledger().set(LedgerInfo {
+            timestamp: block_timestamp,
+            protocol_version: 22,
+            sequence_number: 0,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        e.cost_estimate().budget().reset_unlimited();
+
+        let backstop_address = create_backstop(&e);
+        let pool_1_id = Address::generate(&e);
+        let pool_2_id = Address::generate(&e);
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+
+        let (blnd_address, blnd_token_client) = create_blnd_token(&e, &backstop_address, &bombadil);
+        let (usdc_address, _) = create_usdc_token(&e, &backstop_address, &bombadil);
+        blnd_token_client.mint(&backstop_address, &100_0000000);
+
+        let backstop_1_emissions_data = BackstopEmissionData {
+            expiration: 1500000000 + 7 * 24 * 60 * 60,
+            eps: 0_10000000000000,
+            index: 222220000000,
+            last_time: 1500000000,
+        };
+        let user_1_emissions_data = UserEmissionData {
+            index: 111110000000,
+            accrued: 1_2345678,
+        };
+
+        let backstop_2_emissions_data = BackstopEmissionData {
+            expiration: 1500000000 + 7 * 24 * 60 * 60,
+            eps: 0_02000000000000,
+            index: 0,
+            last_time: 1500010000,
+        };
+        let user_2_emissions_data = UserEmissionData {
+            index: 0,
+            accrued: 0,
+        };
+        let (lp_address, _) = create_comet_lp_pool(&e, &bombadil, &blnd_address, &usdc_address);
+        e.as_contract(&backstop_address, || {
+            storage::set_backstop_emis_data(&e, &pool_1_id, &backstop_1_emissions_data);
+            storage::set_user_emis_data(&e, &pool_1_id, &samwise, &user_1_emissions_data);
+            storage::set_backstop_emis_data(&e, &pool_2_id, &backstop_2_emissions_data);
+            storage::set_user_emis_data(&e, &pool_2_id, &samwise, &user_2_emissions_data);
+            storage::set_backstop_token(&e, &lp_address);
+            storage::set_blnd_token(&e, &blnd_address);
+            storage::set_pool_balance(
+                &e,
+                &pool_1_id,
+                &PoolBalance {
+                    shares: 150_0000000,
+                    tokens: 200_0000000,
+                    q4w: 2_0000000,
+                },
+            );
+            storage::set_user_balance(
+                &e,
+                &pool_1_id,
+                &samwise,
+                &UserBalance {
+                    shares: 9_0000000,
+                    q4w: vec![&e],
+                },
+            );
+            storage::set_pool_balance(
+                &e,
+                &pool_2_id,
+                &PoolBalance {
+                    shares: 70_0000000,
+                    tokens: 75_0000000,
+                    q4w: 3_5000000,
+                },
+            );
+            storage::set_user_balance(
+                &e,
+                &pool_2_id,
+                &samwise,
+                &UserBalance {
+                    shares: 7_5000000,
+                    q4w: vec![&e],
+                },
+            );
+            execute_claim(
+                &e,
+                &samwise,
+                &vec![&e, pool_1_id.clone(), Address::generate(&e)],
+                &1,
+            );
         });
     }
 }
