@@ -19,7 +19,7 @@ pub struct BackstopContract;
 pub trait Backstop {
     /********** Core **********/
 
-    /// Deposit backstop tokens from "from" into the backstop of a pool
+    /// Deposit backstop tokens from `from` into the backstop of a pool
     ///
     /// Returns the number of backstop pool shares minted
     ///
@@ -29,7 +29,7 @@ pub trait Backstop {
     /// * `amount` - The amount of tokens to deposit
     fn deposit(e: Env, from: Address, pool_address: Address, amount: i128) -> i128;
 
-    /// Queue deposited pool shares from "from" for withdraw from a backstop of a pool
+    /// Queue deposited pool shares from `from` for withdraw from a backstop of a pool
     ///
     /// Returns the created queue for withdrawal
     ///
@@ -39,7 +39,7 @@ pub trait Backstop {
     /// * `amount` - The amount of shares to queue for withdraw
     fn queue_withdrawal(e: Env, from: Address, pool_address: Address, amount: i128) -> Q4W;
 
-    /// Dequeue a currently queued pool share withdraw for "from" from the backstop of a pool
+    /// Dequeue a currently queued pool share withdraw for `from` from the backstop of a pool
     ///
     /// ### Arguments
     /// * `from` - The address whose deposits are being queued for withdrawal
@@ -47,7 +47,7 @@ pub trait Backstop {
     /// * `amount` - The amount of shares to dequeue
     fn dequeue_withdrawal(e: Env, from: Address, pool_address: Address, amount: i128);
 
-    /// Withdraw shares from "from"s withdraw queue for a backstop of a pool
+    /// Withdraw shares from `from`s withdraw queue for a backstop of a pool
     ///
     /// Returns the amount of tokens returned
     ///
@@ -146,12 +146,12 @@ pub trait Backstop {
     /// not authorize the call
     fn draw(e: Env, pool_address: Address, amount: i128, to: Address);
 
-    /// (Only Pool) Sends backstop tokens from "from" to a pools backstop
+    /// (Only Pool) Sends backstop tokens from `from` to a pools backstop
     ///
-    /// NOTE: This is not a deposit, and "from" will permanently lose access to the funds
+    /// NOTE: This is not a deposit, and `from` will permanently lose access to the funds
     ///
     /// ### Arguments
-    /// * `from` - tge
+    /// * `from` - The address of the pool donating tokens to the backstop
     /// * `pool_address` - The address of the pool
     /// * `amount` - The amount of BLND to add
     ///

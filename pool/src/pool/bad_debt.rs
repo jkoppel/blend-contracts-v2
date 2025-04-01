@@ -33,8 +33,7 @@ pub fn bad_debt(e: &Env, user: &Address) {
 
 /// Check if a user has bad debt.
 ///
-/// If they do, either pass the bad debt off to the backstop, or default the
-/// position if the backstop is not healthy.
+/// If they do, pass the bad debt off to the backstop.
 ///
 /// If not, this function does nothing.
 ///
@@ -43,10 +42,6 @@ pub fn bad_debt(e: &Env, user: &Address) {
 ///
 /// `pool` is modified in place, and reserve updates are not stored to chain. If this function
 /// is invoked, `pool.store_cached_reserves()` must be called afterwards.
-///
-/// @dev - The code path that won't always need to write `user_state` is during the deletion
-/// of a stale auction. An unnnecessary write of `user_state` is considered OK here, as
-/// the transaction is simple and the code path should rarely be hit.
 ///
 /// ### Arguments
 /// * pool - The pool
@@ -95,10 +90,6 @@ pub fn check_and_handle_user_bad_debt(
 ///
 /// `pool` is modified in place, and reserve updates are not stored to chain. If this function
 /// is invoked, `pool.store_cached_reserves()` must be called afterwards.
-///
-/// @dev - The code path that won't always need to write `backstop_state` is during the deletion
-/// of a stale auction. An unnnecessary write of `backstop_state` is considered OK here, as
-/// the transaction is simple and the code path should rarely be hit.
 ///
 /// ### Arguments
 /// * pool - The pool

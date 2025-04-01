@@ -442,7 +442,6 @@ fn apply_repay(
 
 #[cfg(test)]
 mod tests {
-
     use crate::{
         constants::SCALAR_7,
         storage::{self, PoolConfig},
@@ -456,9 +455,6 @@ mod tests {
         testutils::{Address as _, Ledger, LedgerInfo},
         vec,
     };
-
-    // d_rate -> 1_000_001_142
-    // b_rate -> 1_000_000_686
 
     /***** supply *****/
 

@@ -24,7 +24,7 @@ pub trait PoolFactory {
     /// * `oracle` - The oracle address for the pool
     /// * `backstop_take_rate` - The backstop take rate for the pool (7 decimals)
     /// * `max_positions` - The maximum user positions supported by the pool
-    /// * `min_collateral` - The minimum collateral required for a position
+    /// * `min_collateral` - The minimum collateral required for a borrow position (oracle decimals)
     fn deploy(
         e: Env,
         admin: Address,

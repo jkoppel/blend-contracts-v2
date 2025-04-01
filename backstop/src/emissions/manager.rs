@@ -69,7 +69,7 @@ pub fn remove_from_reward_zone(e: &Env, to_remove: Address) {
     }
 }
 
-/// Remove a pool from the reward zone and set the backstop emissions index to i128::MAX
+/// Remove a pool from the reward zone
 fn remove_pool(e: &Env, reward_zone: &mut Vec<Address>, to_remove: &Address) {
     let to_remove_index = reward_zone.first_index_of(to_remove.clone());
     match to_remove_index {
@@ -177,7 +177,7 @@ pub fn distribute(e: &Env) -> i128 {
 
     let mut rz_balance: Vec<(Address, PoolBalance)> = vec![e];
 
-    // fetch total tokens of BLND in the reward zone
+    // fetch total non-queued backstop tokens in the reward zone
     let mut total_non_queued_tokens: i128 = 0;
     for rz_pool in reward_zone {
         let pool_balance = storage::get_pool_balance(e, &rz_pool);
