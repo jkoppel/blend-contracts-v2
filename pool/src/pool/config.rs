@@ -7,7 +7,7 @@ use crate::{
 };
 use soroban_sdk::{panic_with_error, Address, Env, String};
 
-use super::pool::Pool;
+use super::{pool::Pool, Reserve};
 
 /// Initialize the pool
 ///
@@ -48,6 +48,13 @@ pub fn execute_update_pool(
     min_collateral: i128,
 ) {
     let mut pool_config = storage::get_pool_config(e);
+    let res_list = storage::get_res_list(e);
+    if pool_config.bstop_rate != backstop_take_rate {
+        for res in res_list {
+            let reserve = Reserve::load(e, &pool_config, &res);
+            reserve.store(e);
+        }
+    }
     pool_config.bstop_rate = backstop_take_rate;
     pool_config.max_positions = max_positions;
     pool_config.min_collateral = min_collateral;
@@ -62,6 +69,12 @@ pub fn execute_queue_set_reserve(e: &Env, asset: &Address, metadata: &ReserveCon
         panic_with_error!(&e, PoolError::BadRequest)
     }
     require_valid_reserve_metadata(e, metadata);
+
+    // if the reserve config exists, ensure there are no invalid changes
+    if storage::has_res(e, asset) {
+        require_valid_reserve_metadata_changes(e, &storage::get_res_config(e, asset), metadata);
+    }
+
     let mut unlock_time = e.ledger().timestamp();
     // require a timelock if pool status is not setup
     if storage::get_pool_config(e).status != 6 {
@@ -108,10 +121,7 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
         let mut reserve = pool.load_reserve(e, asset, false);
         index = reserve.config.index;
         let reserve_config = storage::get_res_config(e, asset);
-        // decimals cannot change
-        if reserve_config.decimals != config.decimals {
-            panic_with_error!(e, PoolError::InvalidReserveMetadata);
-        }
+        require_valid_reserve_metadata_changes(e, &reserve_config, config);
         // if any of the IR parameters were changed reset the IR modifier
         if reserve_config.r_base != config.r_base
             || reserve_config.r_one != config.r_one
@@ -148,7 +158,7 @@ fn initialize_reserve(e: &Env, asset: &Address, config: &ReserveConfig) -> u32 {
         r_two: config.r_two,
         r_three: config.r_three,
         reactivity: config.reactivity,
-        collateral_cap: config.collateral_cap,
+        supply_cap: config.supply_cap,
         enabled: config.enabled,
     };
     storage::set_res_config(e, asset, &reserve_config);
@@ -168,6 +178,18 @@ fn require_valid_reserve_metadata(e: &Env, metadata: &ReserveConfig) {
         || metadata.r_base < 0_0001000
         || (metadata.r_one > metadata.r_two || metadata.r_two > metadata.r_three)
         || (metadata.reactivity > 0_0001000)
+    {
+        panic_with_error!(e, PoolError::InvalidReserveMetadata);
+    }
+}
+
+fn require_valid_reserve_metadata_changes(
+    e: &Env,
+    cur_config: &ReserveConfig,
+    metadata: &ReserveConfig,
+) {
+    if cur_config.decimals != metadata.decimals
+        || (cur_config.l_factor != 0 && metadata.l_factor == 0)
     {
         panic_with_error!(e, PoolError::InvalidReserveMetadata);
     }
@@ -328,6 +350,82 @@ mod tests {
     }
 
     #[test]
+    fn test_execute_update_pool_updates_reserves_if_backstop_rate_changes() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 12345,
+            protocol_version: 22,
+            sequence_number: 123456,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_0, mut reserve_data_0) = testutils::default_reserve_meta();
+        reserve_data_0.last_time = 12345;
+        reserve_data_0.b_supply = 1000_0000000;
+        reserve_data_0.d_supply = 750_0000000;
+        reserve_config_0.index = 0;
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config_0, &reserve_data_0);
+
+        let (underlying_1, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config_1, mut reserve_data_1) = testutils::default_reserve_meta();
+        reserve_data_1.last_time = 12345;
+        reserve_data_1.b_supply = 250_0000000;
+        reserve_data_1.d_supply = 100_5000000;
+        reserve_config_1.index = 1;
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config_1, &reserve_data_1);
+
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
+            max_positions: 2,
+        };
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 12345 * 5,
+            protocol_version: 22,
+            sequence_number: 123456,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+
+            execute_update_pool(&e, 0_2000000, 4u32, 2_0000000);
+
+            let new_pool_config = storage::get_pool_config(&e);
+            assert_eq!(new_pool_config.bstop_rate, 0_2000000);
+            assert_eq!(new_pool_config.oracle, pool_config.oracle);
+            assert_eq!(new_pool_config.status, pool_config.status);
+            assert_eq!(new_pool_config.max_positions, 4u32);
+            assert_eq!(new_pool_config.min_collateral, 2_0000000);
+
+            let new_reserve_data_0 = storage::get_res_data(&e, &underlying_0);
+            assert_eq!(new_reserve_data_0.last_time, 12345 * 5);
+            assert!(new_reserve_data_0.d_rate > reserve_data_0.d_rate);
+            assert!(new_reserve_data_0.b_rate > reserve_data_0.b_rate);
+            let new_reserve_data_1 = storage::get_res_data(&e, &underlying_1);
+            assert_eq!(new_reserve_data_1.last_time, 12345 * 5);
+            assert!(new_reserve_data_1.d_rate > reserve_data_1.d_rate);
+            assert!(new_reserve_data_1.b_rate > reserve_data_1.b_rate);
+        });
+    }
+
+    #[test]
     #[should_panic(expected = "Error(Contract, #1201)")]
     fn test_execute_update_pool_validates_b_stop_rate() {
         let e = Env::default();
@@ -411,7 +509,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         let pool_config = PoolConfig {
@@ -462,7 +560,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         let pool_config = PoolConfig {
@@ -516,7 +614,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         let pool_config = PoolConfig {
@@ -559,7 +657,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         let pool_config = PoolConfig {
@@ -572,6 +670,183 @@ mod tests {
         e.as_contract(&pool, || {
             storage::set_pool_config(&e, &pool_config);
             execute_queue_set_reserve(&e, &asset_id, &metadata);
+        });
+    }
+
+    #[test]
+    fn test_queue_set_reserve_with_existing_res() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let pool = testutils::create_pool(&e);
+        let bombadil = Address::generate(&e);
+
+        let (asset_id_0, _) = testutils::create_token_contract(&e, &bombadil);
+
+        let old_metadata = ReserveConfig {
+            index: 1,
+            decimals: 7,
+            c_factor: 0_7500000,
+            l_factor: 0_7500000,
+            util: 0_5000000,
+            max_util: 0_9500000,
+            r_base: 0_0100000,
+            r_one: 0_0500000,
+            r_two: 0_5000000,
+            r_three: 1_5000000,
+            reactivity: 100,
+            supply_cap: 1000000000000000000,
+            enabled: true,
+        };
+        let metadata = ReserveConfig {
+            index: 1,
+            decimals: 7,
+            c_factor: 0_6000000,
+            l_factor: 0_5000000,
+            util: 0_4000000,
+            max_util: 0_9500000,
+            r_base: 0_0100000,
+            r_one: 0_0500000,
+            r_two: 0_5000000,
+            r_three: 1_5000000,
+            reactivity: 100,
+            supply_cap: 1000000000000000000,
+            enabled: true,
+        };
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 5,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_res_config(&e, &asset_id_0, &old_metadata);
+            execute_queue_set_reserve(&e, &asset_id_0, &metadata);
+            let queued_init = storage::get_queued_reserve_set(&e, &asset_id_0);
+            assert_eq!(queued_init.new_config.decimals, metadata.decimals);
+            assert_eq!(queued_init.new_config.c_factor, metadata.c_factor);
+            assert_eq!(queued_init.new_config.l_factor, metadata.l_factor);
+            assert_eq!(queued_init.new_config.util, metadata.util);
+            assert_eq!(queued_init.new_config.max_util, metadata.max_util);
+            assert_eq!(queued_init.new_config.r_base, metadata.r_base);
+            assert_eq!(queued_init.new_config.r_one, metadata.r_one);
+            assert_eq!(queued_init.new_config.r_two, metadata.r_two);
+            assert_eq!(queued_init.new_config.r_three, metadata.r_three);
+            assert_eq!(queued_init.new_config.reactivity, metadata.reactivity);
+            assert_eq!(queued_init.new_config.index, 1);
+            assert_eq!(
+                queued_init.unlock_time,
+                e.ledger().timestamp() + SECONDS_PER_WEEK
+            );
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1202)")]
+    fn test_queue_set_reserve_decimals_changed() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let pool = testutils::create_pool(&e);
+        let bombadil = Address::generate(&e);
+
+        let (asset_id_0, _) = testutils::create_token_contract(&e, &bombadil);
+
+        let old_metadata = ReserveConfig {
+            index: 0,
+            decimals: 7,
+            c_factor: 0_7500000,
+            l_factor: 0_7500000,
+            util: 0_5000000,
+            max_util: 0_9500000,
+            r_base: 0_0100000,
+            r_one: 0_0500000,
+            r_two: 0_5000000,
+            r_three: 1_5000000,
+            reactivity: 100,
+            supply_cap: 1000000000000000000,
+            enabled: true,
+        };
+        let metadata = ReserveConfig {
+            index: 0,
+            decimals: 8,
+            c_factor: 0_7500000,
+            l_factor: 0_7500000,
+            util: 0_5000000,
+            max_util: 0_9500000,
+            r_base: 0_0100000,
+            r_one: 0_0500000,
+            r_two: 0_5000000,
+            r_three: 1_5000000,
+            reactivity: 100,
+            supply_cap: 1000000000000000000,
+            enabled: true,
+        };
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 6,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_res_config(&e, &asset_id_0, &old_metadata);
+            execute_queue_set_reserve(&e, &asset_id_0, &metadata);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1202)")]
+    fn test_queue_set_reserve_lf_removed() {
+        let e = Env::default();
+        e.mock_all_auths();
+        let pool = testutils::create_pool(&e);
+        let bombadil = Address::generate(&e);
+
+        let (asset_id_0, _) = testutils::create_token_contract(&e, &bombadil);
+
+        let old_metadata = ReserveConfig {
+            index: 0,
+            decimals: 7,
+            c_factor: 0_7500000,
+            l_factor: 0_7500000,
+            util: 0_5000000,
+            max_util: 0_9500000,
+            r_base: 0_0100000,
+            r_one: 0_0500000,
+            r_two: 0_5000000,
+            r_three: 1_5000000,
+            reactivity: 100,
+            supply_cap: 1000000000000000000,
+            enabled: true,
+        };
+        let metadata = ReserveConfig {
+            index: 0,
+            decimals: 7,
+            c_factor: 0_7500000,
+            l_factor: 0,
+            util: 0_5000000,
+            max_util: 0_9500000,
+            r_base: 0_0100000,
+            r_one: 0_0500000,
+            r_two: 0_5000000,
+            r_three: 1_5000000,
+            reactivity: 100,
+            supply_cap: 1000000000000000000,
+            enabled: true,
+        };
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 6,
+            max_positions: 2,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            storage::set_res_config(&e, &asset_id_0, &old_metadata);
+            execute_queue_set_reserve(&e, &asset_id_0, &metadata);
         });
     }
 
@@ -596,7 +871,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         e.as_contract(&pool, || {
@@ -636,7 +911,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         e.as_contract(&pool, || {
@@ -685,7 +960,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         e.as_contract(&pool, || {
@@ -895,7 +1170,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 105,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
 
@@ -943,7 +1218,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         e.as_contract(&pool, || {
@@ -983,7 +1258,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1008,7 +1283,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1031,7 +1306,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1054,7 +1329,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1077,7 +1352,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1100,7 +1375,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1123,7 +1398,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1146,7 +1421,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1169,7 +1444,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 100,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);
@@ -1192,7 +1467,7 @@ mod tests {
             r_two: 0_5000000,
             r_three: 1_5000000,
             reactivity: 0_0001001,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         };
         require_valid_reserve_metadata(&e, &metadata);

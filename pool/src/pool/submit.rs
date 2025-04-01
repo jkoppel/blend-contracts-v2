@@ -134,7 +134,7 @@ pub fn execute_submit_with_flash_loan(
         &0,
     );
 
-    // note: at this point, the pool has sum_by_asset(actions.flash_borrow.1) for each involed asset, but the user also has
+    // note: at this point, the pool has sum_by_asset(actions.flash_borrow.1) for each involved asset, but the user also has
     // increased liabilities. These will have to be either fully repaid by now in the requests following the flash borrow
     // or the user needs to have some previously added collateral to cover the borrow, i.e user is already healthy at this point,
     // we just have to make sure that they have the balances they are claiming to have through the transfers.

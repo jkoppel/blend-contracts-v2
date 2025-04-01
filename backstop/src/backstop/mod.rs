@@ -9,7 +9,7 @@ pub use withdrawal::{execute_dequeue_withdrawal, execute_queue_withdrawal, execu
 
 mod pool;
 pub use pool::{
-    load_pool_backstop_data, require_is_from_pool_factory, require_pool_above_threshold,
+    is_pool_above_threshold, load_pool_backstop_data, require_is_from_pool_factory,
     PoolBackstopData, PoolBalance,
 };
 

@@ -4,9 +4,11 @@ use crate::{
     events::PoolEvents,
     pool::{self, FlashLoan, Positions, Request, Reserve},
     storage::{self, ReserveConfig},
-    PoolConfig, ReserveEmissionData, UserEmissionData,
+    PoolConfig, PoolError, ReserveEmissionData, UserEmissionData,
 };
-use soroban_sdk::{contract, contractclient, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{
+    contract, contractclient, contractimpl, panic_with_error, Address, Env, String, Vec,
+};
 
 /// ### Pool
 ///
@@ -16,14 +18,22 @@ pub struct PoolContract;
 
 #[contractclient(name = "PoolClient")]
 pub trait Pool {
-    /// (Admin only) Set a new address as the admin of this pool
+    /// (Admin only) Set a new address to become the admin of the pool. This
+    /// must be accepted by the new admin w/ `accept_admin` to take effect.
     ///
     /// ### Arguments
     /// * `new_admin` - The new admin address
     ///
     /// ### Panics
     /// If the caller is not the admin
-    fn set_admin(e: Env, new_admin: Address);
+    fn propose_admin(e: Env, new_admin: Address);
+
+    /// (Proposed admin only) Accept the admin role. Ensures the new admin
+    /// can safely submit transactions before taking over the pool admin role.
+    ///
+    /// ### Panics
+    /// If the caller is not the proposed admin
+    fn accept_admin(e: Env);
 
     /// (Admin only) Update the pool
     ///
@@ -56,7 +66,7 @@ pub trait Pool {
     /// If the caller is not the admin or the reserve is not queued for initialization
     fn cancel_set_reserve(e: Env, asset: Address);
 
-    /// (Admin only) Executes the queued set of a reserve in the pool
+    /// Executes the queued set of a reserve in the pool
     ///
     /// ### Arguments
     /// * `asset` - The underlying asset to add as a reserve
@@ -73,21 +83,18 @@ pub trait Pool {
     /// Fetch the admin address of the pool
     fn get_admin(e: Env) -> Address;
 
+    /// Fetch the a vec addresses of all reserves in the pool. The index of the reserve
+    /// in this vec defines the index of the reserve in the pool, used in places like `Positions`.
+    fn get_reserve_list(e: Env) -> Vec<Address>;
+
     /// Fetch information about a reserve, updated to the current ledger
     ///
     /// ### Arguments
     /// * `asset` - The address of the reserve asset
     fn get_reserve(e: Env, asset: Address) -> Reserve;
 
-    /// Fetch data about the pool and its reserves.
-    ///
-    /// Useful for external integrations that need to load all data about the pool
-    ///
-    /// Returns a tuple with the pool configuration and a vector of reserves, where each reserve
-    /// is updated to the current ledger.
-    fn get_market(e: Env) -> (PoolConfig, Vec<Reserve>);
-
-    /// Fetch the positions for an address
+    /// Fetch the positions for an address. For each position type, there is a map of the reserve index
+    /// to the position for that reserve, if it exists.
     ///
     /// ### Arguments
     /// * `address` - The address to fetch positions for
@@ -286,6 +293,37 @@ pub trait Pool {
     /// ### Panics
     /// If the auction does not exist
     fn get_auction(e: Env, auction_type: u32, user: Address) -> AuctionData;
+
+    /// Delete a stale auction. A stale auction is one that has been running for 500 blocks
+    /// without being filled. This likely means something went wrong with the auction creation,
+    /// and it should be re-created.
+    ///
+    /// Requires nothing to change on auction creation, only fill.
+    ///
+    /// ### Arguments
+    /// * `auction_type` - The type of auction, 0 for liquidation auction, 1 for bad debt auction, and 2 for interest auction
+    /// * `user` - The Address involved in the auction
+    ///
+    /// ### Panics
+    /// * If the auction does not exist
+    /// * If the auction is not stale
+    fn del_auction(e: Env, auction_type: u32, user: Address);
+
+    /// Check and handle bad debt for a user.
+    ///
+    /// If the user is not the backstop and they have bad debt, the backstop will take over the debt, unless the backstop is
+    /// not healthy enough to do so, in which case it will be defaulted.
+    ///
+    /// If the user is the backstop, the backstop health will be checked, and if it is unhealthy, the backstop will default it's
+    /// remaining debt.
+    ///
+    /// ### Arguments
+    /// * `user` - The address of the user to check for bad debt
+    ///
+    /// ### Panics
+    /// * If there is no bad debt to handle
+    /// * If there is an ongoing auction for the user
+    fn bad_debt(e: Env, user: Address);
 }
 
 #[contractimpl]
@@ -333,15 +371,27 @@ impl PoolContract {
 
 #[contractimpl]
 impl Pool for PoolContract {
-    fn set_admin(e: Env, new_admin: Address) {
+    fn propose_admin(e: Env, new_admin: Address) {
         storage::extend_instance(&e);
         let admin = storage::get_admin(&e);
         admin.require_auth();
-        new_admin.require_auth();
 
-        storage::set_admin(&e, &new_admin);
+        storage::set_proposed_admin(&e, &new_admin);
+    }
 
-        PoolEvents::set_admin(&e, admin, new_admin);
+    fn accept_admin(e: Env) {
+        storage::extend_instance(&e);
+
+        if let Some(proposed_admin) = storage::get_proposed_admin(&e) {
+            proposed_admin.require_auth();
+            let cur_admin = storage::get_admin(&e);
+
+            storage::set_admin(&e, &proposed_admin);
+
+            PoolEvents::set_admin(&e, cur_admin, proposed_admin);
+        } else {
+            panic_with_error!(&e, PoolError::BadRequest);
+        }
     }
 
     fn update_pool(e: Env, backstop_take_rate: u32, max_positions: u32, min_collateral: i128) {
@@ -375,6 +425,8 @@ impl Pool for PoolContract {
     }
 
     fn set_reserve(e: Env, asset: Address) -> u32 {
+        storage::extend_instance(&e);
+
         let index = pool::execute_set_reserve(&e, &asset);
 
         PoolEvents::set_reserve(&e, asset, index);
@@ -389,20 +441,13 @@ impl Pool for PoolContract {
         storage::get_admin(&e)
     }
 
+    fn get_reserve_list(e: Env) -> Vec<Address> {
+        storage::get_res_list(&e)
+    }
+
     fn get_reserve(e: Env, asset: Address) -> Reserve {
         let pool_config = storage::get_pool_config(&e);
         Reserve::load(&e, &pool_config, &asset)
-    }
-
-    fn get_market(e: Env) -> (PoolConfig, Vec<Reserve>) {
-        let pool_config = storage::get_pool_config(&e);
-        let res_list = storage::get_res_list(&e);
-        let mut reserves = Vec::<Reserve>::new(&e);
-        for res_address in res_list.iter() {
-            let res = Reserve::load(&e, &pool_config, &res_address);
-            reserves.push_back(res);
-        }
-        (pool_config, reserves)
     }
 
     fn get_positions(e: Env, address: Address) -> Positions {
@@ -538,5 +583,19 @@ impl Pool for PoolContract {
 
     fn get_auction(e: Env, auction_type: u32, user: Address) -> AuctionData {
         storage::get_auction(&e, &auction_type, &user)
+    }
+
+    fn del_auction(e: Env, auction_type: u32, user: Address) {
+        storage::extend_instance(&e);
+
+        auctions::delete_stale_auction(&e, auction_type, &user);
+
+        PoolEvents::delete_auction(&e, auction_type, user);
+    }
+
+    fn bad_debt(e: Env, user: Address) {
+        storage::extend_instance(&e);
+
+        pool::bad_debt(&e, &user);
     }
 }

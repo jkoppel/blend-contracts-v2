@@ -47,7 +47,7 @@ pub enum PoolError {
     InvalidDTokenBurnAmount = 1219,
 
     // v2 Errors
-    ExceededCollateralCap = 1220,
+    ExceededSupplyCap = 1220,
     InvalidBid = 1221,
     InvalidLot = 1222,
     ReserveDisabled = 1223,

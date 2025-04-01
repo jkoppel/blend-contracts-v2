@@ -1,16 +1,15 @@
 #![cfg(test)]
+use backstop::{BackstopDataKey, PoolBalance};
 use cast::i128;
-use pool::{
-    AuctionData, FlashLoan, PoolDataKey, Positions, Request, RequestType, ReserveConfig,
-    ReserveData,
-};
+use pool::{AuctionData, FlashLoan, PoolDataKey, Request, RequestType, ReserveConfig};
 use soroban_fixed_point_math::FixedPoint;
 use soroban_sdk::{
+    map,
     testutils::{Address as AddressTestTrait, Events},
     vec, Address, Env, Error, FromVal, IntoVal, Symbol, TryFromVal, Val, Vec,
 };
 use test_suites::{
-    assertions::assert_approx_eq_abs,
+    assertions::{assert_approx_eq_abs, assert_approx_eq_rel},
     create_fixture_with_data,
     moderc3156::create_flashloan_receiver,
     test_fixture::{TokenIndex, SCALAR_7},
@@ -51,7 +50,7 @@ fn assert_fill_auction_event_no_data(
 
 #[test]
 fn test_liquidations() {
-    let fixture = create_fixture_with_data(true);
+    let fixture = create_fixture_with_data(false);
     let frodo = fixture.users.get(0).unwrap();
     let pool_fixture = &fixture.pools[0];
 
@@ -808,11 +807,13 @@ fn test_liquidations() {
         original_deposit - 614_6608740 - 3687_9652440 + 268_9213686,
         SCALAR_7,
     );
+
+    // Test bad debt is burned and defaulted correctly
+    // Deposit barely over the minimum backstop threshold in tokens
     fixture
         .backstop
-        .deposit(&frodo, &pool_fixture.pool.address, &10_0000000);
+        .deposit(&frodo, &pool_fixture.pool.address, &1100_0000000);
 
-    // Test bad debt was burned correctly
     // Sam re-borrows
     let sam_requests: Vec<Request> = vec![
         &fixture.env,
@@ -888,7 +889,7 @@ fn test_liquidations() {
     let events = fixture.env.events().all();
     // bad debt event occurs before the auction fill event
     let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
-    let bad_debt: i128 = 92903008;
+    let bad_debt: i128 = 9_2903008;
     assert_eq!(
         event,
         vec![
@@ -907,7 +908,7 @@ fn test_liquidations() {
     );
 
     // Create bad debt auction
-    pool_fixture.pool.new_auction(
+    let bad_deb_auction = pool_fixture.pool.new_auction(
         &1u32,
         &fixture.backstop.address,
         &vec![
@@ -917,42 +918,16 @@ fn test_liquidations() {
         &vec![&fixture.env, fixture.lp.address.clone()],
         &100u32,
     );
+    assert!(bad_deb_auction.bid.len() == 1);
+    assert_eq!(
+        bad_deb_auction
+            .bid
+            .get_unchecked(fixture.tokens[TokenIndex::STABLE].address.clone()),
+        bad_debt
+    );
 
-    //fill bad debt auction
-    fixture.jump_with_sequence(401 * 5);
-    let bump_usdc = vec![
-        &fixture.env,
-        Request {
-            request_type: RequestType::Borrow as u32,
-            address: fixture.tokens[TokenIndex::STABLE].address.clone(),
-            amount: 1,
-        },
-    ];
-    let frodo_positions = pool_fixture.pool.submit(&frodo, &frodo, &frodo, &bump_usdc);
-    // check bad debt
-    fixture.env.as_contract(&pool_fixture.pool.address, || {
-        let key = PoolDataKey::Positions(fixture.backstop.address.clone());
-        let positions = fixture
-            .env
-            .storage()
-            .persistent()
-            .get::<PoolDataKey, Positions>(&key)
-            .unwrap();
-        assert_eq!(positions.liabilities.len(), 1);
-        assert_eq!(positions.liabilities.get(0).unwrap(), bad_debt);
-    });
-    // check d_supply
-    let d_supply = 19104605828;
-    fixture.env.as_contract(&pool_fixture.pool.address, || {
-        let key = PoolDataKey::ResData(fixture.tokens[TokenIndex::STABLE].address.clone());
-        let data = fixture
-            .env
-            .storage()
-            .persistent()
-            .get::<PoolDataKey, ReserveData>(&key)
-            .unwrap();
-        assert_eq!(data.d_supply, d_supply);
-    });
+    // Fill bad debt auction
+    let frodo_positions = pool_fixture.pool.get_positions(&frodo);
     let bad_debt_fill_request = vec![
         &fixture.env,
         Request {
@@ -961,14 +936,20 @@ fn test_liquidations() {
             amount: 100,
         },
     ];
+
+    // fill bad debt auction
+    // pay of 25% of bad debt, allow other 75% to be defaulted
+    fixture.jump_with_sequence(351 * 5);
+
+    let stable_pre_bad_debt = pool_fixture
+        .pool
+        .get_reserve(&fixture.tokens[TokenIndex::STABLE].address);
+
     let post_bd_fill_frodo_positions =
         pool_fixture
             .pool
             .submit(&frodo, &frodo, &frodo, &bad_debt_fill_request);
-    assert_eq!(
-        frodo_positions.liabilities.get(0),
-        post_bd_fill_frodo_positions.liabilities.get(0)
-    );
+    let defaulted_debt = bad_debt.fixed_mul_floor(75, 100).unwrap();
     let events = fixture.env.events().all();
     let event = vec![&fixture.env, events.get_unchecked(events.len() - 2)];
     assert_eq!(
@@ -982,28 +963,29 @@ fn test_liquidations() {
                     fixture.tokens[TokenIndex::STABLE].address.clone()
                 )
                     .into_val(&fixture.env),
-                bad_debt.into_val(&fixture.env)
+                defaulted_debt.into_val(&fixture.env)
             )
         ]
     );
-    fixture.env.as_contract(&pool_fixture.pool.address, || {
-        let key = PoolDataKey::Positions(fixture.backstop.address.clone());
-        let positions = fixture
-            .env
-            .storage()
-            .persistent()
-            .get::<PoolDataKey, Positions>(&key)
-            .unwrap();
-        assert_eq!(positions.liabilities.len(), 0);
-        let key = PoolDataKey::ResData(fixture.tokens[TokenIndex::STABLE].address.clone());
-        let data = fixture
-            .env
-            .storage()
-            .persistent()
-            .get::<PoolDataKey, ReserveData>(&key)
-            .unwrap();
-        assert_eq!(data.d_supply, d_supply - bad_debt);
-    });
+    assert_eq!(
+        frodo_positions.liabilities.get_unchecked(0) + (bad_debt - defaulted_debt),
+        post_bd_fill_frodo_positions.liabilities.get_unchecked(0)
+    );
+    let bad_debt_positions = pool_fixture.pool.get_positions(&fixture.backstop.address);
+    assert_eq!(bad_debt_positions.liabilities.len(), 0);
+    let stable_post_bad_debt = pool_fixture
+        .pool
+        .get_reserve(&fixture.tokens[TokenIndex::STABLE].address);
+    assert_eq!(
+        stable_post_bad_debt.data.d_supply,
+        stable_pre_bad_debt.data.d_supply - defaulted_debt
+    );
+    assert_approx_eq_abs(
+        stable_pre_bad_debt.total_supply(&fixture.env)
+            - stable_post_bad_debt.total_supply(&fixture.env),
+        stable_post_bad_debt.to_asset_from_d_token(&fixture.env, defaulted_debt),
+        0_0000100,
+    );
 }
 
 #[test]
@@ -1195,4 +1177,233 @@ fn test_user_restore_position_and_delete_liquidation() {
         SCALAR_7,
     );
     assert!(pool_fixture.pool.try_get_auction(&0, &samwise).is_err());
+}
+
+#[test]
+fn test_stale_liquidation_deletion() {
+    let fixture = create_fixture_with_data(false);
+    let pool_fixture = &fixture.pools[0];
+
+    // Create a user
+    let samwise = Address::generate(&fixture.env);
+
+    // have sam create a position to help interest accrue
+    fixture.tokens[TokenIndex::STABLE].mint(&samwise, &(1_000_000 * 10i128.pow(6)));
+    let setup_request: Vec<Request> = vec![
+        &fixture.env,
+        Request {
+            request_type: RequestType::SupplyCollateral as u32,
+            address: fixture.tokens[TokenIndex::STABLE].address.clone(),
+            amount: 1_000_000 * 10i128.pow(6),
+        },
+        Request {
+            request_type: RequestType::Borrow as u32,
+            address: fixture.tokens[TokenIndex::STABLE].address.clone(),
+            amount: 850_000 * 10i128.pow(6),
+        },
+    ];
+    pool_fixture
+        .pool
+        .submit(&samwise, &samwise, &samwise, &setup_request);
+
+    fixture.jump(60 * 60 * 24 * 14);
+
+    // Start an interest auction
+    pool_fixture.pool.new_auction(
+        &2u32,
+        &fixture.backstop.address,
+        &vec![&fixture.env, fixture.lp.address.clone()],
+        &vec![
+            &fixture.env,
+            fixture.tokens[TokenIndex::STABLE].address.clone(),
+            fixture.tokens[TokenIndex::WETH].address.clone(),
+            fixture.tokens[TokenIndex::XLM].address.clone(),
+        ],
+        &100u32,
+    );
+
+    // skip 500 blocks (499 past start of auction)
+    fixture.jump_with_sequence(500 * 5);
+
+    // validate the auction can't be deleted
+    let early_delete = pool_fixture
+        .pool
+        .try_del_auction(&2u32, &fixture.backstop.address);
+    assert_eq!(
+        early_delete.err(),
+        Some(Ok(Error::from_contract_error(1200)))
+    );
+
+    let auction = pool_fixture
+        .pool
+        .get_auction(&2u32, &fixture.backstop.address);
+    assert_eq!(auction.bid.len(), 1);
+    assert_eq!(auction.lot.len(), 3);
+
+    // skip 1 more block
+    fixture.jump_with_sequence(5);
+
+    // delete the auction
+    pool_fixture
+        .pool
+        .del_auction(&2u32, &fixture.backstop.address);
+    assert!(fixture.env.auths().is_empty());
+    let event = vec![&fixture.env, fixture.env.events().all().last_unchecked()];
+    assert_eq!(
+        event,
+        vec![
+            &fixture.env,
+            (
+                pool_fixture.pool.address.clone(),
+                (
+                    Symbol::new(&fixture.env, "delete_auction"),
+                    2u32,
+                    fixture.backstop.address.clone()
+                )
+                    .into_val(&fixture.env),
+                ().into_val(&fixture.env)
+            )
+        ]
+    );
+
+    let auction = pool_fixture
+        .pool
+        .try_get_auction(&2u32, &fixture.backstop.address);
+    assert!(auction.is_err());
+}
+
+#[test]
+fn test_bad_debt() {
+    let fixture = create_fixture_with_data(false);
+    let pool_fixture = &fixture.pools[0];
+    let stable_pool_index = pool_fixture.reserves[&TokenIndex::STABLE];
+    let stable = &fixture.tokens[TokenIndex::STABLE];
+    let xlm = &fixture.tokens[TokenIndex::XLM];
+    let stable_scalar: i128 = 10i128.pow(stable.decimals());
+
+    let sam = Address::generate(&fixture.env);
+    let elrond = Address::generate(&fixture.env);
+
+    // ***** Setup Elrond to be the liquidator *****
+    let elrond_stable_balance = 500_000 * stable_scalar;
+    stable.mint(&elrond, &elrond_stable_balance);
+
+    // ***** Test bad debt can be invoked for user with no collateral *****
+    let sam_stable_debt = 1_000 * stable_scalar;
+    let sam_xlm_collateral = 15_000 * SCALAR_7;
+    xlm.mint(&sam, &sam_xlm_collateral);
+    let mut sam_positions = pool_fixture.pool.submit(
+        &sam,
+        &sam,
+        &sam,
+        &vec![
+            &fixture.env,
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: xlm.address.clone(),
+                amount: sam_xlm_collateral,
+            },
+            Request {
+                request_type: RequestType::Borrow as u32,
+                address: stable.address.clone(),
+                amount: sam_stable_debt,
+            },
+        ],
+    );
+
+    fixture.jump_with_sequence(100);
+
+    // Validate bad debt can't clear a user's liabilities if they have collateral
+    let bad_debt_result_1 = pool_fixture.pool.try_bad_debt(&sam);
+    assert_eq!(
+        bad_debt_result_1.err(),
+        Some(Ok(Error::from_contract_error(1200)))
+    );
+
+    // use magic to delete Sam's collateral
+    fixture.env.as_contract(&pool_fixture.pool.address, || {
+        let key = PoolDataKey::Positions(sam.clone());
+        sam_positions.collateral = map![&fixture.env];
+        fixture.env.storage().persistent().set(&key, &sam_positions);
+    });
+
+    // Validate invalid liquidaiton can't be created with no bid
+    let result_sam_liquidation = pool_fixture.pool.try_new_auction(
+        &0,
+        &sam,
+        &vec![&fixture.env, stable.address.clone()],
+        &vec![&fixture.env, xlm.address.clone()],
+        &100,
+    );
+    assert!(result_sam_liquidation.is_err());
+
+    // Use bad debt to clear the position
+    pool_fixture.pool.bad_debt(&sam);
+
+    let sam_position_post = pool_fixture.pool.get_positions(&sam);
+    assert_eq!(sam_position_post.collateral.len(), 0);
+    assert_eq!(sam_position_post.liabilities.len(), 0);
+    let backstop_post_bd_1 = pool_fixture.pool.get_positions(&fixture.backstop.address);
+    assert_eq!(backstop_post_bd_1.collateral.len(), 0);
+    assert_eq!(backstop_post_bd_1.liabilities.len(), 1);
+    let bad_debt_1 = backstop_post_bd_1
+        .liabilities
+        .get_unchecked(stable_pool_index);
+    // d_rate is barely above 1
+    assert_approx_eq_rel(bad_debt_1, sam_stable_debt, 0_001000);
+
+    fixture.jump_with_sequence(100);
+
+    // ***** Test bad debt can be invoked for backstop when under min threshold *****
+
+    // Validate bad debt can't default the backstops liabilities while it's healthy
+    let bad_debt_result_2 = pool_fixture.pool.try_bad_debt(&fixture.backstop.address);
+    assert_eq!(
+        bad_debt_result_2.err(),
+        Some(Ok(Error::from_contract_error(1200)))
+    );
+
+    // use magic to remove the pool's backstop funds
+    let cur_pool_data = fixture.backstop.pool_data(&pool_fixture.pool.address);
+    fixture.env.as_contract(&fixture.backstop.address, || {
+        let key = BackstopDataKey::PoolBalance(pool_fixture.pool.address.clone());
+        let new_balance = PoolBalance {
+            shares: cur_pool_data.shares,
+            tokens: 0,
+            q4w: 0,
+        };
+        fixture.env.storage().persistent().set(&key, &new_balance);
+    });
+
+    fixture.jump_with_sequence(100);
+
+    // Validate invalid liquidaiton can't be created with no lot
+    let result_bad_debt_auction = pool_fixture.pool.try_new_auction(
+        &1,
+        &fixture.backstop.address,
+        &vec![&fixture.env, stable.address.clone()],
+        &vec![&fixture.env, fixture.lp.address.clone()],
+        &100,
+    );
+    assert!(result_bad_debt_auction.is_err());
+
+    // Use bad debt to default the leftover liabilities
+    let pre_default_stable = pool_fixture.pool.get_reserve(&stable.address);
+    pool_fixture.pool.bad_debt(&fixture.backstop.address);
+    let post_default_stable = pool_fixture.pool.get_reserve(&stable.address);
+
+    assert_eq!(
+        post_default_stable.data.d_supply,
+        pre_default_stable.data.d_supply - bad_debt_1
+    );
+    assert_eq!(
+        post_default_stable.data.b_supply,
+        pre_default_stable.data.b_supply
+    );
+    assert_approx_eq_abs(
+        pre_default_stable.total_supply(&fixture.env)
+            - post_default_stable.total_supply(&fixture.env),
+        post_default_stable.to_asset_from_d_token(&fixture.env, bad_debt_1),
+        0_0000100,
+    );
 }

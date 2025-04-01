@@ -214,7 +214,7 @@ pub(crate) fn default_reserve(e: &Env) -> Reserve {
             r_three: 1_5000000,
             reactivity: 0_0000020, // 2e-6
             index: 0,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         },
         data: ReserveData {
@@ -244,7 +244,7 @@ pub(crate) fn default_reserve_meta() -> (ReserveConfig, ReserveData) {
             r_three: 1_5000000,
             reactivity: 0_0000020, // 2e-6
             index: 0,
-            collateral_cap: 1000000000000000000,
+            supply_cap: 1000000000000000000,
             enabled: true,
         },
         ReserveData {

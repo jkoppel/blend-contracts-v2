@@ -43,19 +43,19 @@ pub struct PoolEmissionConfig {
 #[derive(Clone, Debug)]
 #[contracttype]
 pub struct ReserveConfig {
-    pub index: u32,           // the index of the reserve in the list
-    pub decimals: u32,        // the decimals used in both the bToken and underlying contract
-    pub c_factor: u32, // the collateral factor for the reserve scaled expressed in 7 decimals
-    pub l_factor: u32, // the liability factor for the reserve scaled expressed in 7 decimals
-    pub util: u32,     // the target utilization rate scaled expressed in 7 decimals
-    pub max_util: u32, // the maximum allowed utilization rate scaled expressed in 7 decimals
+    pub index: u32,       // the index of the reserve in the list
+    pub decimals: u32,    // the decimals used in both the bToken and underlying contract
+    pub c_factor: u32,    // the collateral factor for the reserve scaled expressed in 7 decimals
+    pub l_factor: u32,    // the liability factor for the reserve scaled expressed in 7 decimals
+    pub util: u32,        // the target utilization rate scaled expressed in 7 decimals
+    pub max_util: u32,    // the maximum allowed utilization rate scaled expressed in 7 decimals
     pub r_base: u32, // the R0 value (base rate) in the interest rate formula scaled expressed in 7 decimals
     pub r_one: u32,  // the R1 value in the interest rate formula scaled expressed in 7 decimals
     pub r_two: u32,  // the R2 value in the interest rate formula scaled expressed in 7 decimals
     pub r_three: u32, // the R3 value in the interest rate formula scaled expressed in 7 decimals
     pub reactivity: u32, // the reactivity constant for the reserve scaled expressed in 7 decimals
-    pub collateral_cap: i128, // the total amount of underlying tokens that can be used as collateral
-    pub enabled: bool,        // the enabled flag of the reserve
+    pub supply_cap: i128, // the total amount of underlying tokens that can be supplied to the reserve
+    pub enabled: bool,    // the enabled flag of the reserve
 }
 
 #[derive(Clone)]
@@ -99,6 +99,7 @@ pub struct UserEmissionData {
 /********** Storage Key Types **********/
 
 const ADMIN_KEY: &str = "Admin";
+const PROPOSED_ADMIN_KEY: &str = "PropAdmin";
 const NAME_KEY: &str = "Name";
 const BACKSTOP_KEY: &str = "Backstop";
 const BLND_TOKEN_KEY: &str = "BLNDTkn";
@@ -200,7 +201,7 @@ pub fn set_user_positions(e: &Env, user: &Address, positions: &Positions) {
 
 /********** Admin **********/
 
-// Fetch the current admin Address
+/// Fetch the current admin Address
 ///
 /// ### Panics
 /// If the admin does not exist
@@ -219,6 +220,31 @@ pub fn set_admin(e: &Env, new_admin: &Address) {
     e.storage()
         .instance()
         .set::<Symbol, Address>(&Symbol::new(e, ADMIN_KEY), new_admin);
+}
+
+/// Fetch the current proposed admin Address
+///
+/// ### Panics
+/// If the admin does not exist
+pub fn get_proposed_admin(e: &Env) -> Option<Address> {
+    e.storage()
+        .temporary()
+        .get(&Symbol::new(e, PROPOSED_ADMIN_KEY))
+}
+
+/// Set a new proposed admin
+///
+/// ### Arguments
+/// * `proposed_admin` - The Address for the proposed admin
+pub fn set_proposed_admin(e: &Env, proposed_admin: &Address) {
+    e.storage()
+        .temporary()
+        .set::<Symbol, Address>(&Symbol::new(e, PROPOSED_ADMIN_KEY), proposed_admin);
+    e.storage().temporary().extend_ttl(
+        &Symbol::new(e, PROPOSED_ADMIN_KEY),
+        10 * ONE_DAY_LEDGERS,
+        10 * ONE_DAY_LEDGERS,
+    );
 }
 
 /********** Metadata **********/

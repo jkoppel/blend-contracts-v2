@@ -13,4 +13,4 @@ pub const SECONDS_PER_YEAR: i128 = 31536000;
 pub const SECONDS_PER_WEEK: u64 = 604800;
 
 /// Max amount of reserves that can be added to a pool
-pub const MAX_RESERVES: u32 = 50;
+pub const MAX_RESERVES: u32 = 30;

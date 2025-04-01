@@ -8,11 +8,11 @@ use super::{pool::Pool, Positions};
 pub struct PositionData {
     /// The effective collateral balance denominated in the base asset
     pub collateral_base: i128,
-    // The raw collateral balance demoninated in the base asset
+    // The raw collateral balance denominated in the base asset
     pub collateral_raw: i128,
     /// The effective liability balance denominated in the base asset
     pub liability_base: i128,
-    // The raw liability balance demoninated in the base asset
+    // The raw liability balance denominated in the base asset
     pub liability_raw: i128,
     /// The scalar for the base asset
     pub scalar: i128,

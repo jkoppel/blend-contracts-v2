@@ -37,7 +37,7 @@ fn test_pool_interest() {
         r_two: 0,
         r_three: 0,
         util: 50,
-        collateral_cap: i64::MAX as i128,
+        supply_cap: i64::MAX as i128,
         enabled: true,
     };
     fixture.create_pool_reserve(0, TokenIndex::XLM, &xlm_config);
@@ -57,7 +57,7 @@ fn test_pool_interest() {
         r_two: 0,
         r_three: 0,
         util: 50,
-        collateral_cap: i64::MAX as i128,
+        supply_cap: i64::MAX as i128,
         enabled: true,
     };
     fixture.create_pool_reserve(0, TokenIndex::STABLE, &stable_config);

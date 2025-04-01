@@ -18,6 +18,7 @@ testutils = ["soroban-sdk/testutils"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
+pool = { path = "../../pool" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features=["testutils"] }

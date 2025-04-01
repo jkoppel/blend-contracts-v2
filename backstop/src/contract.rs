@@ -39,7 +39,7 @@ pub trait Backstop {
     /// * `amount` - The amount of shares to queue for withdraw
     fn queue_withdrawal(e: Env, from: Address, pool_address: Address, amount: i128) -> Q4W;
 
-    /// Dequeue a currently queued pool share withdraw for "form" from the backstop of a pool
+    /// Dequeue a currently queued pool share withdraw for "from" from the backstop of a pool
     ///
     /// ### Arguments
     /// * `from` - The address whose deposits are being queued for withdrawal
@@ -74,6 +74,9 @@ pub trait Backstop {
 
     /// Fetch the backstop token for the backstop
     fn backstop_token(e: Env) -> Address;
+
+    /// Fetch the reward zone for the backstop
+    fn reward_zone(e: Env) -> Vec<Address>;
 
     /********** Emissions **********/
 
@@ -250,6 +253,10 @@ impl Backstop for BackstopContract {
 
     fn backstop_token(e: Env) -> Address {
         storage::get_backstop_token(&e)
+    }
+
+    fn reward_zone(e: Env) -> Vec<Address> {
+        storage::get_reward_zone(&e)
     }
 
     /********** Emissions **********/

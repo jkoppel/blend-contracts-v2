@@ -19,7 +19,15 @@ pub(crate) const LEDGER_BUMP_USER: u32 = LEDGER_THRESHOLD_USER + 20 * ONE_DAY_LE
 
 /********** Storage Types **********/
 
-// The emission data for a pool's backstop
+/// The accrued emissions for pool's in the reward zone
+#[derive(Clone)]
+#[contracttype]
+pub struct RzEmissions {
+    pub accrued: i128,
+    pub last_time: u64,
+}
+
+/// The emission data for a pool's backstop
 #[derive(Clone)]
 #[contracttype]
 pub struct BackstopEmissionData {
@@ -105,7 +113,7 @@ fn get_persistent_default<K: IntoVal<Env, Val>, V: TryFromVal<Env, Val>, F: FnOn
 
 /********** Instance Storage **********/
 
-/// Fetch the pool factory id
+/// Fetch the emitter id
 pub fn get_emitter(e: &Env) -> Address {
     e.storage()
         .instance()
@@ -116,11 +124,11 @@ pub fn get_emitter(e: &Env) -> Address {
 /// Set the pool factory
 ///
 /// ### Arguments
-/// * `pool_factory_id` - The ID of the pool factory
-pub fn set_emitter(e: &Env, pool_factory_id: &Address) {
+/// * `emitter_id` - The ID of the emitter contract
+pub fn set_emitter(e: &Env, emitter_id: &Address) {
     e.storage()
         .instance()
-        .set::<Symbol, Address>(&Symbol::new(e, EMITTER_KEY), pool_factory_id);
+        .set::<Symbol, Address>(&Symbol::new(e, EMITTER_KEY), emitter_id);
 }
 
 /// Fetch the pool factory id
@@ -386,12 +394,15 @@ pub fn set_backfill_status(e: &Env, status: &bool) {
 ///
 /// ### Arguments
 /// * `pool` - The pool
-pub fn get_rz_emis(e: &Env, pool: &Address) -> i128 {
+pub fn get_rz_emis(e: &Env, pool: &Address) -> RzEmissions {
     let key = BackstopDataKey::RzEmis(pool.clone());
     get_persistent_default(
         e,
         &key,
-        || 0i128,
+        || RzEmissions {
+            accrued: 0,
+            last_time: 0,
+        },
         LEDGER_THRESHOLD_SHARED,
         LEDGER_BUMP_SHARED,
     )
@@ -402,11 +413,11 @@ pub fn get_rz_emis(e: &Env, pool: &Address) -> i128 {
 /// ### Arguments
 /// * `pool` - The pool
 /// * `emissions` - The index of the backstop's emissions
-pub fn set_rz_emis(e: &Env, pool: &Address, emissions: &i128) {
+pub fn set_rz_emis(e: &Env, pool: &Address, emissions: &RzEmissions) {
     let key = BackstopDataKey::RzEmis(pool.clone());
     e.storage()
         .persistent()
-        .set::<BackstopDataKey, i128>(&key, emissions);
+        .set::<BackstopDataKey, RzEmissions>(&key, emissions);
     e.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_THRESHOLD_SHARED, LEDGER_BUMP_SHARED);

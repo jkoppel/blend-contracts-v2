@@ -2,6 +2,7 @@ use soroban_sdk::Map;
 use soroban_sdk::{contracttype, panic_with_error, Address, Env, Vec};
 
 use crate::events::PoolEvents;
+use crate::AuctionType;
 use crate::{auctions, errors::PoolError, validator::require_nonnegative};
 
 use super::pool::Pool;
@@ -267,7 +268,11 @@ pub fn build_actions_from_request(
                 // Note: request object is ignored besides type
                 auctions::delete_liquidation(e, &from_state.address);
                 actions.do_check_health();
-                PoolEvents::delete_liquidation_auction(e, from_state.address.clone());
+                PoolEvents::delete_auction(
+                    e,
+                    AuctionType::UserLiquidation as u32,
+                    from_state.address.clone(),
+                );
             }
         }
     }
@@ -292,6 +297,9 @@ fn apply_supply(
     let b_tokens_minted = reserve.to_b_token_down(e, request.amount);
     user.add_supply(e, &mut reserve, b_tokens_minted);
     actions.add_for_spender_transfer(&reserve.asset, request.amount);
+    if reserve.total_supply(e) > reserve.config.supply_cap {
+        panic_with_error!(e, PoolError::ExceededSupplyCap);
+    }
     pool.cache_reserve(reserve);
     b_tokens_minted
 }
@@ -340,8 +348,8 @@ fn apply_supply_collateral(
     let b_tokens_minted = reserve.to_b_token_down(e, request.amount);
     user.add_collateral(e, &mut reserve, b_tokens_minted);
     actions.add_for_spender_transfer(&reserve.asset, request.amount);
-    if reserve.total_supply(e) > reserve.config.collateral_cap {
-        panic_with_error!(e, PoolError::ExceededCollateralCap);
+    if reserve.total_supply(e) > reserve.config.supply_cap {
+        panic_with_error!(e, PoolError::ExceededSupplyCap);
     }
     pool.cache_reserve(reserve);
     b_tokens_minted
@@ -403,7 +411,7 @@ fn apply_borrow(
 ///
 /// Appends any necessary actions to the actions list, updates the user and pool's state
 ///
-/// Returns the repayment amount and b_tokens_burnt
+/// Returns the repayment amount and d_tokens_burnt
 fn apply_repay(
     e: &Env,
     actions: &mut Actions,
@@ -1976,7 +1984,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #1220)")]
-    fn test_exceed_collateral_cap() {
+    fn test_exceed_supply_cap() {
         let e = Env::default();
         e.mock_all_auths();
 
@@ -1986,7 +1994,7 @@ mod tests {
 
         let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
         let (mut reserve_config, reserve_data) = testutils::default_reserve_meta();
-        reserve_config.collateral_cap = 10_0000000; // Set low collateral cap
+        reserve_config.supply_cap = 10_0000000; // Set low collateral cap
         testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
 
         let pool_config = PoolConfig {
