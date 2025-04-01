@@ -2,13 +2,14 @@
 
 use cast::i128;
 use soroban_fixed_point_math::FixedPoint;
-use soroban_sdk::{unwrap::UnwrapOptimized, Address, Env};
+use soroban_sdk::{panic_with_error, unwrap::UnwrapOptimized, Address, Env};
 
 use crate::{
     backstop::{PoolBalance, UserBalance},
     constants::{SCALAR_14, SCALAR_7},
     require_nonnegative,
     storage::{self, BackstopEmissionData, UserEmissionData},
+    BackstopError,
 };
 
 /// Update the backstop emissions index for the user and pool
@@ -31,6 +32,8 @@ pub fn update_emissions(
 /// have been processed.
 ///
 /// Returns the number of tokens that need to be transferred to `user`
+///
+/// Panics if the pool's backstop never had emissions configured
 pub(super) fn claim_emissions(
     e: &Env,
     pool_id: &Address,
@@ -41,7 +44,7 @@ pub(super) fn claim_emissions(
     if let Some(emis_data) = update_emission_data(e, pool_id, pool_balance) {
         update_user_emissions(e, pool_id, user_id, &emis_data, user_balance, true)
     } else {
-        0
+        panic_with_error!(e, BackstopError::BadRequest)
     }
 }
 
@@ -548,6 +551,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
     fn test_claim_emissions_no_config() {
         let e = Env::default();
         let block_timestamp = 1713139200 + 1234;
@@ -579,13 +583,7 @@ mod tests {
                 q4w: vec![&e],
             };
 
-            let result = claim_emissions(&e, &pool_1, &pool_balance, &samwise, &user_balance);
-
-            assert_eq!(result, 0);
-            let new_backstop_data = storage::get_backstop_emis_data(&e, &pool_1);
-            let new_user_data = storage::get_user_emis_data(&e, &pool_1, &samwise);
-            assert!(new_backstop_data.is_none());
-            assert!(new_user_data.is_none());
+            claim_emissions(&e, &pool_1, &pool_balance, &samwise, &user_balance);
         });
     }
 

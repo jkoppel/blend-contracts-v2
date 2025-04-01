@@ -110,7 +110,8 @@ pub fn delete_stale_auction(e: &Env, auction_type: u32, user: &Address) {
 
 /// Delete a liquidation auction if the user being liquidated
 ///
-/// NOTE: Does not verify if the user's positions are healthy. This must be done before calling.
+/// NOTE: Does not verify if the user's positions are healthy. This must be done
+/// before the contract call is completed.
 ///
 /// ### Arguments
 /// * `auction_type` - The type of auction being created

@@ -100,10 +100,10 @@ pub trait Pool {
     /// * `address` - The address to fetch positions for
     fn get_positions(e: Env, address: Address) -> Positions;
 
-    /// Submit a set of requests to the pool where 'from' takes on the position, 'sender' sends any
-    /// required tokens to the pool and 'to' receives any tokens sent from the pool.
+    /// Submit a set of requests to the pool where `from` takes on the position, `spender` sends any
+    /// required tokens to the pool and `to` receives any tokens sent from the pool.
     ///
-    /// Returns the new positions for 'from'
+    /// Returns the new positions for `from`
     ///
     /// ### Arguments
     /// * `from` - The address of the user whose positions are being modified
@@ -121,10 +121,10 @@ pub trait Pool {
         requests: Vec<Request>,
     ) -> Positions;
 
-    /// Submit a set of requests to the pool where 'from' takes on the position, 'spender' sends any
-    /// required tokens to the pool using transfer_from and 'to' receives any tokens sent from the pool.
+    /// Submit a set of requests to the pool where `from` takes on the position, `spender` sends any
+    /// required tokens to the pool using transfer_from and `to` receives any tokens sent from the pool.
     ///
-    /// Returns the new positions for 'from'
+    /// Returns the new positions for `from`
     ///
     /// ### Arguments
     /// * `from` - The address of the user whose positions are being modified
@@ -142,11 +142,11 @@ pub trait Pool {
         requests: Vec<Request>,
     ) -> Positions;
 
-    /// Submit flash loan and a set of requests to the pool where 'from' takes on the position. The flash loan will be invoked using
-    /// the 'flash_loan' arguments and 'from' as the caller. For the requests, 'from' sends any required tokens to the pool
+    /// Submit flash loan and a set of requests to the pool where `from` takes on the position. The flash loan will be invoked using
+    /// the `flash_loan` arguments and `from` as the caller. For the requests, `from` sends any required tokens to the pool
     /// using transfer_from and receives any tokens sent from the pool.
     ///
-    /// Returns the new positions for 'from'
+    /// Returns the new positions for `from`
     ///
     /// ### Arguments
     /// * `from` - The address of the user whose positions are being modified and also the address of
@@ -180,14 +180,14 @@ pub trait Pool {
     /// can perform a status update via `set_status`
     fn update_status(e: Env) -> u32;
 
-    /// (Admin only) Pool status is changed to "pool_status"
+    /// (Admin only) Pool status is changed to `pool_status`
     /// * 0 = admin active - requires that the backstop threshold is met
     ///                 and less than 50% of backstop deposits are queued for withdrawal
     /// * 2 = admin on-ice - requires that less than 75% of backstop deposits are queued for withdrawal
     /// * 4 = admin frozen - can always be set
     ///
     /// ### Arguments
-    /// * 'pool_status' - The pool status to be set
+    /// * `pool_status` - The pool status to be set
     ///
     /// ### Panics
     /// If the caller is not the admin
@@ -284,7 +284,8 @@ pub trait Pool {
         percent: u32,
     ) -> AuctionData;
 
-    /// Fetch an auction from the ledger. Returns a quote based on the current block.
+    /// Fetch an auction from the ledger. Returns the base auction. On fill, this will be scaled based on the
+    /// number of blocks that have passed since the auction was created.
     ///
     /// ### Arguments
     /// * `auction_type` - The type of auction, 0 for liquidation auction, 1 for bad debt auction, and 2 for interest auction
@@ -298,8 +299,6 @@ pub trait Pool {
     /// without being filled. This likely means something went wrong with the auction creation,
     /// and it should be re-created.
     ///
-    /// Requires nothing to change on auction creation, only fill.
-    ///
     /// ### Arguments
     /// * `auction_type` - The type of auction, 0 for liquidation auction, 1 for bad debt auction, and 2 for interest auction
     /// * `user` - The Address involved in the auction
@@ -310,11 +309,8 @@ pub trait Pool {
     fn del_auction(e: Env, auction_type: u32, user: Address);
 
     /// Check and handle bad debt for a user.
-    ///
-    /// If the user is not the backstop and they have bad debt, the backstop will take over the debt, unless the backstop is
-    /// not healthy enough to do so, in which case it will be defaulted.
-    ///
-    /// If the user is the backstop, the backstop health will be checked, and if it is unhealthy, the backstop will default it's
+    /// * If the user is not the backstop and they have bad debt, the backstop will take over the debt.
+    /// * If the user is the backstop, the backstop health will be checked, and if it is unhealthy, the backstop will default it's
     /// remaining debt.
     ///
     /// ### Arguments
@@ -534,6 +530,7 @@ impl Pool for PoolContract {
     }
 
     fn set_emissions_config(e: Env, res_emission_metadata: Vec<ReserveEmissionMetadata>) {
+        storage::extend_instance(&e);
         let admin = storage::get_admin(&e);
         admin.require_auth();
 

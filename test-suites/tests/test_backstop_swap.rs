@@ -14,7 +14,7 @@ use soroban_sdk::{
     Address, BytesN, Env, String, Symbol, Val, Vec,
 };
 use test_suites::{
-    assertions::assert_approx_eq_rel,
+    assertions::{assert_approx_eq_abs, assert_approx_eq_rel},
     backstop::create_backstop,
     liquidity_pool::LPClient,
     oracle::create_mock_oracle,
@@ -364,13 +364,412 @@ fn test_v1_to_v2_backstop_swap() {
     assert_eq!(v1_pool_client.claim(&merry, &vec![&env, 3], &merry), 0);
 }
 
+#[test]
+fn test_v1_to_v2_backstop_swap_past_max_emissions() {
+    let env = snapshot::env_from_snapshot();
+    env.mock_all_auths();
+
+    let frodo = Address::generate(&env);
+    let samwise = Address::generate(&env);
+    let merry = Address::generate(&env);
+
+    // contracts shared between v1 and v2
+    let blnd = Address::from_str(&env, snapshot::BLND_ID);
+    let usdc = Address::from_str(&env, snapshot::USDC_ID);
+    let xlm = Address::from_str(&env, snapshot::XLM_ID);
+    let backstop_token = Address::from_str(&env, snapshot::BLND_USDC_LP_ID);
+    let emitter = Address::from_str(&env, snapshot::EMITTER_ID);
+    let v1_backstop = Address::from_str(&env, snapshot::BACKSTOP_ID);
+    let v1_pool = Address::from_str(&env, snapshot::V1_POOL_ID);
+
+    let blnd_client = MockTokenClient::new(&env, &blnd);
+    let usdc_client = MockTokenClient::new(&env, &usdc);
+    let backstop_token_client = LPClient::new(&env, &backstop_token);
+    let emitter_client = emitter::Client::new(&env, &emitter);
+    let v1_backstop_client = v1_backstop::Client::new(&env, &v1_backstop);
+    let v1_pool_client = PoolClient::new(&env, &v1_pool);
+
+    // deploy v2 contracts
+    let v2_backstop = Address::generate(&env);
+    let v2_pool_factory = Address::generate(&env);
+
+    let pool_hash = env.deployer().upload_contract_wasm(POOL_WASM);
+    let pool_init_meta = PoolInitMeta {
+        backstop: v2_backstop.clone(),
+        pool_hash: pool_hash.clone(),
+        blnd_id: blnd.clone(),
+    };
+    let v2_pool_factory_client = create_pool_factory(&env, &v2_pool_factory, true, pool_init_meta);
+
+    let drop_list: Vec<(Address, i128)> = vec![
+        &env,
+        (frodo.clone(), 1_000_000 * 10i128.pow(7)),
+        (samwise.clone(), 1_000_000 * 10i128.pow(7)),
+        (v1_backstop.clone(), 1_000_000 * 10i128.pow(7)),
+    ];
+    let v2_backstop_client = create_backstop(
+        &env,
+        &v2_backstop,
+        false,
+        &backstop_token,
+        &emitter,
+        &blnd,
+        &usdc,
+        &v2_pool_factory,
+        &drop_list,
+    );
+
+    /*
+     * Setup v1 user Merry
+     * -> 10k LP token deposit
+     * -> 10k USDC supply
+     * -> 5k USDC borrow
+     */
+
+    // Mint Merry LP tokens to deposit into v1 backstop
+    mint_lp_tokens(&env, &backstop_token_client, &merry, 10_000 * SCALAR_7);
+    v1_backstop_client.deposit(&merry, &v1_pool, &(10_000 * SCALAR_7));
+
+    // Mint Merry USDC to deposit into v1 pool
+    usdc_client.mint(&merry, &10_000_0000000);
+    mint_xlm(&env, &merry, &10_000_0000000);
+    let requests: Vec<Request> = vec![
+        &env,
+        Request {
+            request_type: RequestType::SupplyCollateral as u32,
+            address: usdc.clone(),
+            amount: 10_000_0000000,
+        },
+        Request {
+            request_type: RequestType::SupplyCollateral as u32,
+            address: xlm.clone(),
+            amount: 10_000_0000000,
+        },
+    ];
+    v1_pool_client.submit(&merry, &merry, &merry, &requests);
+
+    /*
+     * Setup v2 pool with samwise as the only user
+     */
+    mint_lp_tokens(&env, &backstop_token_client, &samwise, 55_000 * SCALAR_7);
+    let v2_pool_id = deploy_v2_pool(&env, &samwise, &v2_pool_factory_client, &v2_backstop_client);
+    let v2_pool_client = PoolClient::new(&env, &v2_pool_id);
+
+    // bump drop list to max TTL so it doesn't expire
+    env.as_contract(&v2_backstop, || {
+        let key = Symbol::new(&env, "DropList");
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, 3110400, 3110400);
+    });
+
+    // Test: Start backfilled emissions
+    v2_backstop_client.distribute();
+
+    /*
+     * Fill `MAX_BACKFILLED_EMISSIONS`. This takes 10,000,000 seconds, or
+     * 2,000,000 blocks. Touch the data every week to ensure it doesn't get expried, and emissions keep
+     * getting distributed.
+     *
+     * MAX_BACKFILL will be hit in ~16.5 weeks.
+     *
+     * Wait 1 more week after final distribute to ensure all v2 emissions have been distributed
+     */
+    // mint lp tokens to deposit dust to keep backstop rent paid
+    mint_lp_tokens(&env, &backstop_token_client, &samwise, 1_0000000);
+    let mut total_v2_dist = 0;
+    for _ in 0..17 {
+        // jump a week
+        jump(&env, 17280 * 7);
+
+        // distribute everything
+        emitter_client.distribute();
+        env.invoke_contract::<Val>(
+            &v1_backstop,
+            &Symbol::new(&env, "gulp_emissions"),
+            vec![&env] as Vec<Val>,
+        );
+        v1_pool_client.gulp_emissions();
+        total_v2_dist += v2_backstop_client.distribute();
+        v2_pool_client.gulp_emissions();
+
+        // touch positions for v2 pool
+        let requests: Vec<Request> = vec![
+            &env,
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: xlm.clone(),
+                amount: 10,
+            },
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: usdc.clone(),
+                amount: 10,
+            },
+        ];
+        v2_pool_client.submit(&samwise, &samwise, &samwise, &requests);
+        v2_backstop_client.deposit(&samwise, &v2_pool_id, &10);
+
+        // claim emissions v1 (causes rent bumps)
+        v1_backstop_client.claim(&merry, &vec![&env, v1_pool.clone()], &merry);
+        v1_pool_client.claim(&merry, &vec![&env, 1, 3], &merry);
+    }
+    assert_eq!(total_v2_dist, 10_000_000_0000000);
+
+    // wait 1 more week to ensure v2 emissions are over
+    jump(&env, 17280 * 7);
+    // -> distribute everything
+    emitter_client.distribute();
+    env.invoke_contract::<Val>(
+        &v1_backstop,
+        &Symbol::new(&env, "gulp_emissions"),
+        vec![&env] as Vec<Val>,
+    );
+    v1_pool_client.gulp_emissions();
+    let v2_dist_result = v2_backstop_client.try_distribute();
+    assert!(v2_dist_result.is_err());
+    let v2_gulp_result = v2_pool_client.try_gulp_emissions();
+    assert!(v2_gulp_result.is_err());
+    // -> claim emissions v1 (causes rent bumps)
+    let mut v1_backstop_weekly_claim =
+        v1_backstop_client.claim(&merry, &vec![&env, v1_pool.clone()], &merry);
+    let v1_pool_weekly_claim = v1_pool_client.claim(&merry, &vec![&env, 1, 3], &merry);
+
+    /*
+     * Start backstop swap
+     */
+    // Have frodo mint excess LP tokens required to start backstop swap, plus some buffer
+    let to_exceed_v1 = backstop_token_client.balance(&v1_backstop)
+        - backstop_token_client.balance(&v2_backstop)
+        + 10_000_0000000;
+    mint_lp_tokens(&env, &backstop_token_client, &frodo, to_exceed_v1);
+    v2_backstop_client.deposit(&frodo, &v2_pool_id, &to_exceed_v1);
+    emitter_client.queue_swap_backstop(&v2_backstop, &backstop_token);
+
+    /*
+     * Go through 31 day swap period. Each week, distribute emissions, claim for v1.
+     *
+     * Verify v2 is not getting any additional emissions, but positions can still be modified.
+     */
+    mint_lp_tokens(&env, &backstop_token_client, &frodo, 50_0000000);
+    usdc_client.mint(&frodo, &50_0000000);
+    mint_xlm(&env, &frodo, &50_0000000);
+
+    // Time: pass 28 days (28 days since swap)
+    for _ in 0..4 {
+        // -> jump a week
+        jump(&env, 17280 * 7);
+        // -> distribute everything
+        emitter_client.distribute();
+        env.invoke_contract::<Val>(
+            &v1_backstop,
+            &Symbol::new(&env, "gulp_emissions"),
+            vec![&env] as Vec<Val>,
+        );
+        v1_pool_client.gulp_emissions();
+        let v2_dist_result = v2_backstop_client.try_distribute();
+        assert!(v2_dist_result.is_err());
+        let v2_gulp_result = v2_pool_client.try_gulp_emissions();
+        assert!(v2_gulp_result.is_err());
+        // -> claim emissions v1 (causes rent bumps)
+        let v1_backstop_claim_amt =
+            v1_backstop_client.claim(&merry, &vec![&env, v1_pool.clone()], &merry);
+        assert_approx_eq_rel(v1_backstop_claim_amt, v1_backstop_weekly_claim, 0_1000000);
+        v1_backstop_weekly_claim = v1_backstop_claim_amt;
+        let v1_pool_claim_amt = v1_pool_client.claim(&merry, &vec![&env, 1, 3], &merry);
+        assert_approx_eq_rel(v1_pool_claim_amt, v1_pool_weekly_claim, 0_0100000);
+
+        // touch positions for v2 pool
+        let requests: Vec<Request> = vec![
+            &env,
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: xlm.clone(),
+                amount: 10,
+            },
+            Request {
+                request_type: RequestType::SupplyCollateral as u32,
+                address: usdc.clone(),
+                amount: 10,
+            },
+        ];
+        v2_pool_client.submit(&frodo, &frodo, &frodo, &requests);
+        v2_backstop_client.deposit(&frodo, &v2_pool_id, &10);
+    }
+
+    // Time: pass 4 days and perform the swap
+    jump(&env, 17280 * 4);
+
+    // -> do swap
+    emitter_client.swap_backstop();
+    assert_eq!(emitter_client.get_backstop(), v2_backstop);
+
+    // -> drop
+    let blnd_balance_pre_drop = blnd_client.balance(&v2_backstop);
+    let samwise_balance_pre_drop = blnd_client.balance(&samwise);
+    let frodo_balance_pre_drop = blnd_client.balance(&frodo);
+    v2_backstop_client.drop();
+    assert_eq!(
+        blnd_client.balance(&v2_backstop),
+        blnd_balance_pre_drop + 10_000_000_0000000
+    );
+    assert_eq!(
+        blnd_client.balance(&samwise),
+        samwise_balance_pre_drop + 1_000_000_0000000
+    );
+    assert_eq!(
+        blnd_client.balance(&frodo),
+        frodo_balance_pre_drop + 1_000_000_0000000
+    );
+
+    // -> distribute v2 (emitter should be updated)
+    let v2_dist_result_0 = v2_backstop_client.distribute();
+    assert_eq!(v2_dist_result_0, 0);
+    // -> this will still fail as no tokens have been distributed yet
+    let v2_gulp_result = v2_pool_client.try_gulp_emissions();
+    assert!(v2_gulp_result.is_err());
+
+    /*
+     * Claim backfilled emissions
+     */
+    let pre_backstop_claim_blnd = blnd_client.balance(&v2_backstop);
+    v2_backstop_client.claim(&samwise, &vec![&env, v2_pool_id.clone()], &0);
+    let v2_backfill_blnd_0 = pre_backstop_claim_blnd - blnd_client.balance(&v2_backstop);
+    // -> backstop gets 70% of emissions, samwise is only backstop user (some rounding loss expected)
+    assert_approx_eq_abs(v2_backfill_blnd_0, 7_000_000_0000000, 0_0001000);
+    // -> pool gets 30% of emissions, samwise is only pool user (some rounding loss expected)
+    let v2_backfill_pool_claim = v2_pool_client.claim(&samwise, &vec![&env, 1, 3], &samwise);
+    assert_approx_eq_abs(v2_backfill_pool_claim, 3_000_000_0000000, 0_0001000);
+    let v2_backfill_frodo_claim =
+        v2_backstop_client.claim(&frodo, &vec![&env, v2_pool_id.clone()], &0);
+    assert_eq!(v2_backfill_frodo_claim, 0);
+
+    // Time: pass 3 days
+    // -> 3 days after swap and start of v2 emissions
+    // -> end of last full emission v1 period, 4 days left undistributed
+    jump(&env, 17280 * 3);
+
+    // -> distribute v1
+    env.invoke_contract::<Val>(
+        &v1_backstop,
+        &Symbol::new(&env, "gulp_emissions"),
+        vec![&env] as Vec<Val>,
+    );
+    v1_pool_client.gulp_emissions();
+
+    // claim v1 emissions (are from last period for the full week)
+    let v1_backstop_claim = v1_backstop_client.claim(&merry, &vec![&env, v1_pool.clone()], &merry);
+    let v1_pool_claim = v1_pool_client.claim(&merry, &vec![&env, 1, 3], &merry);
+    assert_approx_eq_rel(v1_backstop_claim, v1_backstop_weekly_claim, 0_1000000);
+    assert_approx_eq_rel(v1_pool_claim, v1_pool_weekly_claim, 0_0100000);
+
+    // Time: pass 4 days
+    // -> 1 week after swap and start of v2 emission
+    // -> 4/7 days of last partial v1 emissions
+    jump(&env, 17280 * 4);
+
+    // -> distribute everything
+    emitter_client.distribute();
+    // assert v1 distribute no longer works
+    assert!(env
+        .try_invoke_contract::<Val, Error>(
+            &v1_backstop,
+            &Symbol::new(&env, "gulp_emissions"),
+            vec![&env] as Vec<Val>
+        )
+        .is_err());
+    assert!(v1_pool_client.try_gulp_emissions().is_err());
+    // validate v2 distribution amounts
+    let v2_dist_result = v2_backstop_client.distribute();
+    assert_approx_eq_abs(v2_dist_result, 17280 * 7 * 5 * SCALAR_7, 5_0000000);
+    let v2_gulp_result = v2_pool_client.gulp_emissions();
+    assert_approx_eq_abs(v2_gulp_result, 181_440 * SCALAR_7, 5_0000000);
+
+    // Time: pass 3 days
+    // -> final day of partial v1 emissions
+    jump(&env, 17280 * 3);
+
+    // claim partial v1 emissions
+    let v1_backstop_claim = v1_backstop_client.claim(&merry, &vec![&env, v1_pool.clone()], &merry);
+    let v1_pool_claim = v1_pool_client.claim(&merry, &vec![&env, 1, 3], &merry);
+    assert_approx_eq_rel(
+        v1_backstop_claim,
+        v1_backstop_weekly_claim
+            .fixed_mul_floor(4_0000000, 7_0000000)
+            .unwrap(),
+        0_1000000,
+    );
+    assert_approx_eq_rel(
+        v1_pool_claim,
+        v1_pool_weekly_claim
+            .fixed_mul_floor(4_0000000, 7_0000000)
+            .unwrap(),
+        0_0100000,
+    );
+
+    // Time: pass 4 days
+    // -> end of 1st week of distributed v2 emissions
+    jump(&env, 17280 * 4);
+
+    // -> validate v1 claim is zero now
+    let v1_backstop_claim = v1_backstop_client.claim(&merry, &vec![&env, v1_pool.clone()], &merry);
+    let v1_pool_claim = v1_pool_client.claim(&merry, &vec![&env, 1, 3], &merry);
+    assert_eq!(v1_backstop_claim, 0);
+    assert_eq!(v1_pool_claim, 0);
+
+    // -> validate v2 claim is correct for positions held during the full backfill period
+    let est_backstop_blnd_weekly = 423_360 * SCALAR_7;
+    let frodo_backstop_balance = v2_backstop_client.user_balance(&v2_pool_id, &frodo).shares;
+    let samwise_backstop_balance = v2_backstop_client
+        .user_balance(&v2_pool_id, &samwise)
+        .shares;
+    let total_backstop_balance = frodo_backstop_balance + samwise_backstop_balance;
+
+    let backstop_balance_pre = blnd_client.balance(&v2_backstop);
+    v2_backstop_client.claim(&frodo, &vec![&env, v2_pool_id.clone()], &0);
+    let backstop_balance_mid = blnd_client.balance(&v2_backstop);
+    let v2_frodo_claim_blnd = backstop_balance_pre - backstop_balance_mid;
+    assert_approx_eq_rel(
+        v2_frodo_claim_blnd,
+        frodo_backstop_balance
+            .fixed_div_floor(total_backstop_balance, SCALAR_7)
+            .unwrap()
+            .fixed_mul_floor(est_backstop_blnd_weekly, SCALAR_7)
+            .unwrap(),
+        0_0500000,
+    );
+
+    v2_backstop_client.claim(&samwise, &vec![&env, v2_pool_id.clone()], &0);
+    let backstop_balance_post = blnd_client.balance(&v2_backstop);
+    let v2_samwise_claim_blnd = backstop_balance_mid - backstop_balance_post;
+    assert_approx_eq_rel(
+        v2_samwise_claim_blnd,
+        samwise_backstop_balance
+            .fixed_div_floor(total_backstop_balance, SCALAR_7)
+            .unwrap()
+            .fixed_mul_floor(est_backstop_blnd_weekly, SCALAR_7)
+            .unwrap(),
+        0_0500000,
+    );
+    assert_approx_eq_abs(
+        v2_samwise_claim_blnd + v2_frodo_claim_blnd,
+        423_360 * SCALAR_7,
+        SCALAR_7,
+    );
+
+    let v2_pool_claim = v2_pool_client.claim(&samwise, &vec![&env, 1, 3], &samwise);
+    assert_approx_eq_abs(v2_pool_claim, 181_440 * SCALAR_7, SCALAR_7);
+}
+
 /***** Test Helpers *****/
 
-/// Jump the ledger by "blocks" blocks, each block is 5 seconds
+/// Jump the timestamp by "blocks" time, assuming each block is 5 seconds.
+/// This does not actually jump the sequence number by "blocks", and instead
+/// only increments it.
 fn jump(env: &Env, blocks: u32) {
     let seconds_passed: u64 = (blocks as u64) * 5;
     env.ledger()
-        .set_sequence_number(env.ledger().sequence() + blocks);
+        .set_sequence_number(env.ledger().sequence() + 10);
     env.ledger()
         .set_timestamp(env.ledger().timestamp() + seconds_passed);
 }
@@ -505,7 +904,7 @@ fn deploy_v2_pool(
         },
         Request {
             request_type: RequestType::Borrow as u32,
-            address: xlm.clone(),
+            address: usdc.clone(),
             amount: 3_000_0000000,
         },
     ];
