@@ -103,7 +103,7 @@ pub trait Backstop {
     /// * `to_remove` - The address of the pool to remove (Optional - Used if the reward zone is full)
     ///
     /// ### Errors
-    /// If the pool to remove has more tokens, or if distribution occurred in the last 48 hours
+    /// If the pool to remove has more tokens, or if distribute has not occured in the last hour
     fn add_reward(e: Env, to_add: Address, to_remove: Option<Address>);
 
     /// Remove a pool from the reward zone
