@@ -1,4 +1,10 @@
 name: Stellar Expert WASM Release
+
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
+
 on:
   push: 
     tags:
