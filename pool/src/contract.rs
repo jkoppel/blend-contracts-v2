@@ -224,7 +224,6 @@ pub trait Pool {
     ///
     /// ### Panics
     /// * If the caller is not the admin
-    /// * If the sum of ReserveEmissionMetadata shares is greater than 1
     fn set_emissions_config(e: Env, res_emission_metadata: Vec<ReserveEmissionMetadata>);
 
     /// Claims outstanding emissions for the caller for the given reserve's.
