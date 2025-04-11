@@ -28,7 +28,7 @@ pub struct PoolConfig {
     pub min_collateral: i128, // the minimum amount of collateral required to open a liability position
     pub bstop_rate: u32, // the rate the backstop takes on accrued debt interest, expressed in 7 decimals
     pub status: u32,     // the status of the pool
-    pub max_positions: u32, // the maximum number of effective positions (collateral + liabilities) a single user can hold
+    pub max_positions: u32, // the maximum number of effective positions a single user can hold, and the max assets an auction can contain
 }
 
 /// The pool's emission config

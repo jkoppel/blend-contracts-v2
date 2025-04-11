@@ -27,7 +27,8 @@ pub fn create_interest_auction_data(
     }
 
     let mut pool = Pool::load(e);
-    if pool.config.max_positions < lot.len() {
+    // bid is required to have 1 entry, so require lot to have less than max_positions entries
+    if pool.config.max_positions <= lot.len() {
         panic_with_error!(e, PoolError::MaxPositionsExceeded);
     }
     let oracle_scalar = 10i128.pow(pool.load_price_decimals(e));
@@ -733,7 +734,7 @@ mod tests {
             min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
-            max_positions: 2,
+            max_positions: 3,
         };
         e.as_contract(&pool_address, || {
             storage::set_pool_config(&e, &pool_config);
@@ -1187,7 +1188,7 @@ mod tests {
             min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 0,
-            max_positions: 3,
+            max_positions: 4,
         };
         e.as_contract(&pool_address, || {
             storage::set_pool_config(&e, &pool_config);
