@@ -807,6 +807,17 @@ mod tests {
         let mut reserve = testutils::default_reserve(&e);
         reserve.config.enabled = false;
 
+        reserve.require_action_allowed(&e, RequestType::Supply as u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_require_action_allowed_panics_if_supply_collateral_disabled_asset() {
+        let e = Env::default();
+
+        let mut reserve = testutils::default_reserve(&e);
+        reserve.config.enabled = false;
+
         reserve.require_action_allowed(&e, RequestType::SupplyCollateral as u32);
     }
 

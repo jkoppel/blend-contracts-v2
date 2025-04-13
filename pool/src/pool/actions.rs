@@ -2062,7 +2062,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #1223)")]
-    fn test_build_actions_panic_supply_disabled_asset() {
+    fn test_build_actions_panic_supply_collateral_disabled_asset() {
         let e = Env::default();
         e.mock_all_auths();
 
@@ -2087,6 +2087,47 @@ mod tests {
             &e,
             Request {
                 request_type: RequestType::SupplyCollateral as u32,
+                address: underlying.clone(),
+                amount: 20_0000000,
+            },
+        ];
+
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+            let mut pool = Pool::load(&e);
+            let mut user = User::load(&e, &samwise);
+
+            build_actions_from_request(&e, &mut pool, &mut user, requests);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_build_actions_panic_supply_disabled_asset() {
+        let e = Env::default();
+        e.mock_all_auths();
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+
+        let (underlying, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config, reserve_data) = testutils::default_reserve_meta();
+        reserve_config.enabled = false;
+        testutils::create_reserve(&e, &pool, &underlying, &reserve_config, &reserve_data);
+
+        let pool_config = PoolConfig {
+            oracle: Address::generate(&e),
+            min_collateral: 1_0000000,
+            bstop_rate: 0_2000000,
+            status: 0,
+            max_positions: 1,
+        };
+
+        let requests = vec![
+            &e,
+            Request {
+                request_type: RequestType::Supply as u32,
                 address: underlying.clone(),
                 amount: 20_0000000,
             },
