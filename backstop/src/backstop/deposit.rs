@@ -37,7 +37,7 @@ mod tests {
     use soroban_sdk::{testutils::Address as _, Address};
 
     use crate::{
-        backstop::execute_donate,
+        backstop::{execute_donate, execute_draw},
         constants::SCALAR_7,
         testutils::{create_backstop, create_backstop_token, create_mock_pool_factory},
     };
@@ -257,31 +257,42 @@ mod tests {
         });
     }
 
-    // #[test]
-    // #[should_panic(expected = "Error(Contract, #1005)")]
-    // fn test_execute_deposit_small_initial_mint() {
-    //     let e = Env::default();
-    //     e.cost_estimate().budget().reset_unlimited();
-    //     e.mock_all_auths_allowing_non_root_auth();
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1005)")]
+    fn test_execute_deposit_drained_backstop() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths_allowing_non_root_auth();
 
-    //     let backstop_address = create_backstop(&e);
-    //     let bombadil = Address::generate(&e);
-    //     let samwise = Address::generate(&e);
-    //     let frodo = Address::generate(&e);
-    //     let pool_0_id = Address::generate(&e);
-    //     let pool_1_id = Address::generate(&e);
+        let backstop_address = create_backstop(&e);
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let frodo = Address::generate(&e);
+        let pool_0_id = Address::generate(&e);
+        let pool_1_id = Address::generate(&e);
 
-    //     let (_, backstop_token_client) = create_backstop_token(&e, &backstop_address, &bombadil);
-    //     backstop_token_client.mint(&samwise, &100_0000000);
-    //     backstop_token_client.mint(&frodo, &100_0000000);
+        let (_, backstop_token_client) = create_backstop_token(&e, &backstop_address, &bombadil);
+        backstop_token_client.mint(&samwise, &100_0000000);
+        backstop_token_client.mint(&frodo, &100_000_000_0000000);
 
-    //     let (_, mock_pool_factory_client) = create_mock_pool_factory(&e, &backstop_address);
-    //     mock_pool_factory_client.set_pool(&pool_0_id);
-    //     mock_pool_factory_client.set_pool(&pool_1_id);
+        let (_, mock_pool_factory_client) = create_mock_pool_factory(&e, &backstop_address);
+        mock_pool_factory_client.set_pool(&pool_0_id);
+        mock_pool_factory_client.set_pool(&pool_1_id);
 
-    //     e.as_contract(&backstop_address, || {
-    //         execute_donate(&e, &frodo, &pool_0_id, SCALAR_7);
-    //         execute_deposit(&e, &samwise, &pool_0_id, SCALAR_7 / 10 - 1);
-    //     });
-    // }
+        backstop_token_client.approve(
+            &frodo,
+            &backstop_address,
+            &(10_000_000 * SCALAR_7),
+            &e.ledger().sequence(),
+        );
+        // initialize pool 0 with funds than drain the backstop
+        e.as_contract(&backstop_address, || {
+            execute_deposit(&e, &frodo, &pool_0_id, SCALAR_7);
+            execute_draw(&e, &pool_0_id, SCALAR_7, &frodo);
+        });
+
+        e.as_contract(&backstop_address, || {
+            execute_deposit(&e, &samwise, &pool_0_id, SCALAR_7);
+        });
+    }
 }

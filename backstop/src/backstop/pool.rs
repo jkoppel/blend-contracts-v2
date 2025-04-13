@@ -139,6 +139,9 @@ impl PoolBalance {
         if self.shares == 0 {
             return tokens;
         }
+        if self.tokens == 0 {
+            return 0;
+        }
 
         tokens
             .fixed_mul_floor(self.shares, self.tokens)
@@ -151,7 +154,10 @@ impl PoolBalance {
     /// * `shares` - the pool share balance to convert
     pub fn convert_to_tokens(&self, shares: i128) -> i128 {
         if self.shares == 0 {
-            return shares;
+            return 0;
+        }
+        if self.shares == shares {
+            return self.tokens;
         }
 
         shares
@@ -473,6 +479,54 @@ mod tests {
     /********** Logic **********/
 
     #[test]
+    fn test_non_queued_tokens() {
+        let pool_balance = PoolBalance {
+            shares: 80321,
+            tokens: 103302,
+            q4w: 40001,
+        };
+
+        let non_queued_tokens = pool_balance.non_queued_tokens();
+        assert_eq!(non_queued_tokens, 51857);
+    }
+
+    #[test]
+    fn test_non_queued_tokens_no_shares() {
+        let pool_balance = PoolBalance {
+            shares: 0,
+            tokens: 0,
+            q4w: 0,
+        };
+
+        let non_queued_tokens = pool_balance.non_queued_tokens();
+        assert_eq!(non_queued_tokens, 0);
+    }
+
+    #[test]
+    fn test_non_queued_tokens_drained_backstop() {
+        let pool_balance = PoolBalance {
+            shares: 8765,
+            tokens: 0,
+            q4w: 4321,
+        };
+
+        let non_queued_tokens = pool_balance.non_queued_tokens();
+        assert_eq!(non_queued_tokens, 0);
+    }
+
+    #[test]
+    fn test_non_queued_tokens_full_q4w() {
+        let pool_balance = PoolBalance {
+            shares: 80321,
+            tokens: 103302,
+            q4w: 80321,
+        };
+
+        let non_queued_tokens = pool_balance.non_queued_tokens();
+        assert_eq!(non_queued_tokens, 0);
+    }
+
+    #[test]
     fn test_convert_to_shares_no_shares() {
         let pool_balance = PoolBalance {
             shares: 0,
@@ -483,6 +537,19 @@ mod tests {
         let to_convert = 1234567;
         let shares = pool_balance.convert_to_shares(to_convert);
         assert_eq!(shares, to_convert);
+    }
+
+    #[test]
+    fn test_convert_to_shares_drained_backstop() {
+        let pool_balance = PoolBalance {
+            shares: 87654321,
+            tokens: 0,
+            q4w: 0,
+        };
+
+        let to_convert = 1234567;
+        let shares = pool_balance.convert_to_shares(to_convert);
+        assert_eq!(shares, 0);
     }
 
     #[test]
@@ -508,7 +575,20 @@ mod tests {
 
         let to_convert = 1234567;
         let shares = pool_balance.convert_to_tokens(to_convert);
-        assert_eq!(shares, to_convert);
+        assert_eq!(shares, 0);
+    }
+
+    #[test]
+    fn test_convert_to_tokens_drained_backstop() {
+        let pool_balance = PoolBalance {
+            shares: 87654321,
+            tokens: 0,
+            q4w: 0,
+        };
+
+        let to_convert = 1234567;
+        let shares = pool_balance.convert_to_tokens(to_convert);
+        assert_eq!(shares, 0);
     }
 
     #[test]
@@ -522,6 +602,19 @@ mod tests {
         let to_convert = 40000;
         let shares = pool_balance.convert_to_tokens(to_convert);
         assert_eq!(shares, 51444);
+    }
+
+    #[test]
+    fn test_convert_to_tokens_all_shares() {
+        let pool_balance = PoolBalance {
+            shares: 80321,
+            tokens: 103302,
+            q4w: 0,
+        };
+
+        let to_convert = 80321;
+        let shares = pool_balance.convert_to_tokens(to_convert);
+        assert_eq!(shares, 103302);
     }
 
     #[test]
