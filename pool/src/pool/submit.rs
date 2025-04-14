@@ -88,6 +88,7 @@ pub fn execute_submit_with_flash_loan(
         let mut reserve = pool.load_reserve(e, &flash_loan.asset, true);
         let d_tokens_minted = reserve.to_d_token_up(e, flash_loan.amount);
         from_state.add_liabilities(e, &mut reserve, d_tokens_minted);
+        reserve.require_action_allowed(e, RequestType::Borrow as u32);
         reserve.require_utilization_below_100(e);
 
         pool.cache_reserve(reserve);
@@ -2560,6 +2561,89 @@ mod tests {
             min_collateral: 1_0000000,
             bstop_rate: 0_1000000,
             status: 2,
+            max_positions: 4,
+        };
+        e.as_contract(&pool, || {
+            storage::set_pool_config(&e, &pool_config);
+
+            underlying_1_client.mint(&samwise, &25_0000000);
+            underlying_1_client.approve(&samwise, &pool, &100_0000000, &10000);
+
+            // pool has 100 supplied and 50 borrowed for asset_0
+            // -> max util is 95%
+            let flash_loan: FlashLoan = FlashLoan {
+                contract: flash_loan_receiver,
+                asset: underlying_0,
+                amount: 25_0000000,
+            };
+
+            let requests = vec![
+                &e,
+                Request {
+                    request_type: RequestType::SupplyCollateral as u32,
+                    address: underlying_1,
+                    amount: 25_0000000,
+                },
+            ];
+            execute_submit_with_flash_loan(&e, &samwise, flash_loan, requests);
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1223)")]
+    fn test_submit_with_flash_loan_checks_reserve_status() {
+        let e = Env::default();
+        e.cost_estimate().budget().reset_unlimited();
+        e.mock_all_auths_allowing_non_root_auth();
+
+        e.ledger().set(LedgerInfo {
+            timestamp: 600,
+            protocol_version: 22,
+            sequence_number: 1234,
+            network_id: Default::default(),
+            base_reserve: 10,
+            min_temp_entry_ttl: 10,
+            min_persistent_entry_ttl: 10,
+            max_entry_ttl: 3110400,
+        });
+
+        let bombadil = Address::generate(&e);
+        let samwise = Address::generate(&e);
+        let pool = testutils::create_pool(&e);
+        let (oracle, oracle_client) = testutils::create_mock_oracle(&e);
+
+        let (flash_loan_receiver, _) = testutils::create_flashloan_receiver(&e);
+
+        let (underlying_0, _) = testutils::create_token_contract(&e, &bombadil);
+        let (mut reserve_config, mut reserve_data) = testutils::default_reserve_meta();
+        reserve_config.max_util = 9500000;
+        reserve_data.b_supply = 100_0000000;
+        reserve_data.d_supply = 50_0000000;
+        reserve_config.enabled = false;
+        testutils::create_reserve(&e, &pool, &underlying_0, &reserve_config, &reserve_data);
+
+        let (underlying_1, underlying_1_client) = testutils::create_token_contract(&e, &bombadil);
+        let (reserve_config, reserve_data) = testutils::default_reserve_meta();
+        testutils::create_reserve(&e, &pool, &underlying_1, &reserve_config, &reserve_data);
+
+        oracle_client.set_data(
+            &bombadil,
+            &Asset::Other(Symbol::new(&e, "USD")),
+            &vec![
+                &e,
+                Asset::Stellar(underlying_0.clone()),
+                Asset::Stellar(underlying_1.clone()),
+            ],
+            &7,
+            &300,
+        );
+        oracle_client.set_price_stable(&vec![&e, 1_0000000, 5_0000000]);
+
+        let pool_config = PoolConfig {
+            oracle,
+            min_collateral: 1_0000000,
+            bstop_rate: 0_1000000,
+            status: 0,
             max_positions: 4,
         };
         e.as_contract(&pool, || {
