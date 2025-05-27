@@ -1,0 +1,136 @@
+{
+  "title": "4.6: Request Builder",
+  "id": "gYq5lZMQzIJiD7tgAtdktP7kSnpfDgaXibs1YbVGaNM=",
+  "originalId": 2025,
+  "position": 19,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "This tour follows a request from the moment it enters the pool contract until the moment every transfer or safety-check has been scheduled.  We start with the data model (`Request` and `RequestType`), step through the `dispatcher` that interprets a batch of requests, zoom in on borrowing as a worked example, and finish by looking at the structure that records the resulting side-effects.",
+      "title": "",
+      "id": "23942"
+    },
+    {
+      "type": "highlight",
+      "description": "A Request contains everything the pool needs to understand one action.\n- line 15 – **numeric tag** that will later be mapped to a `RequestType`.\n- line 16 – an `Address` that is either an asset contract or, for auctions, the liquidatee.\n- line 17 – **token amount** (7-dec fixed-point); negatives are rejected early.",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 11,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "23943"
+    },
+    {
+      "type": "highlight",
+      "description": "`RequestType` is an on-chain ABI: its `u32` discriminants must stay stable. The first six cover the usual lending flow; the remaining four are used by on-chain auctions.",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 20,
+          "end": 34
+        }
+      ],
+      "title": "",
+      "id": "23944"
+    },
+    {
+      "type": "textOnly",
+      "description": "Next we walk through `build_actions_from_request`, which consumes a `Vec<Request>` and produces one consolidated `Actions` object while mutating `user` and `reserve` state.",
+      "title": "",
+      "id": "23945"
+    },
+    {
+      "type": "highlight",
+      "description": "The outer loop:\n- Line 137: Start with an empty `Actions`\n- Line 138: Iterate over each request in the batch\n- Line 140: Forbid negative amounts (safety invariant)\n- Line 141: Verify that the `pool`'s global status allows this request kind before spending any gas on it",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 131,
+          "end": 142
+        }
+      ],
+      "title": "",
+      "id": "23946"
+    },
+    {
+      "type": "highlight",
+      "description": "Dispatch branch-by-branch.\nHere are the four most common arms:\n- 144-151  Supply → mints b-tokens, schedules a `spender_transfer`, emits **Supply**.\n- 153-163  Withdraw → burns b-tokens, schedules a `pool_transfer`, emits **Withdraw**.\n- 164-175  SupplyCollateral → similar to Supply but updates user.collateral.\n- 175-185  WithdrawCollateral → similar to Withdraw but also sets check_health because collateral affects solvency.",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 142,
+          "end": 184
+        }
+      ],
+      "title": "",
+      "id": "23947"
+    },
+    {
+      "type": "highlight",
+      "description": "**Borrow & Repay.**\n- 187-195 Borrow calls `apply_borrow` then emits **Borrow**.\n- 198-205 Repay calls `apply_repay` then emits **Repay**.\n**Borrow** is especially interesting, so we will inspect `apply_borrow` next.",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 186,
+          "end": 205
+        }
+      ],
+      "title": "",
+      "id": "23948"
+    },
+    {
+      "type": "highlight",
+      "description": "The remaining match arms handle internal auctions (`fill_*` and `delete`). Each path may mutate auction storage, push the health-check flag, and always emits a `PoolEvents::*` record. After the loop finishes, the function returns the aggregated `Actions` object (280).",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 207,
+          "end": 276
+        }
+      ],
+      "title": "",
+      "id": "23949"
+    },
+    {
+      "type": "textOnly",
+      "description": "`apply_borrow` – converting a user’s requested amount into `d-tokens` and defending `utilisation`.",
+      "title": "",
+      "id": "23950"
+    },
+    {
+      "type": "highlight",
+      "description": "Step-by-step inside `apply_borrow`:\n- 398  `load_reserve` applies the latest interest rate so conversion is fresh.\n- 400  `to_d_token_up` converts the underlying amount into d-tokens, rounding **up** so liabilities are never understated.\n- 401  `user.add_liabilities` records those d-tokens.\n- 402  `reserve.require_utilization_below_100` makes sure backstop credit plus b-token supply can still cover all debt.\n- 403  `actions.do_check_max_util` remembers that, after the batch, this reserve's utilisation must be re-evaluated.\n- 404  `add_for_pool_transfer` tells the pool it owes the borrower the raw underlying tokens.\n- 405  `do_check_health` flags that the borrower's health factor must be ≥ 1 after all requests are applied.",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 392,
+          "end": 407
+        }
+      ],
+      "title": "",
+      "id": "23951"
+    },
+    {
+      "type": "highlight",
+      "description": "Actions tracks all side-effects needed for pool operations:\n- `spender_transfer` – what must be sent into pool\n- `pool_transfer` – what pool sends out\n- `check_health` and `check_max_util` – safety checks after operations",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 65,
+          "end": 71
+        }
+      ],
+      "title": "",
+      "id": "23952"
+    },
+    {
+      "type": "textOnly",
+      "description": "A batch of `Requests` therefore translates deterministically into: (1) updated reserve/user records, (2) a list of token moves, and (3) explicit flags for solvency and utilisation checks \t6 all encoded in a single `Actions` object ready for `Pool::submit` to execute atomically.",
+      "title": "",
+      "id": "23953"
+    }
+  ]
+}

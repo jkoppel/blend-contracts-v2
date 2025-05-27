@@ -1,0 +1,163 @@
+{
+  "title": "4.8: Interest Accrual & Utilisation Curves",
+  "id": "sUxJA7YklZ3aDJnGH1HCOfbfUwLAznjCJACi1kfvvJk=",
+  "originalId": 2027,
+  "position": 21,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Everything that moves interest inside the pool funnels through two helper functions:\n- `Reserve::load` – this is executed every time a reserve is touched and is therefore the place where interest **is actually accrued**.\n- `interest::calc_accrual` – older docs called it *accrue_interest*; it converts the live utilisation plus configuration constants into two fresh numbers: the loan-index multiplier and a new interest-rate modifier (`ir_mod`).\nThe tour follows that execution path, explaining the four curve regions (R0-R3), the `ir_mod` controller, utilisation, reactivity and the explicit `ceil` / `floor` rounding choices.",
+      "title": "",
+      "id": "24068"
+    },
+    {
+      "type": "highlight",
+      "description": "`Reserve::load` is the single entry-point for rate updates.  Line 62 forwards utilisation and the previous `ir_mod` into `calc_accrual`.  Line 69 overwrites `ir_mod` with the returned value, then line 72 multiplies the debt index (`d_rate`) by the `ceil`-rounded accrual factor – borrowers pay at least the ceiling.  The interest that appears is pushed to suppliers via `accrue()`.",
+      "file": "pool/src/pool/reserve.rs",
+      "highlight": [
+        {
+          "start": 62,
+          "end": 75
+        }
+      ],
+      "title": "",
+      "id": "24069"
+    },
+    {
+      "type": "highlight",
+      "description": "Utilisation = liabilities ÷ supply, rounded **up** to seven decimals (`fixed_div_ceil`) and hard-capped at 100 %.  Even a dust borrow therefore triggers interest and keeps the controller responsive.",
+      "file": "pool/src/pool/reserve.rs",
+      "highlight": [
+        {
+          "start": 110,
+          "end": 123
+        }
+      ],
+      "title": "",
+      "id": "24070"
+    },
+    {
+      "type": "highlight",
+      "description": "The helper the old docs called `accrue_interest` is actually `calc_accrual`. It receives the `reserve configuration`, `current utilisation` and `ir_mod`, and returns (`accrual_multiplier`, `new_ir_mod`).",
+      "file": "pool/src/pool/interest.rs",
+      "highlight": [
+        {
+          "start": 22,
+          "end": 30
+        }
+      ],
+      "title": "",
+      "id": "24071"
+    },
+    {
+      "type": "highlight",
+      "description": "R0 – below the target utilisation.  Rate = `r_base + r_one·(util/target)`; everything is scaled by `ir_mod` so the controller can shift the whole limb up and down.",
+      "file": "pool/src/pool/interest.rs",
+      "highlight": [
+        {
+          "start": 32,
+          "end": 38
+        }
+      ],
+      "title": "",
+      "id": "24072"
+    },
+    {
+      "type": "highlight",
+      "description": "`R1` – between target and 95%.  A second slope kicks in: `r_two·((util−target)/(0.95−target))`.  The segment is still multiplied by `ir_mod`, smoothly extending `R0`.",
+      "file": "pool/src/pool/interest.rs",
+      "highlight": [
+        {
+          "start": 39,
+          "end": 46
+        }
+      ],
+      "title": "",
+      "id": "24073"
+    },
+    {
+      "type": "highlight",
+      "description": "`R2/R3` – above 95 %.  An aggressive `extra_rate` using `r_three` is added without `ir_mod`, guaranteeing a steep cliff regardless of the controller state.  The earlier portion (intersection) keeps its `ir_mod` scaling.",
+      "file": "pool/src/pool/interest.rs",
+      "highlight": [
+        {
+          "start": 47,
+          "end": 55
+        }
+      ],
+      "title": "",
+      "id": "24074"
+    },
+    {
+      "type": "highlight",
+      "description": "`ir_mod` when utilisation is above target: the integral controller adds `Δt·(util−target)·reactivity`.  The multiplication uses `fixed_mul_floor` – borrowers win a few micro-bps – and the result is capped at 10×.",
+      "file": "pool/src/pool/interest.rs",
+      "highlight": [
+        {
+          "start": 65,
+          "end": 74
+        }
+      ],
+      "title": "",
+      "id": "24075"
+    },
+    {
+      "type": "highlight",
+      "description": "Mirror branch for utilisation below target. The same error term is rounded **up** (`fixed_mul_ceil`) and `ir_mod` is floored at 0.1×. Together the two branches form a bounded integral controller that steers utilisation toward the configured target at a speed set by `reactivity`.",
+      "file": "pool/src/pool/interest.rs",
+      "highlight": [
+        {
+          "start": 78,
+          "end": 86
+        }
+      ],
+      "title": "",
+      "id": "24076"
+    },
+    {
+      "type": "highlight",
+      "description": "Integrating the instantaneous rate: accrual = `1e12` + (`Δt` / `SECONDS_PER_YEAR`)·`rate`. Because the result is **12-dp fixed-point** it can be multiplied directly onto `d_rate` with `fixed_mul_ceil`, ensuring lenders never lose to rounding.",
+      "file": "pool/src/pool/interest.rs",
+      "highlight": [
+        {
+          "start": 91,
+          "end": 97
+        }
+      ],
+      "title": "",
+      "id": "24077"
+    },
+    {
+      "type": "highlight",
+      "description": "Concrete rounding example (`test_calc_accrual_rounds_up`): advancing the clock by `1 s` with almost zero utilisation should yield `<1 wei` of interest, yet the `ceil-multiply` on `line 97` bumps the accrual multiplier from `1_000 000 000 000` to `1_000 000 000 001` (`line 367`). Borrowers therefore pay at least one unit, suppliers are never short-changed.",
+      "file": "pool/src/pool/interest.rs",
+      "highlight": [
+        {
+          "start": 333,
+          "end": 368
+        }
+      ],
+      "title": "",
+      "id": "24078"
+    },
+    {
+      "type": "highlight",
+      "description": "Fixed-point scalars and time base: `SCALAR_7` (1e7) for percentages, `SCALAR_12` (1e12) for token indices, `SECONDS_PER_YEAR` for converting per-second maths back to APRs.",
+      "file": "pool/src/constants.rs",
+      "highlight": [
+        {
+          "start": 3,
+          "end": 10
+        }
+      ],
+      "title": "",
+      "id": "24079"
+    },
+    {
+      "type": "textOnly",
+      "description": "Key take-aways:\n- Four constants (`r_base`, `r_one`, `r_two`, `r_three`) draw a four-region piece-wise linear curve (**R0–R3**).\n- `ir_mod` is an integral controller bounded to [0.1×, 10×]; reactivity controls how quickly it chases the target utilisation.\n- `fixed_mul_ceil` is always used when borrowers owe money; `fixed_mul_floor` (or div_floor) favours suppliers. This consistent bias keeps the protocol solvent while still fair.\nWith these rules you can compute any future rate path given utilisation and elapsed time.",
+      "title": "",
+      "id": "24080"
+    }
+  ]
+}

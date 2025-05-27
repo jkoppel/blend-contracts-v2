@@ -1,0 +1,156 @@
+{
+  "title": "4.9: Health Factor, Status Machine & Bad Debt",
+  "id": "+b9CiYMCocLCcy3ko/UTFwE4keh92vKKf6sWTKk9GI4=",
+  "originalId": 2028,
+  "position": 22,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Solvency is guarded at two layers:\n- every account must keep its `Health-Factor (HF)` ≥ `1.0000100`.\n- the whole pool is forced into **Active** / **On-Ice** / **Frozen** modes depending on backstop deposits and withdrawal queues.\n\nThis walkthrough shows the code that enforces both guarantees and where those checks are invoked from `validate_submit` (per-user) and `update_status` (global).",
+      "title": "",
+      "id": "24004"
+    },
+    {
+      "type": "highlight",
+      "description": "`PositionData` aggregates an account’s balances after a transaction. Storage fields hold collateral and liabilities expressed in the pool’s base currency, ready for ratio checks.",
+      "file": "pool/src/pool/health_factor.rs",
+      "highlight": [
+        {
+          "start": 8,
+          "end": 19
+        }
+      ],
+      "title": "",
+      "id": "24005"
+    },
+    {
+      "type": "highlight",
+      "description": "`calculate_from_positions()` iterates over every reserve, converts b-token and d-token balances to asset amounts, then to base units through the oracle, accumulating the four totals. Reserves encountered are cached for later utilisation checks.",
+      "file": "pool/src/pool/health_factor.rs",
+      "highlight": [
+        {
+          "start": 27,
+          "end": 54
+        }
+      ],
+      "title": "",
+      "id": "24006"
+    },
+    {
+      "type": "highlight",
+      "description": "`as_health_factor()` simply divides `collateral_base` by `liability_base` (floor rounding). With no liabilities the call always returns healthy.",
+      "file": "pool/src/pool/health_factor.rs",
+      "highlight": [
+        {
+          "start": 80,
+          "end": 88
+        }
+      ],
+      "title": "",
+      "id": "24007"
+    },
+    {
+      "type": "highlight",
+      "description": "`is_hf_under()` compares the freshly computed **HF** with a configurable minimum expressed in 7-decimal `SCALAR_7` points, returning true when the account is unsafe.",
+      "file": "pool/src/pool/health_factor.rs",
+      "highlight": [
+        {
+          "start": 99,
+          "end": 107
+        }
+      ],
+      "title": "",
+      "id": "24008"
+    },
+    {
+      "type": "highlight",
+      "description": "`validate_submit()` is executed at the end of each user batch. After max-position and utilisation checks, it rebuilds `PositionData` (line 188) and aborts the transaction when `HF` is under 1.0000100 or when `collateral_base` drops below `pool.min_collateral`, thus enforcing solvency before any state is stored.",
+      "file": "pool/src/pool/submit.rs",
+      "highlight": [
+        {
+          "start": 167,
+          "end": 195
+        }
+      ],
+      "title": "",
+      "id": "24009"
+    },
+    {
+      "type": "textOnly",
+      "description": "The second layer keeps the pool itself solvent by reacting to backstop health and queued withdrawals.",
+      "title": "",
+      "id": "24010"
+    },
+    {
+      "type": "highlight",
+      "description": "`execute_update_pool_status()` fetches up-to-date **Backstop** data for this pool, computes a threshold percentage, and flags whether the minimum requirement is breached.",
+      "file": "pool/src/pool/status.rs",
+      "highlight": [
+        {
+          "start": 11,
+          "end": 24
+        }
+      ],
+      "title": "",
+      "id": "24011"
+    },
+    {
+      "type": "highlight",
+      "description": "The `match` statement promotes or demotes the pool between **Active**, **On-Ice**, and **Frozen**. Severe metrics (e.g. `q4w ≥ 60 %` or being under threshold) always escalate status even when an admin has set a softer flag.",
+      "file": "pool/src/pool/status.rs",
+      "highlight": [
+        {
+          "start": 25,
+          "end": 63
+        }
+      ],
+      "title": "",
+      "id": "24012"
+    },
+    {
+      "type": "highlight",
+      "description": "`calc_pool_backstop_threshold()` evaluates `BLND⁴ · USDC ÷ (100 000)⁵`. The result, in `SCALAR_7` units, is used by both status and bad-debt logic. Below `1_0000000` means the pool is under-collateralised.",
+      "file": "pool/src/pool/status.rs",
+      "highlight": [
+        {
+          "start": 129,
+          "end": 146
+        }
+      ],
+      "title": "",
+      "id": "24013"
+    },
+    {
+      "type": "highlight",
+      "description": "`check_and_handle_user_bad_debt()` transfers any stranded liabilities (no collateral left) from an account to the backstop user, emitting an event. This prevents debt from lingering on insolvent accounts.",
+      "file": "pool/src/pool/bad_debt.rs",
+      "highlight": [
+        {
+          "start": 59,
+          "end": 70
+        }
+      ],
+      "title": "",
+      "id": "24014"
+    },
+    {
+      "type": "highlight",
+      "description": "`check_and_handle_backstop_bad_debt()` lets the backstop itself default its liabilities only when its threshold has sunk below 0.0000003 (~5 % of target). Defaulting burns the `d-tokens` and records a `DefaultedDebt` event, limiting damage when the safety net is empty.",
+      "file": "pool/src/pool/bad_debt.rs",
+      "highlight": [
+        {
+          "start": 105,
+          "end": 118
+        }
+      ],
+      "title": "",
+      "id": "24015"
+    },
+    {
+      "type": "textOnly",
+      "description": "**Combined outcome:**\n- `PositionData` + `validate_submit` prevents any single action from making an account unhealthy.\n- `calc_pool_backstop_threshold` + `execute_update_pool_status` permissionlessly move the pool between Active, On-Ice, and Frozen as backstop health changes.\n- `bad_debt` helpers escalate unrecoverable liabilities to the backstop and, if that safety net collapses, default them under a strict threshold.\n\nThese interlocking checks keep both individual users and the entire pool solvent under all circumstances.",
+      "title": "",
+      "id": "24016"
+    }
+  ]
+}

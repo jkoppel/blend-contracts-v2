@@ -1,0 +1,228 @@
+{
+  "title": "3.2: Backstop Data Structures",
+  "id": "XxDXExn+ZAFtWTV3VKcVEM54FORdhj9CyqljstVJvpw=",
+  "originalId": 2014,
+  "position": 8,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "We begin with the `structs` that represent a pool’s portion of the backstop and see how every algorithm measures, converts, and queues those numbers.",
+      "title": "",
+      "id": "23803"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolBackstopData` lives on-chain as a snapshot of one pool's backstop position.\n- lines 15-16 keep the raw token count and the shares those tokens minted, enabling loss-less conversion.\n- line 17 stores the share percentage already queued for withdrawal so algorithms can throttle exits without scanning user queues.\n- lines 18-19 cache the underlying assets the `LP token` represents.\n- line 20 records the `LP token`'s spot price (**7-decimal fixed-point**) so threshold checks (below) don't need external price feeds.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 14,
+          "end": 21
+        }
+      ],
+      "title": "",
+      "id": "23804"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolBalance` is the mutable ledger entry the contract updates every time tokens move.\n`shares` and `tokens` mirror the fields above, but `q4w` (queued-for-withdrawal) tracks shares that are temporarily locked and therefore unavailable for deficit coverage.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 125,
+          "end": 131
+        }
+      ],
+      "title": "",
+      "id": "23805"
+    },
+    {
+      "type": "highlight",
+      "description": "`convert_to_shares(tokens)` translates token amounts into shares using fixed-point arithmetic.\nEdge cases (139-144) return early when the pool is un-initialised or drained, avoiding division-by-zero.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 134,
+          "end": 149
+        }
+      ],
+      "title": "",
+      "id": "23806"
+    },
+    {
+      "type": "highlight",
+      "description": "`convert_to_tokens(shares)` performs the inverse mapping.\nThe early return on 159-161 makes the calculation exact when the caller asks for the full share supply, preventing rounding loss.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 151,
+          "end": 166
+        }
+      ],
+      "title": "",
+      "id": "23807"
+    },
+    {
+      "type": "highlight",
+      "description": "`non_queued_tokens` subtracts the token value of `q4w`, producing the balance that is still liquid for liquidations or emissions.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 168,
+          "end": 171
+        }
+      ],
+      "title": "",
+      "id": "23808"
+    },
+    {
+      "type": "highlight",
+      "description": "**Q4W** is a single withdrawal request: amount of shares and an expiry timestamp. The **17-day lock** deters rapid bank-runs.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 11,
+          "end": 14
+        }
+      ],
+      "title": "",
+      "id": "23809"
+    },
+    {
+      "type": "highlight",
+      "description": "`UserBalance` stores the user’s free shares (line 20) separately from outstanding queues (line 21).  **Free shares** can be transferred or queued again; `q4w` cannot.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 19,
+          "end": 22
+        }
+      ],
+      "title": "",
+      "id": "23810"
+    },
+    {
+      "type": "highlight",
+      "description": "`add_shares` is intentionally trivial: a deposit simply increments the counter—no rounding, no caps.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 38,
+          "end": 40
+        }
+      ],
+      "title": "",
+      "id": "23811"
+    },
+    {
+      "type": "highlight",
+      "description": "`queue_shares_for_withdrawal` enforces two global constants (57-66):\n- `MAX_Q4W_SIZE` caps active entries.\n- `Q4W_LOCK_TIME` gives each new entry an expiry exactly 17 days after `ledger.timestamp()`.\nAfter validation the new `Q4W` is appended to the back of the queue.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 53,
+          "end": 68
+        }
+      ],
+      "title": "",
+      "id": "23812"
+    },
+    {
+      "type": "highlight",
+      "description": "`withdraw_shares` iterates **FIFO** through `q4w` (82-100). Only entries whose `exp` ≤ `now` are spendable; the loop consumes or partially consumes them until the requested amount is satisfied, otherwise it errors (104-106).",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 78,
+          "end": 107
+        }
+      ],
+      "title": "",
+      "id": "23813"
+    },
+    {
+      "type": "highlight",
+      "description": "`dequeue_shares` walks the queue from the newest entry (121-136) letting the user cancel pending withdrawals; the algorithm is symmetric to `withdraw_shares` but runs in reverse.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 117,
+          "end": 142
+        }
+      ],
+      "title": "",
+      "id": "23814"
+    },
+    {
+      "type": "highlight",
+      "description": "**Happy-path test**: the `ledger timestamp` is set to `10 000`, `queue_shares_for_withdrawal` creates an entry expiring at `10 000 + 17 days`, and the assertion proves the lock was applied.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 174,
+          "end": 205
+        }
+      ],
+      "title": "",
+      "id": "23815"
+    },
+    {
+      "type": "highlight",
+      "description": "Key constants every struct relies on:\n`SCALAR_7` / `SCALAR_14` – fixed-point bases.\n`MAX_Q4W_SIZE` – queue depth safeguard.\n`Q4W_LOCK_TIME` – 17-day lock enforced in user logic.",
+      "file": "backstop/src/constants.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 14
+        }
+      ],
+      "title": "",
+      "id": "23816"
+    },
+    {
+      "type": "highlight",
+      "description": "`BackstopDataKey` enumerates every persistent record; notice `UserBalance(pool,user)` and `PoolBalance(pool)` which the helpers below fetch.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 74,
+          "end": 83
+        }
+      ],
+      "title": "",
+      "id": "23817"
+    },
+    {
+      "type": "highlight",
+      "description": "`get_user_balance` builds a composite key (214-217) and returns an empty balance when absent (221-224). The `extend_ttl` call bumps rent so active users never expire.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 213,
+          "end": 228
+        }
+      ],
+      "title": "",
+      "id": "23818"
+    },
+    {
+      "type": "highlight",
+      "description": "`get_pool_balance` mirrors the user path but uses a simple `Address` key. Both helpers share the same `TTL` logic, keeping pool entries alive as long as the contract is in use.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 251,
+          "end": 268
+        }
+      ],
+      "title": "",
+      "id": "23819"
+    },
+    {
+      "type": "textOnly",
+      "description": "With these **structs**, **constants**, and **storage keys** in mind you can follow any **backstop algorithm**—the code always starts by loading `PoolBalance` or `UserBalance`, works in **shares**/**tokens** via the **helpers**, and finally writes the updated value back through the **storage layer**.",
+      "title": "",
+      "id": "23820"
+    }
+  ]
+}

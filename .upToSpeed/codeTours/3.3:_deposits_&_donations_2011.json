@@ -1,0 +1,137 @@
+{
+  "title": "3.3: Deposits & Donations",
+  "id": "v/WhtaEbwMCYYhqo9DL0iZ11SVAzofjqKlZurz3uRgI=",
+  "originalId": 2011,
+  "position": 9,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Follow the **happy-path** that moves fresh backstop tokens into the system. Each stop is reinforced by the actual code so an auditor can confirm how balances and shares change.",
+      "title": "",
+      "id": "23851"
+    },
+    {
+      "type": "highlight",
+      "description": "The journey starts in `execute_deposit`, invoked by the public `BackstopContract::deposit` method. Line 9 immediately calls `require_nonnegative`, blocking negative requests before any state is touched.",
+      "file": "backstop/src/backstop/deposit.rs",
+      "highlight": [
+        {
+          "start": 7,
+          "end": 10
+        }
+      ],
+      "title": "",
+      "id": "23852"
+    },
+    {
+      "type": "highlight",
+      "description": "When the pool’s share supply is still zero we must prove the address really came from `PoolFactory`.  A failing check aborts the `deposit`, guaranteeing only registered pools receive tokens.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 93,
+          "end": 99
+        }
+      ],
+      "title": "",
+      "id": "23853"
+    },
+    {
+      "type": "highlight",
+      "description": "Pool and user balances are loaded. Before minting any new shares we settle pending **BLND** rewards with `emissions::update_emissions` so that everyone’s baseline is accurate (reward logic is explored later).",
+      "file": "backstop/src/backstop/deposit.rs",
+      "highlight": [
+        {
+          "start": 13,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "23854"
+    },
+    {
+      "type": "highlight",
+      "description": "Real tokens now move on-chain.  The `SEP-41 TokenClient` pulls `amount` from the user and credits the backstop contract, giving the module custody of the funds.",
+      "file": "backstop/src/backstop/deposit.rs",
+      "highlight": [
+        {
+          "start": 19,
+          "end": 20
+        }
+      ],
+      "title": "",
+      "id": "23855"
+    },
+    {
+      "type": "highlight",
+      "description": "**Share math.**  `convert_to_shares` decides how many new pool shares `amount` deserves based on existing ratios, safely handling first deposits and empty pools.  Those shares are added to both the global `PoolBalance` and the individual `UserBalance`.",
+      "file": "backstop/src/backstop/deposit.rs",
+      "highlight": [
+        {
+          "start": 22,
+          "end": 27
+        }
+      ],
+      "title": "",
+      "id": "23856"
+    },
+    {
+      "type": "highlight",
+      "description": "Updated structs are written back to persistent storage with `set_pool_balance` / `set_user_balance`.  At this point the ledger reflects the larger token pot and the freshly minted shares.",
+      "file": "backstop/src/backstop/deposit.rs",
+      "highlight": [
+        {
+          "start": 29,
+          "end": 30
+        }
+      ],
+      "title": "",
+      "id": "23857"
+    },
+    {
+      "type": "highlight",
+      "description": "Contrast: `execute_donate` lets the pool itself top-up tokens.  The same guards apply, but line 40 deposits `amount` tokens while minting **zero** shares, increasing liquidity without diluting depositors.",
+      "file": "backstop/src/backstop/fund_management.rs",
+      "highlight": [
+        {
+          "start": 23,
+          "end": 41
+        }
+      ],
+      "title": "",
+      "id": "23858"
+    },
+    {
+      "type": "highlight",
+      "description": "Successful deposits finish by emitting a `BackstopEvents::deposit` event that records both the token amount and shares minted — a tamper-proof audit trail.",
+      "file": "backstop/src/events.rs",
+      "highlight": [
+        {
+          "start": 16,
+          "end": 26
+        }
+      ],
+      "title": "",
+      "id": "23859"
+    },
+    {
+      "type": "highlight",
+      "description": "Donations produce their own `BackstopEvents::donate` event, logging the pure token top-up (shares are unchanged so none are included).",
+      "file": "backstop/src/events.rs",
+      "highlight": [
+        {
+          "start": 161,
+          "end": 172
+        }
+      ],
+      "title": "",
+      "id": "23860"
+    },
+    {
+      "type": "textOnly",
+      "description": "Summary: `execute_deposit` increases `pool.tokens`, `pool.shares` and `user.shares`; `execute_donate` only raises `pool.tokens`. Guards ensure valid pools and non-negative amounts, emissions are settled first, tokens are transferred, shares minted, state persisted, and events lock the evidence on-chain.",
+      "title": "",
+      "id": "23861"
+    }
+  ]
+}

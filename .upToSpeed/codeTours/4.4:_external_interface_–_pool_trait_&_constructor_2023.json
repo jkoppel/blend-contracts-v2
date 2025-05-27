@@ -1,0 +1,137 @@
+{
+  "title": "4.4: External Interface – Pool Trait & Constructor",
+  "id": "Nj8CBQ9DPQv82rfA35WLEYI5GOZxJ+xVTupDjgg/B9k=",
+  "originalId": 2023,
+  "position": 17,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "This tour focuses on the external surface of the pool contract.  We scroll through the `Pool` trait, group the calls an outsider can reach, then inspect the constructor and the repeating call pattern that every mutable entry-point follows.",
+      "title": "",
+      "id": "23986"
+    },
+    {
+      "type": "highlight",
+      "description": "The first block of the trait is about administrative control. Only the current admin can call `propose_admin`, and only the proposed address can `accept_admin`, enabling a safe two-step handover.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 19,
+          "end": 37
+        }
+      ],
+      "title": "",
+      "id": "23987"
+    },
+    {
+      "type": "highlight",
+      "description": "Next comes reserve & pool configuration.  `update_pool` tweaks global limits, while `queue_set_reserve`, `cancel_set_reserve`, and `set_reserve` manage individual reserves.  Getter helpers sit here as well so callers can read back the live state.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 38,
+          "end": 102
+        }
+      ],
+      "title": "",
+      "id": "23988"
+    },
+    {
+      "type": "highlight",
+      "description": "The core user-facing actions are grouped together.  `submit`, `submit_with_allowance`, and `flash_loan` all mutate positions, differing only in how tokens are sourced (direct transfer, `transfer_from`, or an embedded flash-loan).",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 103,
+          "end": 165
+        }
+      ],
+      "title": "",
+      "id": "23989"
+    },
+    {
+      "type": "highlight",
+      "description": "**Emission management** gets its own section. Callers can gulp newly accrued BLND, change how emissions are split, claim rewards, or query current emission data.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 210,
+          "end": 264
+        }
+      ],
+      "title": "",
+      "id": "23990"
+    },
+    {
+      "type": "highlight",
+      "description": "The final block serves liquidations. Creating, reading, deleting auctions and pushing bad debt resolution all live here so external keepers can interact.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 265,
+          "end": 322
+        }
+      ],
+      "title": "",
+      "id": "23991"
+    },
+    {
+      "type": "highlight",
+      "description": "The constructor’s doc-comment spells out responsibility.  The deployer chooses business parameters (admin, name, oracle, limits) while the PoolFactory injects module addresses (`backstop_id`, `blnd_id`).",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 324,
+          "end": 340
+        }
+      ],
+      "title": "",
+      "id": "23992"
+    },
+    {
+      "type": "highlight",
+      "description": "**Implementation is intentionally thin**: after `admin.require_auth()` it forwards every argument to `pool::execute_initialize`, keeping logic out of the interface layer.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 340,
+          "end": 364
+        }
+      ],
+      "title": "",
+      "id": "23993"
+    },
+    {
+      "type": "highlight",
+      "description": "`update_pool` shows the common pattern – first `storage::extend_instance`, then an auth check, then a `pool::execute_*` helper, followed by an event emission.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 392,
+          "end": 400
+        }
+      ],
+      "title": "",
+      "id": "23994"
+    },
+    {
+      "type": "highlight",
+      "description": "`submit` mirrors the exact same structure, demonstrating how every mutable call follows `extend-auth-delegate` for consistency and auditability.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 459,
+          "end": 466
+        }
+      ],
+      "title": "",
+      "id": "23995"
+    },
+    {
+      "type": "textOnly",
+      "description": "Across all externally callable functions the contract keeps the surface small: `authenticate`, `extend storage`, `delegate to a helper`, `emit an event`. That pattern keeps heavy business logic isolated while outsiders interact through a predictable, easy-to-review façade.",
+      "title": "",
+      "id": "23996"
+    }
+  ]
+}

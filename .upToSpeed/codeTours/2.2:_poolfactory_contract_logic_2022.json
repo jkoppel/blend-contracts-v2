@@ -1,0 +1,137 @@
+{
+  "title": "2.2: PoolFactory Contract Logic",
+  "id": "n+oTwZAOLXPOxS6Hk89myxUG8+ej0cvpuFgl2k2klbA=",
+  "originalId": 2022,
+  "position": 3,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Our walkthrough focuses on the public and internal entry-points that the pool-factory exposes for deploying and recognising pools. Everything we look at lives in `pool_factory.rs` unless otherwise noted.",
+      "title": "",
+      "id": "23931"
+    },
+    {
+      "type": "highlight",
+      "description": "The `PoolFactory` trait is the outward-facing surface. It offers only two calls:\n- `deploy` – spins up a new lending-pool contract and hands back its address.\n- `is_pool` – answers whether a given address originated from this factory.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 16,
+          "end": 46
+        }
+      ],
+      "title": "",
+      "id": "23932"
+    },
+    {
+      "type": "highlight",
+      "description": "`__constructor` runs once at factory instantiation. It persists a `PoolInitMeta` struct – containing the pool’s `Wasm` hash plus backstop-related addresses – so every later deployment can read it.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 50,
+          "end": 56
+        }
+      ],
+      "title": "",
+      "id": "23933"
+    },
+    {
+      "type": "highlight",
+      "description": "`SCALAR_7` equals `1_0000000` (`10^7`). Rates handled by the factory are fixed-point numbers with seven decimal places, so comparing against `SCALAR_7` is equivalent to checking a value against `1.0`.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 11,
+          "end": 13
+        }
+      ],
+      "title": "",
+      "id": "23934"
+    },
+    {
+      "type": "highlight",
+      "description": "deploy performs these three operations:\n1. `admin.require_auth()` – only the designated admin may launch a pool.\n2. `storage::extend_instance()` – bumps contract rent so metadata never expires.\n3. It fetches the cached PoolInitMeta written by **__constructor**.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 70,
+          "end": 74
+        }
+      ],
+      "title": "",
+      "id": "23935"
+    },
+    {
+      "type": "highlight",
+      "description": "Parameter guards follow:\n- `backstop_take_rate` must lie in [0,1) so it must be < `SCALAR_7`.\n- `max_positions` must be between 2 and 60 (a pool can have at most 30 reserves → 60 positions).\n- `min_collateral` may not be negative.\nAny violation triggers `panic_with_error` using `PoolFactoryError::InvalidPoolInitArgs`.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 75,
+          "end": 90
+        }
+      ],
+      "title": "",
+      "id": "23936"
+    },
+    {
+      "type": "highlight",
+      "description": "The salt is hardened: the admin’s address bytes are concatenated to the user-supplied salt, then hashed with `keccak256`.  This makes addresses unique per-admin and protects against pre-image attacks.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 92,
+          "end": 97
+        }
+      ],
+      "title": "",
+      "id": "23937"
+    },
+    {
+      "type": "highlight",
+      "description": "`deploy_v2` finally creates the pool contract. Arguments are:\n- `pool_init_meta.pool_hash` – identifies the **Wasm** code to deploy.\n- **Constructor params**: `admin`, `name`, `oracle`, `backstop_take_rate`, `max_positions`, `min_collateral`, plus `backstop` and `blnd_id` carried in `PoolInitMeta`.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 98,
+          "end": 110
+        }
+      ],
+      "title": "",
+      "id": "23938"
+    },
+    {
+      "type": "highlight",
+      "description": "**Post-deployment housekeeping:**\n- `storage::set_deployed` records the new address so `is_pool` can recognise it later.\n- `PoolFactoryEvents::deploy` emits an event for external indexers.\nThe freshly minted address is then returned to the caller.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 112,
+          "end": 115
+        }
+      ],
+      "title": "",
+      "id": "23939"
+    },
+    {
+      "type": "highlight",
+      "description": "`is_pool` is intentionally minimal – it bumps rent the same way and then delegates to `storage::is_deployed`, returning the boolean result unchanged.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 118,
+          "end": 121
+        }
+      ],
+      "title": "",
+      "id": "23940"
+    },
+    {
+      "type": "textOnly",
+      "description": "With these **entry-points** mapped out you now know every step the factory takes when deploying, validating, recording, and later recognising lending pools.",
+      "title": "",
+      "id": "23941"
+    }
+  ]
+}

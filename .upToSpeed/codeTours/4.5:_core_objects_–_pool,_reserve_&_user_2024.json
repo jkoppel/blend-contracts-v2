@@ -1,0 +1,169 @@
+{
+  "title": "4.5: Core Objects – Pool, Reserve & User",
+  "id": "Z5DbZJ5zDf7RWZmqyMkQP8jz9pSeXUmQRx/ixCZdcMw=",
+  "originalId": 2024,
+  "position": 18,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Operations start by constructing an in-memory `Pool` object.  It lazily loads every `Reserve` you touch during the transaction, lets helpers freely mutate those copies, and finally writes back only the reserves that actually changed.",
+      "title": "",
+      "id": "23954"
+    },
+    {
+      "type": "highlight",
+      "description": "The struct keeps three caches.\n\n- `reserves` – a `Map` from `asset` → `Reserve` that holds the working copies.\n\n- `reserves_to_store` – the list of assets that must be flushed.\n\n- `price_*` – oracle results cached for the same life-time.",
+      "file": "pool/src/pool/pool.rs",
+      "highlight": [
+        {
+          "start": 13,
+          "end": 19
+        }
+      ],
+      "title": "",
+      "id": "23955"
+    },
+    {
+      "type": "highlight",
+      "description": "`load()` is called once per entry-point. It fetches `PoolConfig` from storage, then starts with completely empty caches so every call works on fresh data.",
+      "file": "pool/src/pool/pool.rs",
+      "highlight": [
+        {
+          "start": 23,
+          "end": 32
+        }
+      ],
+      "title": "",
+      "id": "23956"
+    },
+    {
+      "type": "highlight",
+      "description": "`load_reserve()` is the gatekeeper. If the reserve is already in the `Map` it returns that copy; otherwise it executes `Reserve::load` (which may accrue interest). When `store == true` the asset is added to `reserves_to_store` so it will be persisted later.",
+      "file": "pool/src/pool/pool.rs",
+      "highlight": [
+        {
+          "start": 40,
+          "end": 50
+        }
+      ],
+      "title": "",
+      "id": "23957"
+    },
+    {
+      "type": "highlight",
+      "description": "After a helper mutates the object it calls `cache_reserve()`, replacing (or inserting) the working copy inside the `Map`.",
+      "file": "pool/src/pool/pool.rs",
+      "highlight": [
+        {
+          "start": 52,
+          "end": 58
+        }
+      ],
+      "title": "",
+      "id": "23958"
+    },
+    {
+      "type": "highlight",
+      "description": "`store_cached_reserves()` is invoked once before the contract returns. It walks the `reserved_to_store` list, retrieves the final cached copy for each asset, and calls `Reserve::store`. Trying to flush an asset that was never cached triggers a panic – a handy safety net.",
+      "file": "pool/src/pool/pool.rs",
+      "highlight": [
+        {
+          "start": 60,
+          "end": 69
+        }
+      ],
+      "title": "",
+      "id": "23959"
+    },
+    {
+      "type": "textOnly",
+      "description": "With those four small methods the **façade** guarantees each `Reserve` is loaded at most once, can be mutated any number of times, and is persisted exactly once.",
+      "title": "",
+      "id": "23960"
+    },
+    {
+      "type": "highlight",
+      "description": "`Reserve::load` pulls metadata from storage, builds the **struct**, then exits early if the reserve has already been updated in the current ledger tick.",
+      "file": "pool/src/pool/reserve.rs",
+      "highlight": [
+        {
+          "start": 35,
+          "end": 45
+        }
+      ],
+      "title": "",
+      "id": "23961"
+    },
+    {
+      "type": "highlight",
+      "description": "If time advanced, it calculates **utilization**, derives **interest accrual**, updates **rates**, **backstop credit** and `last_time` before returning the fully updated `Reserve` to the caller.",
+      "file": "pool/src/pool/reserve.rs",
+      "highlight": [
+        {
+          "start": 55,
+          "end": 76
+        }
+      ],
+      "title": "",
+      "id": "23962"
+    },
+    {
+      "type": "highlight",
+      "description": "Helpers rely on two utilisation guards to keep the pool healthy: one enforces the reserve-specific max utilization, the other simply enforces **“below 100 %”**.",
+      "file": "pool/src/pool/reserve.rs",
+      "highlight": [
+        {
+          "start": 126,
+          "end": 136
+        }
+      ],
+      "title": "",
+      "id": "23963"
+    },
+    {
+      "type": "highlight",
+      "description": "Conversion helpers translate between underlying asset amounts and share tokens, rounding up or down as required: `to_d_token_up`/`down` and `to_b_token_up`/`down`.",
+      "file": "pool/src/pool/reserve.rs",
+      "highlight": [
+        {
+          "start": 210,
+          "end": 235
+        }
+      ],
+      "title": "",
+      "id": "23964"
+    },
+    {
+      "type": "highlight",
+      "description": "**Positions** is nothing more than three `Map<u32,i128>` fields keyed by reserve index: liabilities, collateral, and supply.",
+      "file": "pool/src/pool/user.rs",
+      "highlight": [
+        {
+          "start": 11,
+          "end": 15
+        }
+      ],
+      "title": "",
+      "id": "23965"
+    },
+    {
+      "type": "highlight",
+      "description": "User wraps an address plus **Positions**.  `load()` and `store()` delegate to storage, while the many add/remove helpers first obtain a **Reserve** through `Pool::load_reserve`, mutate both structures, then cache the reserve.  Flushing is still the `Pool`’s job.",
+      "file": "pool/src/pool/user.rs",
+      "highlight": [
+        {
+          "start": 38,
+          "end": 56
+        }
+      ],
+      "title": "",
+      "id": "23966"
+    },
+    {
+      "type": "textOnly",
+      "description": "Putting everything together: an **entry-point** builds `Pool` → helpers fetch and cache reserves → work is done in memory → `store_cached_reserves` persists only what changed to implement the transactional model.",
+      "title": "",
+      "id": "23967"
+    }
+  ]
+}

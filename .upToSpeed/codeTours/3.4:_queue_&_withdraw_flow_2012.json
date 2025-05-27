@@ -1,0 +1,202 @@
+{
+  "title": "3.4: Queue & Withdraw Flow",
+  "id": "+rIKh7FZwaxmlnzbd2Pi7+pWZm98FU5E9uzsJeQZf8U=",
+  "originalId": 2012,
+  "position": 10,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Follow one withdrawal from the moment it is queued until tokens reach the user.  Along the way we will see every guard-rail that protects balances and keeps accounting coherent.",
+      "title": "",
+      "id": "23908"
+    },
+    {
+      "type": "highlight",
+      "description": "The queue entry is created by `execute_queue_withdrawal()`. After refreshing emissions (line 21) it:  \u0014 moves shares from the user into a `Q4W` record (24)  \u0014 mirrors the same amount at pool scope (25).  Nothing leaves the contract yet \t6 only internal bookkeeping changes.",
+      "file": "backstop/src/backstop/withdrawal.rs",
+      "highlight": [
+        {
+          "start": 18,
+          "end": 26
+        }
+      ],
+      "title": "",
+      "id": "23909"
+    },
+    {
+      "type": "highlight",
+      "description": "`queue_shares_for_withdrawal()` enforces two limits before creating the record:\n\n- the caller still owns enough free shares (54-56)\n- no more than `MAX_Q4W_SIZE` outstanding requests (57-59)\n\nThe entry's expiry is now + 17 days (65) – this is the **mandatory cool-down**.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 53,
+          "end": 68
+        }
+      ],
+      "title": "",
+      "id": "23910"
+    },
+    {
+      "type": "highlight",
+      "description": "Those limits are constants embedded in the contract – 20 active entries and a 17-day lock.",
+      "file": "backstop/src/constants.rs",
+      "highlight": [
+        {
+          "start": 10,
+          "end": 14
+        }
+      ],
+      "title": "",
+      "id": "23911"
+    },
+    {
+      "type": "highlight",
+      "description": "At pool level the same share amount is added to `q4w` (line 202).  This global counter is later used to guard liquidity and pricing.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 200,
+          "end": 204
+        }
+      ],
+      "title": "",
+      "id": "23912"
+    },
+    {
+      "type": "highlight",
+      "description": "If a user changes their mind early they call `execute_dequeue_withdrawal()`. The function refreshes emissions again (41) and then:\n- removes from the newest `Q4W` entries first (43)\n- restores shares to the liquid balance (44)\n- shrinks the pool's `q4w` total (45).",
+      "file": "backstop/src/backstop/withdrawal.rs",
+      "highlight": [
+        {
+          "start": 40,
+          "end": 46
+        }
+      ],
+      "title": "",
+      "id": "23913"
+    },
+    {
+      "type": "highlight",
+      "description": "`dequeue_shares()` is **LIFO** – it pops from the back of the vector (122) until the request is satisfied.  Any attempt to remove more shares than exist leaves left_to_dequeue > 0 and triggers `BalanceError` at 139-140.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 117,
+          "end": 136
+        }
+      ],
+      "title": "",
+      "id": "23914"
+    },
+    {
+      "type": "highlight",
+      "description": "`withdraw_shares()` consumes matured entries in FIFO order. It insists the front entry is past its expiry (84-85) – otherwise `NotExpired` is thrown (100-101). The loop keeps walking until the exact amount has been removed.",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 78,
+          "end": 101
+        }
+      ],
+      "title": "",
+      "id": "23915"
+    },
+    {
+      "type": "highlight",
+      "description": "`execute_withdraw()` begins with one more safety check: the liquidity pool must show the backstop has no liabilities (55-59). After `withdraw_shares()` burns the user’s `Q4W shares` (64), `convert_to_tokens()` computes their token entitlement (66) and `PoolBalance.withdraw()` atomically burns both shares and tokens (70).",
+      "file": "backstop/src/backstop/withdrawal.rs",
+      "highlight": [
+        {
+          "start": 55,
+          "end": 70
+        }
+      ],
+      "title": "",
+      "id": "23916"
+    },
+    {
+      "type": "highlight",
+      "description": "`convert_to_tokens()` is pure ratio math: `tokens = shares × pool.tokens ÷ pool.shares`. If the caller withdraws exactly all shares the shortcut at 159-161 avoids rounding loss.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 151,
+          "end": 166
+        }
+      ],
+      "title": "",
+      "id": "23917"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolBalance.withdraw()` guards against over-withdrawal: any attempt to exceed tokens, shares, or the total queued amount panics with **InsufficientFunds** (189-191).",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 188,
+          "end": 195
+        }
+      ],
+      "title": "",
+      "id": "23918"
+    },
+    {
+      "type": "highlight",
+      "description": "Only after all internal state is consistent does the `contract` transfer tokens back to the user.",
+      "file": "backstop/src/backstop/withdrawal.rs",
+      "highlight": [
+        {
+          "start": 75,
+          "end": 77
+        }
+      ],
+      "title": "",
+      "id": "23919"
+    },
+    {
+      "type": "highlight",
+      "description": "`queue_withdrawal` events capture amount and expiration so off-chain UIs can show pending exits.",
+      "file": "backstop/src/events.rs",
+      "highlight": [
+        {
+          "start": 38,
+          "end": 46
+        }
+      ],
+      "title": "",
+      "id": "23920"
+    },
+    {
+      "type": "highlight",
+      "description": "`dequeue_withdrawal` notifies observers when a request is cancelled or reduced.",
+      "file": "backstop/src/events.rs",
+      "highlight": [
+        {
+          "start": 58,
+          "end": 60
+        }
+      ],
+      "title": "",
+      "id": "23921"
+    },
+    {
+      "type": "highlight",
+      "description": "`withdraw` broadcasts the final **burn** of **shares** and exact **tokens** returned.",
+      "file": "backstop/src/events.rs",
+      "highlight": [
+        {
+          "start": 73,
+          "end": 75
+        }
+      ],
+      "title": "",
+      "id": "23922"
+    },
+    {
+      "type": "textOnly",
+      "description": "**Key points to remember:**\n\n- Shares leave the `liquid balance` the moment they are queued, eliminating **double-spend risk**.\n- Users may cancel early, but only the newest entries and only if they still have them.\n- After 17 days the oldest entries become withdrawable; touching an un-expired entry is impossible.\n- The pool’s `convert_to_tokens()` ties payouts to real liquidity, while `PoolBalance.withdraw()` and the liability check guarantee withdrawals never create bad debt.",
+      "title": "",
+      "id": "23923"
+    }
+  ]
+}

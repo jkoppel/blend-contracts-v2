@@ -1,0 +1,72 @@
+{
+  "title": "2.4: PoolFactory Errors & Events",
+  "id": "GWRPnvO+YQp2XImFPBUiHkXzcc9GuP894WHgPBB9CjE=",
+  "originalId": 2009,
+  "position": 5,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "A brief tour showing how tiny helper modules for errors and events keep the pool-factory contract focused purely on business rules.",
+      "title": "",
+      "id": "23797"
+    },
+    {
+      "type": "highlight",
+      "description": "The `#[contracterror]` derive (line 3) and `#[repr(u32)]` (line 5) turn every variant of `PoolFactoryError` into a Soroban-compatible numeric code. Values `1–3` belong to the shared \"common\" range, while pool-factory-specific problems begin at `1300`, keeping domain errors clearly segregated.",
+      "file": "pool-factory/src/errors.rs",
+      "highlight": [
+        {
+          "start": 3,
+          "end": 15
+        }
+      ],
+      "title": "",
+      "id": "23798"
+    },
+    {
+      "type": "highlight",
+      "description": "`InvalidPoolInitArgs` (lines 77, 83 & 89) is reused for three separate validations.  By routing many checks through one variant, callers only learn that *some* parameter set was invalid, so they never depend on which individual test ran first.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 75,
+          "end": 90
+        }
+      ],
+      "title": "",
+      "id": "23799"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolFactoryEvents::deploy` encapsulates event emission. It builds a single-element topics tuple `(Symbol(\"deploy\"),)` (line 14) and publishes the new pool address as data via `Env::events()` (line 15), hiding the low-level API details from callers.",
+      "file": "pool-factory/src/events.rs",
+      "highlight": [
+        {
+          "start": 5,
+          "end": 16
+        }
+      ],
+      "title": "",
+      "id": "23800"
+    },
+    {
+      "type": "highlight",
+      "description": "Back in the contract’s core logic, the `deploy` function simply calls the `helper` (line 114); it never touches the **events API** directly.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 112,
+          "end": 115
+        }
+      ],
+      "title": "",
+      "id": "23801"
+    },
+    {
+      "type": "textOnly",
+      "description": "**Centralising boilerplate** for **errors and events** in micro-libraries leaves the **main contract** concise, readable, and squarely focused on business rules.",
+      "title": "",
+      "id": "23802"
+    }
+  ]
+}

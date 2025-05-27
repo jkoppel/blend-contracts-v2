@@ -1,0 +1,98 @@
+{
+  "title": "4.13: Backstop Dependency Facade",
+  "id": "3Ql8AG7Axmgh1QUvCXrUv2ZQ2vwZUhm46tkr1EDMEjQ=",
+  "originalId": 2032,
+  "position": 26,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Pool needs to invoke `Backstop` while both crates stay independent. The pattern is to depend on `Backstop`’s compiled `WASM` only, let `Soroban` generate a **façade client**, and use that client everywhere. Follow the flow below.",
+      "title": "",
+      "id": "24060"
+    },
+    {
+      "type": "highlight",
+      "description": "`contractimport!` pulls in the compiled byte-code and autogenerates a `Client` that forwards every call through the `Env` API.  No Rust source from Backstop is compiled here.",
+      "file": "pool/src/dependencies/backstop.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 4
+        }
+      ],
+      "title": "",
+      "id": "24061"
+    },
+    {
+      "type": "highlight",
+      "description": "The generated type is re-exported as `BackstopClient`, together with the single data structure `Pool` cares about. That is the **only** Backstop-facing surface exposed to the rest of the crate.",
+      "file": "pool/src/dependencies/mod.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 2
+        }
+      ],
+      "title": "",
+      "id": "24062"
+    },
+    {
+      "type": "highlight",
+      "description": "On `Backstop`’s side the `#[contractclient]` macro defines the public ABI. The code generator that handled `contractimport!` read this trait and built a byte-identical `BackstopClient`, giving Pool type-checked calls without a direct crate dependency.",
+      "file": "backstop/src/contract.rs",
+      "highlight": [
+        {
+          "start": 16,
+          "end": 23
+        }
+      ],
+      "title": "",
+      "id": "24063"
+    },
+    {
+      "type": "highlight",
+      "description": "The pattern is symmetrical. Backstop only needs the `get_positions` helper, so it describes a **minimal** **PoolClient** trait. Because just the trait is compiled, Backstop never pulls in the full Pool crate and the dependency graph stays acyclic.",
+      "file": "backstop/src/dependencies/pool.rs",
+      "highlight": [
+        {
+          "start": 14,
+          "end": 22
+        }
+      ],
+      "title": "",
+      "id": "24064"
+    },
+    {
+      "type": "highlight",
+      "description": "Production logic treats the façade like a local object – build a client from the contract address and invoke strongly-typed methods such as `backstop_token` and `pool_data`.",
+      "file": "pool/src/auctions/backstop_interest_auction.rs",
+      "highlight": [
+        {
+          "start": 69,
+          "end": 78
+        }
+      ],
+      "title": "",
+      "id": "24065"
+    },
+    {
+      "type": "highlight",
+      "description": "Unit tests register an in-memory `Backstop` contract, then return the same `BackstopClient`.  The real code is untouched; tests simply talk to a stub deployed at run-time.",
+      "file": "pool/src/testutils.rs",
+      "highlight": [
+        {
+          "start": 116,
+          "end": 143
+        }
+      ],
+      "title": "",
+      "id": "24066"
+    },
+    {
+      "type": "textOnly",
+      "description": "By replacing source dependencies with `WASM-level links` and keeping each `trait` razor-thin, the two `crates` avoid circular references and re-compile only their own code – a clean, fast build with type safety preserved.",
+      "title": "",
+      "id": "24067"
+    }
+  ]
+}

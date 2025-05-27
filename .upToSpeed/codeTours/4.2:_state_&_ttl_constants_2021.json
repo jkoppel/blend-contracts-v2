@@ -1,0 +1,98 @@
+{
+  "title": "4.2: State & TTL Constants",
+  "id": "iTH5cxwGQprH70io1yd7w9V7ChaCbGXFerDFqtcRR88=",
+  "originalId": 2021,
+  "position": 15,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "This walkthrough inspects the `pool module`’s storage layer to see what data the contract keeps on-ledger, how long it survives, and how the code prevents key collisions.",
+      "title": "",
+      "id": "23978"
+    },
+    {
+      "type": "highlight",
+      "description": "Three (`threshold / bump`) pairs create distinct TTL horizons.\n- `lines 12-14` – instance-level items (admin, tokens) are refreshed every ≈ 31 days.\n- `lines 15-16` – shared pool-wide records live ≈ 46 days.\n- `lines 18-19` – user-specific entries live ≈ 120 days.\nA single-day block count (`line 10`) makes the math explicit.",
+      "file": "pool/src/storage.rs",
+      "highlight": [
+        {
+          "start": 8,
+          "end": 20
+        }
+      ],
+      "title": "",
+      "id": "23979"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolConfig` is written once to instance storage and never mutates. The five fields wire the pool to an oracle, enforce minimum collateral, direct a slice of interest to the backstop, flag the pool’s status, and cap the number of open positions per address.",
+      "file": "pool/src/storage.rs",
+      "highlight": [
+        {
+          "start": 26,
+          "end": 32
+        }
+      ],
+      "title": "",
+      "id": "23980"
+    },
+    {
+      "type": "highlight",
+      "description": "`ReserveConfig` lives under `PoolDataKey::ResConfig(asset)` and is also immutable. These twelve numbers set risk parameters, utilisation/interest-rate curve, supply cap and an enabled flag – all governance controlled, never touched by runtime logic.",
+      "file": "pool/src/storage.rs",
+      "highlight": [
+        {
+          "start": 45,
+          "end": 59
+        }
+      ],
+      "title": "",
+      "id": "23981"
+    },
+    {
+      "type": "highlight",
+      "description": "`ReserveData`, stored under `PoolDataKey::ResData(asset)`, holds the values that change as users interact: live conversion rates, token supplies, backstop credit and the last update timestamp.",
+      "file": "pool/src/storage.rs",
+      "highlight": [
+        {
+          "start": 71,
+          "end": 79
+        }
+      ],
+      "title": "",
+      "id": "23982"
+    },
+    {
+      "type": "highlight",
+      "description": "The `PoolDataKey` enum provides a type-safe way to organize non-instance data in the ledger. By using structured enum variants instead of raw strings, it ensures that different types of pool data are stored with guaranteed unique keys, preventing any possibility of accidental collisions in the storage space.",
+      "file": "pool/src/storage.rs",
+      "highlight": [
+        {
+          "start": 124,
+          "end": 141
+        }
+      ],
+      "title": "",
+      "id": "23983"
+    },
+    {
+      "type": "highlight",
+      "description": "Two helpers make every caller respect the TTL policy:\n- `extend_instance` (146-150) bumps the contract's own instance record.\n- `get_persistent_default` (153-168) fetches a persistent entry, refreshes its TTL, or materialises a default when absent. All higher-level getters delegate here, so the horizon rules are applied uniformly.",
+      "file": "pool/src/storage.rs",
+      "highlight": [
+        {
+          "start": 145,
+          "end": 168
+        }
+      ],
+      "title": "",
+      "id": "23984"
+    },
+    {
+      "type": "textOnly",
+      "description": "With explicit **TTL** horizons, immutable `configs` separated from mutable data, and collision-proof `keys`, the pool’s on-ledger footprint remains predictable, durable and safe.",
+      "title": "",
+      "id": "23985"
+    }
+  ]
+}

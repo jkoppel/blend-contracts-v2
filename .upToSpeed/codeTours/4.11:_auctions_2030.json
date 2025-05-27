@@ -1,0 +1,137 @@
+{
+  "title": "4.11: Auctions",
+  "id": "boxIjJ8wrRlJqhfem9xaeR+tsyRuLdxdzUfv869OpE4=",
+  "originalId": 2030,
+  "position": 24,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Three independent processes in the pool—user liquidations, back-stop bad-debt sales, and periodic interest recycling—share one **Dutch-auction engine**.  All timing, price movement, storage and settlement live in `auctions/auction.rs`; the specialised modules only prepare an `AuctionData` payload and hand it back to that engine.",
+      "title": "",
+      "id": "24034"
+    },
+    {
+      "type": "highlight",
+      "description": "`AuctionData` is the single ledger entry for every auction.\n\n- `bid` – what the filler must pay.\n- `lot` – what the filler receives.\n- `block` – ledger sequence that anchors the price schedule.",
+      "file": "pool/src/auctions/auction.rs",
+      "highlight": [
+        {
+          "start": 36,
+          "end": 58
+        }
+      ],
+      "title": "",
+      "id": "24035"
+    },
+    {
+      "type": "highlight",
+      "description": "Only a `u32` discriminant is stored; `AuctionType::from_u32` converts it back and drives the engine towards the correct builder or filler.",
+      "file": "pool/src/auctions/auction.rs",
+      "highlight": [
+        {
+          "start": 17,
+          "end": 34
+        }
+      ],
+      "title": "",
+      "id": "24036"
+    },
+    {
+      "type": "highlight",
+      "description": "`create_auction()` calls the type-specific builder, stores the resulting `AuctionData`, and schedules the sale to start on the next block (`builders set block = sequence + 1`).",
+      "file": "pool/src/auctions/auction.rs",
+      "highlight": [
+        {
+          "start": 75,
+          "end": 94
+        }
+      ],
+      "title": "",
+      "id": "24037"
+    },
+    {
+      "type": "highlight",
+      "description": "`delete_stale_auction()` enforces the 500-block rule—if `current_ledger` > `block + 500` the entry can be removed.",
+      "file": "pool/src/auctions/auction.rs",
+      "highlight": [
+        {
+          "start": 96,
+          "end": 109
+        }
+      ],
+      "title": "",
+      "id": "24038"
+    },
+    {
+      "type": "highlight",
+      "description": "`scale_auction()` validates `percent_filled` (1-100) and prepares two temporary `AuctionData` structs: one slice to fill now and one remainder to keep.",
+      "file": "pool/src/auctions/auction.rs",
+      "highlight": [
+        {
+          "start": 189,
+          "end": 199
+        }
+      ],
+      "title": "",
+      "id": "24039"
+    },
+    {
+      "type": "highlight",
+      "description": "**Block-based Dutch curve**: 0-199 blocks – bid 100 %, lot climbs 0 → 100 %.  200-399 – lot fixed 100 %, bid falls 100 → 0 %.  Step size is 0.5 % per block.  After 400 blocks the lot can be taken for free; 500 blocks later the auction is stale.",
+      "file": "pool/src/auctions/auction.rs",
+      "highlight": [
+        {
+          "start": 210,
+          "end": 226
+        }
+      ],
+      "title": "",
+      "id": "24040"
+    },
+    {
+      "type": "highlight",
+      "description": "Percent and block modifiers are applied per-asset.  bid amounts round **up** (`fixed_mul_ceil`) so the pool never receives less; lot amounts round **down** (`fixed_mul_floor`) so the filler never receives extra.",
+      "file": "pool/src/auctions/auction.rs",
+      "highlight": [
+        {
+          "start": 228,
+          "end": 257
+        }
+      ],
+      "title": "",
+      "id": "24041"
+    },
+    {
+      "type": "highlight",
+      "description": "`fill()` fetches the stored `AuctionData`, calls `scale_auction()`, dispatches the scaled slice to the specific filler, and then either deletes the record or writes back the trimmed remainder—allowing many partial fills.",
+      "file": "pool/src/auctions/auction.rs",
+      "highlight": [
+        {
+          "start": 140,
+          "end": 170
+        }
+      ],
+      "title": "",
+      "id": "24042"
+    },
+    {
+      "type": "highlight",
+      "description": "Wrappers are deliberately thin.  `user_liquidation_auction.rs` just builds `bid=dTokens` / `lot=bTokens`, sets `block = sequence+1` and hands the `AuctionData` back to the engine; `bad_debt_auction.rs` and `backstop_interest_auction.rs` do the same for their own asset mixes.",
+      "file": "pool/src/auctions/user_liquidation_auction.rs",
+      "highlight": [
+        {
+          "start": 12,
+          "end": 19
+        }
+      ],
+      "title": "",
+      "id": "24043"
+    },
+    {
+      "type": "textOnly",
+      "description": "**Recap**\n- One engine, three use-cases.\n- Price moves `0.5 %` per block: first makes collateral cheaper, then makes debt cheaper.\n- `500-block` garbage-collection cap.\n- Any fill size `1-100 %` is allowed; rounding rules block precision exploits.\n- Wrappers do nothing but craft the initial `AuctionData` and supply the **enum discriminant**.",
+      "title": "",
+      "id": "24044"
+    }
+  ]
+}

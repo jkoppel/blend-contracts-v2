@@ -1,0 +1,85 @@
+{
+  "title": "4.1: Pool: Overview",
+  "id": "6UCHFDzGeN/HwLYoqxhf/ttCNzIvghWullbCleP8UL0=",
+  "originalId": 2019,
+  "position": 14,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "The tour starts inside the `Pool` crate and works outward, so you can see how every public handle ties back to a concrete chunk of logic.",
+      "title": "",
+      "id": "23924"
+    },
+    {
+      "type": "highlight",
+      "description": "The crate is sliced into domains by these `mod` declarations. Each name becomes a folder ‑ auctions, emissions, storage, and so on ‑ keeping unrelated logic in its own tree.",
+      "file": "pool/src/lib.rs",
+      "highlight": [
+        {
+          "start": 9,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "23925"
+    },
+    {
+      "type": "highlight",
+      "description": "Just below, the `pub use …` list chooses the external surface. For every domain folder you just saw, the most useful types and errors are re-exported so callers can simply `use pool::*`.",
+      "file": "pool/src/lib.rs",
+      "highlight": [
+        {
+          "start": 21,
+          "end": 29
+        }
+      ],
+      "title": "",
+      "id": "23926"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolContract` is the Soroban object that lives on-chain. The adjacent `Pool` trait is its ABI: every function here becomes an invocable contract method.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 13,
+          "end": 22
+        }
+      ],
+      "title": "",
+      "id": "23927"
+    },
+    {
+      "type": "highlight",
+      "description": "Persistent state lives in `storage.rs`. Skim the catalogue of structs – `PoolConfig`, `ReserveConfig`, `ReserveData`, **emission records**, **auction keys** – each one maps directly to a ledger entry.",
+      "file": "pool/src/storage.rs",
+      "highlight": [
+        {
+          "start": 23,
+          "end": 99
+        }
+      ],
+      "title": "",
+      "id": "23928"
+    },
+    {
+      "type": "highlight",
+      "description": "Inside the engine room (`pool/`), the logic is further decomposed: `actions`, `bad_debt`, `health_factor`, `reserve`, `status`, `gulp`, and more.  Think of each as a self-contained subsystem that the high-level calls in `contract.rs` delegate to.",
+      "file": "pool/src/pool/mod.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 39
+        }
+      ],
+      "title": "",
+      "id": "23929"
+    },
+    {
+      "type": "textOnly",
+      "description": "Sibling crates `auctions/`, `emissions/`, and `dependencies/` sit alongside `pool/`. Auctions handle liquidations, emissions drip `BLND` incentives, and dependencies wrap external contracts – each will get its own dedicated walkthrough later.",
+      "title": "",
+      "id": "23930"
+    }
+  ]
+}

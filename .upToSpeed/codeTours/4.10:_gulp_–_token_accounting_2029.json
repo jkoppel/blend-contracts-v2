@@ -1,0 +1,85 @@
+{
+  "title": "4.10: Gulp – Token Accounting",
+  "id": "iAqg+mWevIcddXVYd23M/ojmItAFd+i+t0G+p7PTBnE=",
+  "originalId": 2029,
+  "position": 23,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "When a rebasing asset increases balances or someone transfers tokens directly, the pool’s on-chain balance becomes larger than what the internal accounting (b- and d-token ledgers) expects.  The `gulp` flow converts that invisible surplus into protocol-owned backstop credit so nothing is lost.",
+      "title": "",
+      "id": "23997"
+    },
+    {
+      "type": "highlight",
+      "description": "Execution begins by ensuring borrowing is still allowed (22) and then measuring the surplus.  `pool_token_balance` is the live balance held by the contract, while `reserve_token_balance` is what the reserve *should* hold according to its books (total supply + backstop credit – liabilities).  The difference `token_balance_delta` captures any stray tokens.",
+      "file": "pool/src/pool/gulp.rs",
+      "highlight": [
+        {
+          "start": 21,
+          "end": 28
+        }
+      ],
+      "title": "",
+      "id": "23998"
+    },
+    {
+      "type": "highlight",
+      "description": "If that delta is **not positive** the function returns 0 straight away—negative deltas are considered impossible and are ignored. For a positive delta the value is added to `backstop_credit` (33) and the updated reserve is stored (34) before the amount is returned.",
+      "file": "pool/src/pool/gulp.rs",
+      "highlight": [
+        {
+          "start": 29,
+          "end": 36
+        }
+      ],
+      "title": "",
+      "id": "23999"
+    },
+    {
+      "type": "highlight",
+      "description": "The public `gulp` entry-point simply delegates to `execute_gulp`, then publishes an event so indexers and off-chain systems can track the sweep.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 513,
+          "end": 518
+        }
+      ],
+      "title": "",
+      "id": "24000"
+    },
+    {
+      "type": "highlight",
+      "description": "Event schema: topic `gulp` plus the asset address, data is the `token_delta` just credited to the backstop.",
+      "file": "pool/src/events.rs",
+      "highlight": [
+        {
+          "start": 306,
+          "end": 316
+        }
+      ],
+      "title": "",
+      "id": "24001"
+    },
+    {
+      "type": "highlight",
+      "description": "`total_liabilities` and `total_supply` convert d- and b-token tallies into underlying units.  These tallies only move through explicit pool actions, so they can *decrease* only when the contract knowingly sends tokens out.  A silent balance reduction (fee-on-transfer token) is therefore unsupported, justifying why negative deltas are ignored earlier.",
+      "file": "pool/src/pool/reserve.rs",
+      "highlight": [
+        {
+          "start": 158,
+          "end": 166
+        }
+      ],
+      "title": "",
+      "id": "24002"
+    },
+    {
+      "type": "textOnly",
+      "description": "By sweeping only positive imbalances, the pool captures every stray token while preserving existing safety assumptions. The credited backstop balance can later be auctioned, ensuring surplus value benefits the protocol rather than disappearing.",
+      "title": "",
+      "id": "24003"
+    }
+  ]
+}

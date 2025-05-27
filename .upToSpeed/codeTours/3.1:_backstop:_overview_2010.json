@@ -1,0 +1,202 @@
+{
+  "title": "3.1: Backstop: Overview",
+  "id": "7bfY2OPhFsG0cPoYeR/Kmz+NLw4GBFqrChntF8MzkLk=",
+  "originalId": 2010,
+  "position": 7,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Welcome – this short guided tour gives you a bird's-eye map of the `Backstop component`. By the end you will know:\n- where every public entry-point lives\n- how helper modules are wired together\n- which structs hold pool-wide and per-user state\n- where that state is stored on-chain",
+      "title": "",
+      "id": "23868"
+    },
+    {
+      "type": "highlight",
+      "description": "The `Backstop` trait is the on-chain façade. Its methods are grouped into three domains – **Core** (lines 20-40), **Emissions** (starts line 81) and **Fund-Management** (further below) – so callers can reason about concerns quickly.",
+      "file": "backstop/src/contract.rs",
+      "highlight": [
+        {
+          "start": 18,
+          "end": 82
+        }
+      ],
+      "title": "",
+      "id": "23869"
+    },
+    {
+      "type": "highlight",
+      "description": "During deployment `__constructor` persists every address the module will ever need (tokens, factory, emitter).  Later helpers simply read from storage instead of receiving long argument lists.",
+      "file": "backstop/src/contract.rs",
+      "highlight": [
+        {
+          "start": 164,
+          "end": 198
+        }
+      ],
+      "title": "",
+      "id": "23870"
+    },
+    {
+      "type": "highlight",
+      "description": "Concrete impl methods do almost nothing except authorise, bump rent and delegate into `backstop::execute_*`, then emit an event.  This keeps the contract shell slim and auditable.",
+      "file": "backstop/src/contract.rs",
+      "highlight": [
+        {
+          "start": 204,
+          "end": 216
+        }
+      ],
+      "title": "",
+      "id": "23871"
+    },
+    {
+      "type": "highlight",
+      "description": "`backstop/mod.rs` acts as a directory index. Each logic file is declared then its public helpers are re-exported, allowing the contract to call, for example, `backstop::execute_deposit` without knowing the file path.",
+      "file": "backstop/src/backstop/mod.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "23872"
+    },
+    {
+      "type": "highlight",
+      "description": "`constants.rs` centralises every numeric limit and fixed-point scalar – useful when you meet `SCALAR_7`, `MAX_Q4W_SIZE`, or the 17-day lock timeout.",
+      "file": "backstop/src/constants.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "23873"
+    },
+    {
+      "type": "highlight",
+      "description": "`errors.rs` defines canonical error codes. Backstop-specific cases start at 1000, making them easy to spot in logs and tests.",
+      "file": "backstop/src/errors.rs",
+      "highlight": [
+        {
+          "start": 6,
+          "end": 32
+        }
+      ],
+      "title": "",
+      "id": "23874"
+    },
+    {
+      "type": "highlight",
+      "description": "`deposit.rs` exposes a single public helper – `execute_deposit`. It enforces invariants, transfers LP tokens in, mints pool shares and persists the updated balances.",
+      "file": "backstop/src/backstop/deposit.rs",
+      "highlight": [
+        {
+          "start": 7,
+          "end": 15
+        }
+      ],
+      "title": "",
+      "id": "23875"
+    },
+    {
+      "type": "highlight",
+      "description": "`withdrawal.rs` starts with `execute_queue_withdrawal`; two more helpers below handle dequeue and the final withdraw, covering the full life-cycle.",
+      "file": "backstop/src/backstop/withdrawal.rs",
+      "highlight": [
+        {
+          "start": 9,
+          "end": 17
+        }
+      ],
+      "title": "",
+      "id": "23876"
+    },
+    {
+      "type": "highlight",
+      "description": "`fund_management.rs` holds pool-only helpers: `execute_draw` lets a pool pull tokens out; `execute_donate` lets anyone push extra tokens in.",
+      "file": "backstop/src/backstop/fund_management.rs",
+      "highlight": [
+        {
+          "start": 7,
+          "end": 15
+        }
+      ],
+      "title": "",
+      "id": "23877"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolBackstopData` is a read-only summary returned by the `pool_data` endpoint – token counts, share supply, queued-for-withdraw percentage and an LP spot-price.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 11,
+          "end": 21
+        }
+      ],
+      "title": "",
+      "id": "23878"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolBalance` is the mutable accounting object each helper mutates.  Note the three fields: total shares, total tokens and shares currently queued for withdrawal.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 124,
+          "end": 132
+        }
+      ],
+      "title": "",
+      "id": "23879"
+    },
+    {
+      "type": "highlight",
+      "description": "Per-user state mirrors the pool: `Q4W` (a queued-withdraw record) and `UserBalance` (unlocked shares plus a `Vec<Q4W>`).",
+      "file": "backstop/src/backstop/user.rs",
+      "highlight": [
+        {
+          "start": 8,
+          "end": 22
+        }
+      ],
+      "title": "",
+      "id": "23880"
+    },
+    {
+      "type": "highlight",
+      "description": "`get_user_balance` lazily initialises a `UserBalance` for a `(pool,user)` pair and bumps its TTL so active accounts stay rent-free for ~120 days.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 208,
+          "end": 229
+        }
+      ],
+      "title": "",
+      "id": "23881"
+    },
+    {
+      "type": "highlight",
+      "description": "`get_pool_balance` does the same for per-pool `PoolBalance`, storing it under a different key but following the same helper pattern.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 250,
+          "end": 268
+        }
+      ],
+      "title": "",
+      "id": "23882"
+    },
+    {
+      "type": "textOnly",
+      "description": "You now have a mental map:\n- Contract façade → helper modules\n- Helper modules → core structs\n- Core structs → storage helpers\nLater tours can simply reference `execute_deposit`, `PoolBackstopData`, or `get_user_balance` without re-explaining the scaffolding.",
+      "title": "",
+      "id": "23883"
+    }
+  ]
+}

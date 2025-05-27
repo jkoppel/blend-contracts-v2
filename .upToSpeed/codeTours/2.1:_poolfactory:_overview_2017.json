@@ -1,0 +1,104 @@
+{
+  "title": "2.1: PoolFactory: Overview",
+  "id": "arcV8V9Ps6kOLswOB08bP+NLqoKfX/9/MWZo6nLdnK8=",
+  "originalId": 2017,
+  "position": 2,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "`PoolFactory`’s job is simple but vital: it deploys brand-new, isolated `Pool` contracts on request and then whitelists (remembers) each address so anyone can later verify the `Pool` really came from this factory.",
+      "title": "",
+      "id": "23884"
+    },
+    {
+      "type": "textOnly",
+      "description": "The `pool-factory/src` directory contains exactly six Rust source files:\n- `pool_factory.rs`\n- `storage.rs`\n- `errors.rs`\n- `events.rs`\n- `lib.rs`\n- `test.rs`",
+      "title": "",
+      "id": "23885"
+    },
+    {
+      "type": "highlight",
+      "description": "`pool_factory.rs` is the public face and brain of the component. It declares the contract wrapper and the two external calls (`deploy`, `is_pool`) where all business logic lives.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 13,
+          "end": 19
+        }
+      ],
+      "title": "",
+      "id": "23886"
+    },
+    {
+      "type": "highlight",
+      "description": "`storage.rs` defines the keys the contract persists under and the `PoolInitMeta` `struct` that stores immutable deployment parameters shared by every pool.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 13,
+          "end": 25
+        }
+      ],
+      "title": "",
+      "id": "23887"
+    },
+    {
+      "type": "highlight",
+      "description": "`errors.rs` centralises error handling. In addition to common Soroban codes it introduces `InvalidPoolInitArgs` (**code #1300**) used whenever callers supply out-of-range parameters.",
+      "file": "pool-factory/src/errors.rs",
+      "highlight": [
+        {
+          "start": 8,
+          "end": 15
+        }
+      ],
+      "title": "",
+      "id": "23888"
+    },
+    {
+      "type": "highlight",
+      "description": "`events.rs` is a tiny helper: it emits a single `deploy` event whenever a new `Pool` is launched so indexers can track `Pool` creations.",
+      "file": "pool-factory/src/events.rs",
+      "highlight": [
+        {
+          "start": 5,
+          "end": 15
+        }
+      ],
+      "title": "",
+      "id": "23889"
+    },
+    {
+      "type": "highlight",
+      "description": "`lib.rs` wires all the inner modules together and re-exports the public items, making them available with just one crate dependency.",
+      "file": "pool-factory/src/lib.rs",
+      "highlight": [
+        {
+          "start": 6,
+          "end": 14
+        }
+      ],
+      "title": "",
+      "id": "23890"
+    },
+    {
+      "type": "highlight",
+      "description": "`test.rs` supplies happy-path and guard-rail tests that prove the factory deploys `Pools` correctly and rejects bad parameters.",
+      "file": "pool-factory/src/test.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 10
+        }
+      ],
+      "title": "",
+      "id": "23891"
+    },
+    {
+      "type": "textOnly",
+      "description": "That’s the full bird’s-eye view.  Later tours can zoom into any of these files knowing exactly where each concern lives.",
+      "title": "",
+      "id": "23892"
+    }
+  ]
+}

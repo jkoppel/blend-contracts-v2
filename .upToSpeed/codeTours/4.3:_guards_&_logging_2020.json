@@ -1,0 +1,194 @@
+{
+  "title": "4.3: Guards & Logging",
+  "id": "KXzhJpTfv0qOHIeoaRIMouVfZpXvgyauNIkt8FOrZlQ=",
+  "originalId": 2020,
+  "position": 16,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Blend’s higher-level logic is glued together by three tiny modules: `error codes`, `event helpers`, and `validators`. Once you recognise their patterns the rest of the codebase becomes predictable.",
+      "title": "",
+      "id": "24017"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolError` is tagged with `#[repr(u32)]`, forcing each variant to a stable integer.  **1–12** mirror **Soroban built-ins**; pool-specific problems start at **1200**.",
+      "file": "pool/src/errors.rs",
+      "highlight": [
+        {
+          "start": 5,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "24018"
+    },
+    {
+      "type": "highlight",
+      "description": "New errors are only appended, never re-ordered – otherwise every client that hard-codes `#1207 InvalidUtilRate` would break.",
+      "file": "pool/src/errors.rs",
+      "highlight": [
+        {
+          "start": 49,
+          "end": 55
+        }
+      ],
+      "title": "",
+      "id": "24019"
+    },
+    {
+      "type": "highlight",
+      "description": "**Unit-tests** assert on those raw numbers, proving that the **integer values** – not the `Rust` names – are the **public API**.",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 683,
+          "end": 686
+        }
+      ],
+      "title": "",
+      "id": "24020"
+    },
+    {
+      "type": "textOnly",
+      "description": "Next, the `PoolEvents` helper guarantees every **call site** emits identical topics & data with one line of code.",
+      "title": "",
+      "id": "24021"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_admin` publishes governance changes: `topic` (`\"set_admin\"`, `current_admin`) and the new admin as `data`.",
+      "file": "pool/src/events.rs",
+      "highlight": [
+        {
+          "start": 16,
+          "end": 19
+        }
+      ],
+      "title": "",
+      "id": "24022"
+    },
+    {
+      "type": "highlight",
+      "description": "supply logs a deposit: `asset`, `user`, `amount in`, and the minted `bTokens`.",
+      "file": "pool/src/events.rs",
+      "highlight": [
+        {
+          "start": 185,
+          "end": 188
+        }
+      ],
+      "title": "",
+      "id": "24023"
+    },
+    {
+      "type": "highlight",
+      "description": "borrow mirrors supply, recording the amount borrowed and `dTokens` minted.",
+      "file": "pool/src/events.rs",
+      "highlight": [
+        {
+          "start": 263,
+          "end": 266
+        }
+      ],
+      "title": "",
+      "id": "24024"
+    },
+    {
+      "type": "highlight",
+      "description": "`gulp` captures un-tracked tokens that appear in a reserve (important for rebasing assets).",
+      "file": "pool/src/events.rs",
+      "highlight": [
+        {
+          "start": 314,
+          "end": 317
+        }
+      ],
+      "title": "",
+      "id": "24025"
+    },
+    {
+      "type": "highlight",
+      "description": "`new_auction` (and its `fill_`/`delete_` siblings) reports liquidation, bad-debt and interest auctions.",
+      "file": "pool/src/events.rs",
+      "highlight": [
+        {
+          "start": 329,
+          "end": 337
+        }
+      ],
+      "title": "",
+      "id": "24026"
+    },
+    {
+      "type": "textOnly",
+      "description": "With `PoolEvents` every feature exposes its state-change to indexers without repeating boiler-plate.",
+      "title": "",
+      "id": "24027"
+    },
+    {
+      "type": "highlight",
+      "description": "`require_nonnegative` is the contract’s first line of defence – any negative amount instantly panics with **NegativeAmountError (#8)**.",
+      "file": "pool/src/validator.rs",
+      "highlight": [
+        {
+          "start": 12,
+          "end": 16
+        }
+      ],
+      "title": "",
+      "id": "24028"
+    },
+    {
+      "type": "highlight",
+      "description": "Every incoming Request hits `require_nonnegative` before touching state.",
+      "file": "pool/src/pool/actions.rs",
+      "highlight": [
+        {
+          "start": 138,
+          "end": 142
+        }
+      ],
+      "title": "",
+      "id": "24029"
+    },
+    {
+      "type": "highlight",
+      "description": "Other reusable guards live beside the pool object – `require_action_allowed` blocks operations that are forbidden under the current status.",
+      "file": "pool/src/pool/pool.rs",
+      "highlight": [
+        {
+          "start": 71,
+          "end": 82
+        }
+      ],
+      "title": "",
+      "id": "24030"
+    },
+    {
+      "type": "textOnly",
+      "description": "These tiny validators are called from dozens of places, giving centralised enforcement with zero duplication.",
+      "title": "",
+      "id": "24031"
+    },
+    {
+      "type": "highlight",
+      "description": "Looking at update_pool, we can see the standard pattern that every public entrypoint follows: instance extension, core business logic, and event emission. This consistent structure helps maintain order in how the contract interacts with storage and notifies listeners.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 392,
+          "end": 399
+        }
+      ],
+      "title": "",
+      "id": "24032"
+    },
+    {
+      "type": "textOnly",
+      "description": "Think of any external call as: `validate` → `extend_instance` → `mutate storage` → `emit event`.  Master these shared pieces and the rest of the protocol reads like plug-ins.",
+      "title": "",
+      "id": "24033"
+    }
+  ]
+}

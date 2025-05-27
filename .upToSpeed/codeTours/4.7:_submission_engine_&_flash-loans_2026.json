@@ -1,0 +1,117 @@
+{
+  "title": "4.7: Submission Engine & Flash-Loans",
+  "id": "oMwnayq4mq6CQpUuskKaawik3rz0CM3lruH6TPfiL8A=",
+  "originalId": 2026,
+  "position": 20,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Follow how a caller\t6starting from the `public interface`\t6drives a complete state transition inside the pool.",
+      "title": "",
+      "id": "23968"
+    },
+    {
+      "type": "highlight",
+      "description": "The pool exposes three thin entry-points (`submit`, `submit_with_allowance`, `flash_loan`).  They only:\n- authenticate (lines 459-463, 475-479, 491-492)\n- forward to helpers in `pool/submit.rs` (lines 465, 481, 493).",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 452,
+          "end": 494
+        }
+      ],
+      "title": "",
+      "id": "23969"
+    },
+    {
+      "type": "highlight",
+      "description": "`execute_submit` orchestrates a normal transaction:\n1. load `Pool` & `User` (39-42).  \n2. `build_actions_from_request` turns the caller’s `Vec<Request>` into an in-memory plan (44-45).  \n3. `validate_submit` enforces all invariants (46-53).  \n4. move tokens (55-59).  \n5. persist the mutated objects (61-65).",
+      "file": "pool/src/pool/submit.rs",
+      "highlight": [
+        {
+          "start": 38,
+          "end": 60
+        }
+      ],
+      "title": "",
+      "id": "23970"
+    },
+    {
+      "type": "highlight",
+      "description": "`validate_submit` enforces every risk-limit:\n- max positions (168)\n- no active liquidation (171-177)\n- utilisation <= reserve.max_util for all touched assets (179-184)\n- if the action set may create or leave debt (`check_health`), verify `health-factor` ≥ 1.0000100 and `min_collateral` (188-195)",
+      "file": "pool/src/pool/submit.rs",
+      "highlight": [
+        {
+          "start": 159,
+          "end": 195
+        }
+      ],
+      "title": "",
+      "id": "23971"
+    },
+    {
+      "type": "highlight",
+      "description": "After validation, `handle_transfer_with_allowance` settles net balances per asset:\n- build net (203-216)  \n- amount < 0 → pool pulls from `spender` with `transfer_from` (222-227)\n- amount > 0 → pool sends out tokens (229-231)\nThe **direct-transfer path** (235-244) executes the same logic without allowances.",
+      "file": "pool/src/pool/submit.rs",
+      "highlight": [
+        {
+          "start": 198,
+          "end": 244
+        }
+      ],
+      "title": "",
+      "id": "23972"
+    },
+    {
+      "type": "textOnly",
+      "description": "That completes a regular submit: `Requests` → `Actions` → `Guard-rails` → `Token moves` → `State stored`.",
+      "title": "",
+      "id": "23973"
+    },
+    {
+      "type": "highlight",
+      "description": "`execute_submit_with_flash_loan` prepends a synthetic borrow before user requests:\n- lines 87-93 mint `dTokens` and add liabilities.\n- utilisation < 100 % enforced (92).\n- the altered reserve is cached (94) and a **FlashLoan** event emitted (96-103).",
+      "file": "pool/src/pool/submit.rs",
+      "highlight": [
+        {
+          "start": 84,
+          "end": 104
+        }
+      ],
+      "title": "",
+      "id": "23974"
+    },
+    {
+      "type": "highlight",
+      "description": "Because of that temporary leverage the subsequent `validate_submit` call is forced to:\n- always compute health (113-120), and  \n- always include the flash-loaned asset in utilisation checks (108-111).",
+      "file": "pool/src/pool/submit.rs",
+      "highlight": [
+        {
+          "start": 106,
+          "end": 121
+        }
+      ],
+      "title": "",
+      "id": "23975"
+    },
+    {
+      "type": "highlight",
+      "description": "**Flash-loan execution & repayment window:**\n1. pool sends the borrowed tokens to the receiver (`125-129`).  \n2. invokes the receiver’s `exec_op` with the original caller as context (`131-136`).\nThe same transaction must later repay via the normal request list; otherwise health/utilisation checks fail and the whole **TX** reverts.",
+      "file": "pool/src/pool/submit.rs",
+      "highlight": [
+        {
+          "start": 125,
+          "end": 137
+        }
+      ],
+      "title": "",
+      "id": "23976"
+    },
+    {
+      "type": "textOnly",
+      "description": "Whether via `submit`, `submit_with_allowance`, or `flash_loan`: the request vector is converted to deterministic state-mutations, validated against utilisation, health and position limits, token transfers are executed, and finally the new `Pool`/`User` state is committed—all within a single ledger transaction.",
+      "title": "",
+      "id": "23977"
+    }
+  ]
+}

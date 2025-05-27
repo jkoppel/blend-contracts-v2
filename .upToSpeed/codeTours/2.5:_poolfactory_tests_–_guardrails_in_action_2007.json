@@ -1,0 +1,163 @@
+{
+  "title": "2.5: PoolFactory Tests – Guardrails in Action",
+  "id": "3NObuvKpxW5pdtLNFA0d4McjZD2YxieILBahHemKpEo=",
+  "originalId": 2007,
+  "position": 6,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "The factory tests serve as the capstone of this component, exercising every public method, driving each parameter-guard, capturing events, and inspecting on-chain storage. These tests demonstrate how the interface, storage helpers, and ancillary logic integrate together.",
+      "title": "",
+      "id": "23838"
+    },
+    {
+      "type": "highlight",
+      "description": "The file boots into test-mode, imports the compiled `Pool WASM` (line 11), and re-uses the factory client. Importing the **byte-code** lets the test deploy a real Pool contract inside the same Env.",
+      "file": "pool-factory/src/test.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 13
+        }
+      ],
+      "title": "",
+      "id": "23839"
+    },
+    {
+      "type": "highlight",
+      "description": "`test_pool_factory` prepares an unlimited budget, uploads the `Pool` code, registers a fresh factory instance, and calls `deploy` with **valid** arguments.  These values satisfy all three parameter rules enforced by the contract.",
+      "file": "pool-factory/src/test.rs",
+      "highlight": [
+        {
+          "start": 14,
+          "end": 52
+        }
+      ],
+      "title": "",
+      "id": "23840"
+    },
+    {
+      "type": "highlight",
+      "description": "Right after the call the test grabs the last event and asserts that the `factory` emitted exactly one record whose topic is `deploy` and whose data field is the new pool address.",
+      "file": "pool-factory/src/test.rs",
+      "highlight": [
+        {
+          "start": 53,
+          "end": 64
+        }
+      ],
+      "title": "",
+      "id": "23841"
+    },
+    {
+      "type": "highlight",
+      "description": "The test then switches context into the deployed pool and confirms that:\n- `Admin`, `Backstop`, `BLNDTkn`, and `Config` are stored exactly as passed\n- `is_pool` returns true for both deployed addresses and false for a random one",
+      "file": "pool-factory/src/test.rs",
+      "highlight": [
+        {
+          "start": 77,
+          "end": 116
+        }
+      ],
+      "title": "",
+      "id": "23842"
+    },
+    {
+      "type": "highlight",
+      "description": "These lines in `deploy` explain why the assertions succeed: the new address is persisted with `set_deployed`, then the `deploy` event is published.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 110,
+          "end": 115
+        }
+      ],
+      "title": "",
+      "id": "23843"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_deployed` records the pool id under `PoolFactoryDataKey::Contracts(id)` and bumps its ledger rent, enabling long-term lookup by `is_pool`.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 72,
+          "end": 84
+        }
+      ],
+      "title": "",
+      "id": "23844"
+    },
+    {
+      "type": "highlight",
+      "description": "Three guards protect pool creation:\n\n- `backstop rate must be < 1.0 (7-dec)`\n- `max positions must be 2-60`\n- `min collateral must be non-negative.`\n\nAny violation triggers the same **custom error**.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 75,
+          "end": 90
+        }
+      ],
+      "title": "",
+      "id": "23845"
+    },
+    {
+      "type": "highlight",
+      "description": "`test_pool_factory_invalid_pool_init_args_backstop_rate` drives the first guard by passing an out-of-range rate. The test is annotated with `should_panic` expecting the contract error.",
+      "file": "pool-factory/src/test.rs",
+      "highlight": [
+        {
+          "start": 119,
+          "end": 155
+        }
+      ],
+      "title": "",
+      "id": "23846"
+    },
+    {
+      "type": "highlight",
+      "description": "Error code 1300 is defined as `InvalidPoolInitArgs`, matching the panic signature asserted in the negative test.",
+      "file": "pool-factory/src/errors.rs",
+      "highlight": [
+        {
+          "start": 8,
+          "end": 15
+        }
+      ],
+      "title": "",
+      "id": "23847"
+    },
+    {
+      "type": "highlight",
+      "description": "`test_pool_factory_frontrun_protection` shows two different users deploying with the **same** salt yet receiving distinct pool addresses. Both addresses are accepted by `is_pool`, proving the factory’s protection works.",
+      "file": "pool-factory/src/test.rs",
+      "highlight": [
+        {
+          "start": 275,
+          "end": 330
+        }
+      ],
+      "title": "",
+      "id": "23848"
+    },
+    {
+      "type": "highlight",
+      "description": "The protection mechanism: the `caller-supplied salt` is appended with the `admin address` and hashed via `Keccak-256`, making the resulting **contract id** unique per admin.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 92,
+          "end": 99
+        }
+      ],
+      "title": "",
+      "id": "23849"
+    },
+    {
+      "type": "textOnly",
+      "description": "These tests complete the story: interface calls hit validation guards, successful flows write persistent state, emit events, and are verifiable through `is_pool`; failure flows surface the correct error.  You have now seen the component from API to storage to real-world tests.",
+      "title": "",
+      "id": "23850"
+    }
+  ]
+}

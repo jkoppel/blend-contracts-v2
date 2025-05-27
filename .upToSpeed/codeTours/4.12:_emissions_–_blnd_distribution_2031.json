@@ -1,0 +1,189 @@
+{
+  "title": "4.12: Emissions – BLND Distribution",
+  "id": "TnZZSFK2MYOSW6IxtB72AWBiGADQ5ljTOCII6Cj8RUU=",
+  "originalId": 2031,
+  "position": 25,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Trace one freshly-minted `BLND` as it travels from the global Emitter to an individual wallet.\nThe hop sequence is:\n1. `backstop::distribute` – record each pool’s share.\n2. `backstop::gulp_emissions` – pool converts its share into allowance + a 7-day EPS schedule for depositors.\n3. `pool::gulp_emissions` – pool forwards 30% of the drop to reserves, creating reserve-level EPS.\n4. pool reserve/token activity – every user action updates reserve & user indices so accrual stays correct.\n5. `pool::execute_claim` – `BLND` finally transfers from the backstop to a user.\nThe next slides pin these steps to concrete code.",
+      "title": "",
+      "id": "24045"
+    },
+    {
+      "type": "highlight",
+      "description": "Step 1 – `new_emissions` is calculated from wall-clock time and added to each reward-zone pool's `RzEmissions`.\n- 159-160: Convert `Δtime` to tokens (1 `BLND`/sec).\n- 178-186: Gather every pool's un-queued tokens to compute weight.\n- 188-200: Add the weighted amount to `rz_emis.accrued` – no tokens move yet.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 158,
+          "end": 200
+        }
+      ],
+      "title": "",
+      "id": "24046"
+    },
+    {
+      "type": "highlight",
+      "description": "Step 2 - A pool gulps its accrued amount:\n\n- Lines `219-226`: Split accrued emissions - 70% is earmarked for backstop depositors, while 30% goes to the pool itself\n- Lines `228-237`: Extend the BLND token allowance that the pool can later pull\n- Lines `246-247`: Launch `set_backstop_emission_eps` to convert the 70% portion into a 7-day drip schedule",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 208,
+          "end": 248
+        }
+      ],
+      "title": "",
+      "id": "24047"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_backstop_emission_eps` builds or updates the `BackstopEmissionData` entry:\n- 279-286: `eps = tokens_left_to_emit / 7 days (scaled 1e7)`.\n- 290-295: data is stored with new expiration and index timestamp; this defines pool-wide emissions for depositors.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 253,
+          "end": 296
+        }
+      ],
+      "title": "",
+      "id": "24048"
+    },
+    {
+      "type": "highlight",
+      "description": "Each ledger close, `update_emission_data` advances the pool-level index.\n`additional_idx = Δt × eps / non-queued_shares` (74-83).\nThe index is expressed in `token-decimals*1e7`, so every share earns `additional_idx / 1e7` **BLND**.",
+      "file": "backstop/src/emissions/distributor.rs",
+      "highlight": [
+        {
+          "start": 68,
+          "end": 85
+        }
+      ],
+      "title": "",
+      "id": "24049"
+    },
+    {
+      "type": "highlight",
+      "description": "`update_user_emissions` performs the same math for an individual.\n- `delta_index` (117-118) measures how far the pool raced ahead.\n- 119-123  `accrue = shares × delta_index / 1e14` (EPS has 1e14 precision).\nDepending on the claim flag, `accrued` is stored or returned.",
+      "file": "backstop/src/emissions/distributor.rs",
+      "highlight": [
+        {
+          "start": 106,
+          "end": 126
+        }
+      ],
+      "title": "",
+      "id": "24050"
+    },
+    {
+      "type": "highlight",
+      "description": "Step 3  –  `pool gulp`.\n62-65  `BackstopClient::gulp_emissions` returns the 30 % allowance; `do_gulp_emissions` spreads it across reserves.",
+      "file": "pool/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 59,
+          "end": 67
+        }
+      ],
+      "title": "",
+      "id": "24051"
+    },
+    {
+      "type": "highlight",
+      "description": "`do_gulp_emissions` distributes the drop:\n- Lines 74-93: iterate through `pool_emissions` map, skip disabled reserves.\n- Lines 95-97: proportional share = `eps_share` / `total_share` × `new_emissions`.\n- Lines 99-105: forward to `update_reserve_emission_eps`.",
+      "file": "pool/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 69,
+          "end": 107
+        }
+      ],
+      "title": "",
+      "id": "24052"
+    },
+    {
+      "type": "highlight",
+      "description": "`update_reserve_emission_eps` launches or updates `ReserveEmissionData` for a reserve token.\n138-145  unfinished previous schedule is rolled into `tokens_left_to_emit`.\n147-150  `eps` = `tokens/7 days`; 151-152 store new config.",
+      "file": "pool/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 109,
+          "end": 151
+        }
+      ],
+      "title": "",
+      "id": "24053"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolDistributor::update_emission_data` mirrors the backstop logic for each reserve.\n- 174-177: `additional_idx = Δt × eps / supply`\n- 178-181: `index & last_time` are updated and persisted.",
+      "file": "pool/src/emissions/distributor.rs",
+      "highlight": [
+        {
+          "start": 152,
+          "end": 180
+        }
+      ],
+      "title": "",
+      "id": "24054"
+    },
+    {
+      "type": "highlight",
+      "description": "`update_user_emissions` accrues or claims for an account.\n199-208  `accrual = balance × (reserve.index – user.index) / 1e7`.\nReturned value is forwarded to `claim` if requested.",
+      "file": "pool/src/emissions/distributor.rs",
+      "highlight": [
+        {
+          "start": 187,
+          "end": 210
+        }
+      ],
+      "title": "",
+      "id": "24055"
+    },
+    {
+      "type": "highlight",
+      "description": "Step 5 - `execute_claim`\n\nThis function processes emission claims:\n\n- Lines 19-44: Iterates through `reserve_token_ids` and calls `claim_emissions` for each token\n- Lines 53-60: Uses `TokenClient::transfer_from` to transfer BLND tokens from backstop to user\n\nNote: This represents the first on-chain transfer since the initial token drop.",
+      "file": "pool/src/emissions/distributor.rs",
+      "highlight": [
+        {
+          "start": 14,
+          "end": 63
+        }
+      ],
+      "title": "",
+      "id": "24056"
+    },
+    {
+      "type": "highlight",
+      "description": "On-chain helpers expose indices and accruals so front-ends can display live numbers: `get_res_emis_data` (503-513) and `get_user_emissions` (537-547).",
+      "file": "pool/src/storage.rs",
+      "highlight": [
+        {
+          "start": 498,
+          "end": 548
+        }
+      ],
+      "title": "",
+      "id": "24057"
+    },
+    {
+      "type": "highlight",
+      "description": "Pools expose `gulp_emissions` as a public entry – anyone can trigger distribution before interacting.",
+      "file": "pool/src/contract.rs",
+      "highlight": [
+        {
+          "start": 523,
+          "end": 529
+        }
+      ],
+      "title": "",
+      "id": "24058"
+    },
+    {
+      "type": "textOnly",
+      "description": "Review\n- distribute only records; no `BLND` moves.\n- backstop `gulp` grants allowance and defines a 7-day drip to depositors.\n- pool `gulp` converts its allowance into reserve drips.\n- every user action keeps indices aligned; no drift.\n- `execute_claim` is the moment `BLND` actually leaves the backstop treasury.\n\nFive concise modules cooperate so emitted tokens are tracked faithfully until the user claims.",
+      "title": "",
+      "id": "24059"
+    }
+  ]
+}

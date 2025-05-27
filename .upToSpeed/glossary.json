@@ -1,0 +1,333 @@
+[
+  {
+    "terms": [
+      "Liquidity Provider"
+    ],
+    "definition": "# Liquidity Provider\n\nIn the Blend Protocol, a Liquidity Provider (LP) is a participant who deposits pairs of tokens into liquidity pools to enable lending functionality within the protocol. When contributing assets, LPs receive pool shares in the form of LP tokens proportional to their contribution. These tokens represent their ownership stake in the pool and their claim on both the deposited assets and any accumulated fees or rewards.\n\nLPs interact with the protocol primarily through the `join_pool()` function, which takes their token contributions and mints corresponding LP tokens:\n\n```rust\nclient.join_pool(\n    &amount,\n    &vec![&env, blnd_mint_amount, usdc_mint_amount],\n    &user\n);\n```\n\nLiquidity Providers are essential to the Blend ecosystem because they:\n\n1. Supply the capital necessary for the protocol's lending operations\n2. Maintain pool liquidity for seamless trading and borrowing\n3. Earn rewards through trading fees and emissions programs\n4. Support the backstop mechanism that helps absorb bad debt\n\nThe LP tokens can be redeemed at any time to reclaim the provider's share of the pool, including their portion of accumulated fees. However, LPs should be aware of risks including impermanent loss if the relative prices of pooled assets change significantly during the time they provide liquidity."
+  },
+  {
+    "terms": [
+      "Volatility"
+    ],
+    "definition": "# Volatility\n\nVolatility in the Blend Protocol refers to the degree and speed at which values like asset prices and utilization rates fluctuate over time. The protocol handles volatility through configurable parameters like `reactivity`, which determines how quickly interest rates adjust in response to changing market conditions. Lower reactivity values provide more stability during volatile periods by dampening rate adjustments, while higher values make the system more responsive to market changes. This is particularly visible in interest rate calculations (`calc_accrual` function), where the protocol adjusts rates based on the difference between current and target utilization levels, moderated by the reactivity parameter."
+  },
+  {
+    "terms": [
+      "Arbitrage"
+    ],
+    "definition": "# Arbitrage\n\nArbitrage in DeFi protocols like Blend refers to the practice of exploiting price differences between different markets to generate risk-free profits. In this codebase, arbitrage manifests primarily through auction mechanisms that create opportunities for traders to profit when assets are temporarily mispriced.\n\nThe protocol implements several auction types (liquidation auctions and interest auctions) where participants can purchase assets at potentially discounted rates. For example, in an interest auction, backstop providers bid with LP tokens to acquire underlying assets that have accumulated as interest. These mechanisms ensure market efficiency by inviting external actors to rebalance the system when imbalances occur.\n\nThe code shows how arbitrage opportunities are systematically created and resolved through functions like `create_interest_auction_data` and `fill_interest_auction`, which leverage oracle price feeds to ensure fair market values. This process maintains liquidity, promotes price discovery, and ultimately contributes to the stability and efficiency of the lending pools in the Blend ecosystem."
+  },
+  {
+    "terms": [
+      "Slippage"
+    ],
+    "definition": "# Slippage\n\nIn the Blend Protocol, slippage refers to a mechanism that allows for partial execution of transactions (particularly in auctions and liquidations) based on a percentage parameter. When a user fills an auction or performs a liquidation, they can specify a percentage (0-100) indicating how much of the original transaction they wish to execute. The protocol then scales both the bid amount and the receiving assets proportionally.\n\nThis percentage-based scaling is critical for risk management and capital efficiency, allowing users to:\n\n1. Partially fill auctions without requiring the full amount\n2. Execute liquidations in manageable portions\n3. Adjust their exposure based on market conditions\n\nThe protocol enforces validation to ensure percentage values are within valid ranges and prevents excessive position concentration. Unlike traditional DEX slippage (which is about price movement during transaction confirmation), Blend's slippage is a deliberate feature that enables transaction scaling with predictable outcomes."
+  },
+  {
+    "terms": [
+      "Spread"
+    ],
+    "definition": "# Spread\n\nIn the context of software engineering and numerical operations, \"Spread\" refers to the way large values are represented in code using a pattern where numbers are split with underscores for better readability. This notation allows developers to work with precise numerical values while maintaining visual clarity, especially when dealing with financial or high-precision calculations.\n\nFor example, in the Blend Protocol codebase, values like `10_1234567` represent 10.1234567 tokens, where the underscore serves as a visual separator that improves readability without changing the actual value. This pattern is particularly valuable when working with fixed-point decimal representations in financial applications where precision is critical.\n\n```rust\n// Example from pool/src/pool/actions.rs\nassert_eq!(\n    spender_transfer.get_unchecked(underlying.clone()),\n    10_0000000 + 10_0000000 + 21_0000000\n);\n```"
+  },
+  {
+    "terms": [
+      "Order Book"
+    ],
+    "definition": "# Order Book\n\nIn the context of decentralized finance protocols like Blend, an Order Book is an on-chain mechanism that manages the exchange of assets through auction-based systems. Unlike traditional order books that maintain a list of buy and sell orders, Blend's implementation uses auction data structures with \"bid\" and \"lot\" components to represent what users are willing to pay and what they're selling.\n\nThe system functions through specialized auctions (like interest auctions and liquidation auctions) where positions are created, filled, and settled entirely on-chain. Each auction includes data about block timing, bid assets, lot assets, and the relationships between them. The protocol handles order matching through functions that calculate fair values, apply interest rates, and manage settlement while ensuring maximum capital efficiency.\n\nThis approach combines elements of traditional Central Limit Order Books (CLOBs) with the programmability of on-chain systems, enabling features like dynamic pricing based on time elapsed, partial filling of orders, and backstop protection mechanisms—all while maintaining the transparency and security benefits of decentralized protocols."
+  },
+  {
+    "terms": [
+      "Market Depth"
+    ],
+    "definition": "# Market Depth\n\nMarket depth in DeFi protocols like Blend refers to the volume of liquidity available at different price levels within a liquidity pool or auction mechanism. It measures a market's capacity to absorb buy or sell orders without causing significant price movements (slippage).\n\nIn Blend's auction system, market depth is reflected through bid and lot structures (`AuctionData`) that define available liquidity at various price points. The protocol carefully scales these values through functions like `scale_auction` to maintain appropriate depth during liquidations and price discovery.\n\nStrong market depth enables:\n- Execution of large trades with minimal price impact\n- Efficient liquidation auctions during volatile conditions\n- Stable borrowing and lending rates across varying transaction sizes\n\nThe depth distribution is particularly evident in Blend's auction mechanics where bids are scaled based on time elapsed (`sequence_number`) and fill percentage, ensuring liquidations can be properly absorbed by the market without excessive price disruption."
+  },
+  {
+    "terms": [
+      "Limit Order"
+    ],
+    "definition": "# Limit Order\n\nIn the Blend Protocol, a Limit Order refers to an auction-based mechanism where users can specify exact terms for token exchanges. Using the auction system, users create orders with specific \"bid\" amounts (what they're willing to pay) and \"lot\" amounts (what tokens they want to receive), similar to traditional limit orders in finance.\n\nThese orders execute automatically when another user agrees to the specified terms, and remain pending until matched or cancelled. The protocol handles all settlement logic, ensuring trades happen exactly at the specified rates. Unlike traditional limit orders, Blend's implementation uses a specialized auction framework tailored for decentralized lending pools.\n\nKey features include:\n- Precise price control through bid/lot ratio specification\n- Support for partial fills through percentage-based execution\n- Automatic settlement when conditions are met\n- Built-in auction expiration mechanics\n- Integration with the protocol's liquidation and interest mechanisms\n\nThis design allows users to place conditional trades without requiring constant monitoring, while maintaining exact price execution guarantees."
+  },
+  {
+    "terms": [
+      "Stop-Loss Order"
+    ],
+    "definition": "# Stop-Loss Order\n\nIn the Blend Protocol, a stop-loss order functions as an automated risk management mechanism that protects both users and the protocol from significant losses when collateral values drop. Unlike traditional stop-loss orders that users manually configure, Blend implements this concept through its liquidation auction system that automatically triggers when a borrower's position becomes undercollateralized.\n\nWhen a user's health factor (the ratio of collateral value to borrowed assets) falls below predetermined thresholds, the protocol initiates a liquidation auction that sells a portion of the user's collateral to repay outstanding debt. This process happens automatically on-chain without requiring user intervention, effectively functioning as a protocol-level stop-loss that limits potential losses.\n\nThe process involves several components:\n- Automated detection of unsafe positions through oracle price feeds\n- Creation of liquidation auctions with `new_auction()` \n- Bidding mechanisms that allow liquidators to repay debt in exchange for discounted collateral\n- Backstop systems that handle edge cases where liquidations don't fully cover losses\n\nThis approach differs from traditional stop-loss orders as it's not user-configurable but instead operates according to protocol-defined safety parameters, ensuring that the lending system remains solvent even during significant market volatility."
+  },
+  {
+    "terms": [
+      "Maker Fee"
+    ],
+    "definition": "# Maker Fee\n\nIn decentralized finance (DeFi) protocols like Blend, a \"Maker Fee\" represents a fee charged to users who provide liquidity to the system by creating or \"making\" orders that aren't immediately matched. In the context of Blend's protocol, this concept appears through its auction mechanisms, particularly in backstop interest auctions.\n\nBlend implements various auction types as shown in the codebase (e.g., `fill_auction` events with type indicators 0, 1, and 2), where participants can provide liquidity and earn rewards. While not directly using the term \"maker fee,\" the protocol employs a fee structure where liquidity providers receive compensation through mechanisms like the `bstop_rate` parameter in the PoolConfig structure.\n\nUnlike traditional exchanges with simple maker-taker fee models, Blend uses a more sophisticated approach where fees are integrated into the protocol's interest rate mechanisms, backstop system, and auction design, creating incentives for capital efficiency and risk management in its permissionless lending pools."
+  },
+  {
+    "terms": [
+      "Taker Fee"
+    ],
+    "definition": "# Taker Fee\n\nIn the Blend Protocol, a \"Taker Fee\" refers to a customizable fee mechanism that captures value separate from standard protocol fees. It is typically configured during pool initialization as a rate parameter (like `bstop_rate` or `backstop_take_rate`) and deducted from transactions such as swaps, liquidations, or liquidity provisions. \n\nThe fee is collected by the protocol and can be directed to specific entities like a backstop fund (indicated by `backstop_address`), providing an additional layer of economic design beyond traditional exchange fees. The fee uses fixed-point decimal representation (e.g., `0_1000000` for 10%) and allows the protocol to implement flexible value capture strategies tailored to different pools or market conditions."
+  },
+  {
+    "terms": [
+      "Margin Trading"
+    ],
+    "definition": "# Margin Trading\n\nIn DeFi protocols like Blend, margin trading refers to a mechanism where users can leverage their assets by borrowing funds against deposited collateral. The implementation includes:\n\n1. **Collateralized Positions**: Users deposit assets as collateral and borrow other assets against this collateral. The system tracks both collateral value and liability amounts.\n\n2. **Health Factor**: A ratio that determines if a position is sufficiently collateralized. The code in `pool/src/pool/health_factor.rs` shows functions like `is_hf_under()` and `is_hf_over()` that check if positions meet minimum collateralization requirements.\n\n3. **Liquidation Process**: When a position's health factor falls below the threshold, the position becomes eligible for liquidation. Blend implements this through an auction system as seen in `test_submit_with_ongoing_liquidation_blocked()`.\n\n4. **Position Management**: Functions like `rm_positions()` in `pool/src/pool/user.rs` handle collateral and liability adjustments.\n\nUnlike traditional trading platforms, DeFi margin implementations typically use smart contracts to automate collateral checks, liquidations, and interest calculations, with positions that can remain open indefinitely as long as they maintain sufficient collateralization."
+  },
+  {
+    "terms": [
+      "Leverage"
+    ],
+    "definition": "# Leverage\n\nIn the Blend Protocol, leverage refers to a fundamental mechanism that allows users to borrow assets against their collateral, effectively multiplying their exposure to the underlying assets. The protocol governs this relationship through several key components:\n\n1. **Utilization Rate** - The ratio of borrowed assets (liabilities) to total supply within a reserve, calculated as:\n   ```rust\n   self.total_liabilities(e).fixed_div_ceil(e, &self.total_supply(e), &SCALAR_7)\n   ```\n   This measures how leveraged a particular reserve has become.\n\n2. **Maximum Utilization Limits** - Safety guardrails that prevent excessive system-wide leverage:\n   ```rust\n   reserve_config.max_util = 0_9000000;  // 90% maximum utilization\n   ```\n   When users attempt to borrow beyond this threshold, transactions are blocked.\n\n3. **Collateralization Requirements** - Parameters that define how much a user can borrow against their collateral, enforced through health checks that verify positions remain adequately collateralized after any operation.\n\n4. **Liquidation Thresholds** - When leverage becomes excessive (positions under-collateralized), the protocol enables liquidation procedures, typically allowing liquidators to repay a portion of a user's debt (e.g., 25%) in exchange for their collateral plus a bonus.\n\nThe protocol's approach to leverage creates a balance between capital efficiency and system safety, allowing users to increase their market exposure while maintaining mechanisms to protect overall protocol solvency."
+  },
+  {
+    "terms": [
+      "Hedging"
+    ],
+    "definition": "# Hedging\n\nIn the Blend Protocol, hedging refers to risk management strategies used to protect against adverse market movements, price volatility, and financial instability. The protocol implements several hedging mechanisms:\n\n1. **Health Factor Monitoring**: Continuously tracks the collateralization ratio of positions to ensure they remain above safe thresholds (`is_hf_under` and `is_hf_over` functions).\n\n2. **Auction Mechanisms**:\n   - **Interest Auctions**: Convert accumulated backstop credits into protocol-owned assets, protecting against interest rate volatility\n   - **Bad Debt Auctions**: Recover value from defaulted positions by exchanging backstop tokens for outstanding debt\n\n3. **Backstop System**: Acts as an insurance layer against protocol insolvency, with backstop tokens serving as a buffer against bad debt.\n\n4. **Position Risk Management**: Uses precise fixed-point arithmetic for accurate risk calculations, enabling appropriate hedging actions when positions become risky.\n\nThese mechanisms work together to maintain the protocol's financial stability while allowing for capital efficiency. When market conditions change, the hedging systems automatically adjust to minimize risk exposure to both the protocol and its users."
+  },
+  {
+    "terms": [
+      "Swap"
+    ],
+    "definition": "# Swap\n\nIn the Blend Protocol, a \"swap\" refers to the protocol upgrade mechanism where the backstop contract (responsible for managing protocol assets and emissions) transitions from one version to another. Unlike typical DeFi swaps that exchange tokens, this is a governance-level operation that maintains protocol continuity.\n\nThe swap process follows specific phases:\n1. **Preparation**: Users deposit sufficient assets into the new backstop contract\n2. **Queueing**: The upgrade is scheduled with `queue_swap_backstop`\n3. **Waiting Period**: A timelock (typically 31 days) allows users to prepare for the upgrade\n4. **Execution**: The `swap_backstop` method officially transfers backstop responsibilities\n5. **Transition**: Emissions and reward distributions shift to the new contract while maintaining user entitlements\n\nThis mechanism ensures safe migration between protocol versions while preserving user positions and emission rights. After completion, the old backstop contract stops receiving emissions, and all new protocol activities flow through the upgraded contract."
+  },
+  {
+    "terms": [
+      "Futures"
+    ],
+    "definition": "# Futures\n\nIn the context of the Blend Protocol, \"Futures\" is not a natively supported feature. The Blend Protocol is fundamentally a liquidity protocol focused on permissionless creation of lending pools for spot trading rather than derivatives.\n\nThe closest related feature in the codebase is the \"Interest Auction\" mechanism, which allows backstop providers to participate in auctions for accumulated interest. These auctions operate with a \"bid\" (typically backstop tokens) and a \"lot\" (underlying assets with accrued interest), but they settle immediately upon filling rather than at a future date. Unlike traditional futures contracts, Interest Auctions are a risk management tool for redistributing accumulated interest and maintaining protocol solvency, not instruments for speculating on future asset prices.\n\nIf integrating with futures markets is desired, this would likely be implemented through external protocols or adaptors rather than as a native capability of the Blend Protocol itself."
+  },
+  {
+    "terms": [
+      "Options"
+    ],
+    "definition": "# Options\n\nIn the Blend Protocol, \"Options\" refers to configurable parameters that control how actions and transactions behave within the protocol's lending pools. These are not financial options contracts, but rather settings that provide flexibility in how operations are executed.\n\nThe protocol uses structures like the `Actions` in `pool/src/pool/actions.rs` to collect and manage these options, which can include:\n\n- Asset transfer configurations (which assets and how much to transfer)\n- Health check triggers (`check_health` flag)\n- Utilization limit verifications (`check_max_util` list)\n- Oracle data parameters (such as price feed settings seen in auction files)\n\nThese options allow users and developers to customize protocol interactions without requiring changes to the core contract logic, enabling precise control over lending, borrowing, and liquidation behaviors while maintaining the protocol's safety guarantees."
+  },
+  {
+    "terms": [
+      "Derivatives"
+    ],
+    "definition": "# Derivatives\n\nIn the context of DeFi protocols like Blend, derivatives are financial instruments whose value is derived from underlying assets or market conditions. Within the Blend Protocol codebase, derivatives appear primarily in the form of liquidation mechanisms and auction systems that determine how collateral assets are valued and exchanged when loans become undercollateralized.\n\nThe code reveals sophisticated pricing and liquidation mechanisms:\n\n```rust\n// From pool/src/auctions/auction.rs\n// Example of collateral valuation during auctions\nmap![\n    &e,\n    (underlying_0.clone(), 2_4750000),  // Price derivative for first asset\n    (underlying_1.clone(), 0_2475000)   // Price derivative for second asset\n]\n```\n\nBlend implements complex bad debt handling where liquidation outcomes create derivative-like relationships between assets:\n\n```rust\n// From test-suites/tests/test_liquidation.rs\n// Shows how bad debt from one asset affects positions in another\nassert_eq!(\n    post_bd_fill_frodo_positions.liabilities.get(1).unwrap(),\n    new_frodo_positions.liabilities.get(1).unwrap() + xlm_bad_debt,\n);\n```\n\nThe protocol relies on oracles to obtain price feeds that inform these derivative mechanics:\n\n```rust\n// From pool/src/pool/submit.rs\noracle_client.set_data(\n    &bombadil,\n    &Asset::Other(Symbol::new(&e, \"USD\")),\n    &vec![&e, Asset::Stellar(underlying_0.clone()), Asset::Stellar(underlying_1.clone())],\n    &7,\n    &300,\n);\n```\n\nThese mechanisms effectively create synthetic exposures to asset price movements without directly trading the underlying assets themselves - the essence of derivatives in DeFi."
+  },
+  {
+    "terms": [
+      "Stablecoin"
+    ],
+    "definition": "# Stablecoin\n\nA cryptocurrency designed to maintain a stable value relative to a reference asset (typically a fiat currency like USD). Unlike volatile cryptocurrencies, stablecoins provide predictable value for financial operations within blockchain systems.\n\nIn the Blend Protocol's lending platform, stablecoins serve as core assets that users can supply to or borrow from liquidity pools. The codebase shows stablecoins being approved for transfers (`stable.approve`), tracked for balances (`stable.balance`), supplied to pools, and used in liquidation calculations. \n\nStablecoins are particularly valuable in DeFi lending because they:\n- Reduce price volatility risk for borrowers and lenders\n- Provide a consistent unit of account for interest calculations\n- Serve as reliable collateral or borrowed assets\n- Enable predictable financial planning within the ecosystem\n\nThe protocol's architecture treats stablecoins as standard tokens with approval mechanisms and balance tracking, allowing them to flow through the system's lending, borrowing, and liquidation processes."
+  },
+  {
+    "terms": [
+      "Collateral"
+    ],
+    "definition": "# Collateral\n\nAssets deposited by users into a lending pool that serve as security for borrowing operations. In the Blend Protocol, collateral is tracked per user, per reserve (asset type), and enables users to take out loans while protecting the protocol from default risk. When users supply collateral, they receive b-tokens representing their position, which may also earn yield. Collateral amounts are maintained in user position records and can be added or withdrawn through specific protocol actions, subject to maintaining required health ratios. If a user's collateral value falls below required thresholds relative to their borrowings, their position becomes eligible for liquidation, where their collateral can be auctioned to repay outstanding debt."
+  },
+  {
+    "terms": [
+      "Yield Farming"
+    ],
+    "definition": "# Yield Farming\n\nYield farming in the Blend Protocol refers to a process where users deposit tokens into \"backstop pools\" to provide liquidity and earn rewards. Users call the `deposit` function which converts their deposited tokens into \"shares\" that represent their ownership position in the pool. The protocol's emissions system (`emissions` module) continuously distributes rewards to participants based on the size of their share and duration of participation.\n\nThe core components enabling yield farming in this system include:\n\n1. **Deposit mechanism** - Users contribute tokens and receive share tokens in return\n2. **Emissions tracking** - The protocol maintains accounting of rewards owed to each participant\n3. **Reward zone management** - Functions like `add_reward` and `remove_reward` determine which pools receive incentives\n4. **Claiming process** - Users call `claim` to collect accumulated rewards\n\nThis mechanism creates incentives for users to provide and maintain liquidity in the protocol, which enhances overall market efficiency and supports the lending pools that form the core of the Blend Protocol."
+  },
+  {
+    "terms": [
+      "Staking"
+    ],
+    "definition": "# Staking\n\nIn the Blend Protocol, staking refers to the process of depositing tokens into the protocol's backstop module to earn emission rewards while simultaneously providing security for the protocol. Users stake by depositing tokens into specific pools, receiving shares that represent their ownership stake. The system tracks rewards using index-based accounting that calculates accrued emissions based on staking duration and amount. Users can claim these rewards periodically, which can optionally be auto-compounded back into the protocol as LP tokens. This mechanism serves dual purposes: rewarding participants with yield opportunities and creating a liquidity backstop that can be drawn upon during shortfalls, enhancing the overall safety of the lending ecosystem. The protocol updates emission indices based on time elapsed and calculates rewards proportionally to each user's share of the staked pool."
+  },
+  {
+    "terms": [
+      "APR (Annual Percentage Rate)",
+      "APR",
+      "Annual Percentage Rate"
+    ],
+    "definition": "# APR (Annual Percentage Rate)\n\nIn the Blend Protocol, APR refers to the annualized rate of return or cost associated with lending or borrowing assets within liquidity pools. The protocol implements a sophisticated, dynamic interest rate model that automatically adjusts based on pool utilization.\n\nThe interest rate calculation uses a multi-tiered approach:\n- Below target utilization: `(util/target_util × r_one + r_base) × ir_mod`\n- Between target and 95% utilization: `((util-target_util)/(0.95-target_util) × r_two + r_one + r_base) × ir_mod`\n- Above 95% utilization: `(util-0.95)/0.05 × r_three + ir_mod × (r_two + r_one + r_base)`\n\nThese rates are annualized through a time-weight calculation: `time_elapsed/seconds_per_year × current_interest_rate`.\n\nThe protocol features an interest rate modifier (`ir_mod`) that automatically adjusts over time based on the difference between current and target utilization, implementing a feedback mechanism that helps maintain optimal capital efficiency. A portion of the accrued interest is directed to a backstop fund via the configurable `bstop_rate` parameter, creating a form of protocol-level insurance.\n\nThis APR mechanism is core to Blend's capital efficiency, risk management, and sustainability, ensuring lenders are fairly compensated while maintaining reasonable borrowing costs based on market conditions."
+  },
+  {
+    "terms": [
+      "APY (Annual Percentage Yield)",
+      "APY",
+      "Annual Percentage Yield"
+    ],
+    "definition": "# APY (Annual Percentage Yield)\n\nThe annual rate of return that liquidity providers or lenders earn in the Blend Protocol, accounting for the effects of compound interest. APY in this context is calculated based on interest accrual that occurs dynamically according to pool utilization rates, reserve configurations, and time intervals.\n\nUnlike simple interest calculations, APY includes the compounding effect where earned interest generates additional interest over time. In the protocol, this is implemented through the `calc_accrual` function which determines interest based on utilization rates against target thresholds and adjusts rates over time using an interest rate modifier (`ir_mod`).\n\nThe actual APY a user receives is affected by several factors:\n- Base interest rate parameters (`r_base`, `r_one`, `r_two`, `r_three`)\n- Current utilization of the lending pool compared to targets\n- Backstop fee rate that diverts a portion of interest to the protocol's insurance fund\n- Dynamic adjustments through the interest rate modifier that responds to over/under utilization\n\nThe protocol uses a time-weighted approach to calculate interest accrual, scaling delta time against seconds per year to determine the appropriate fraction for periodic compounding, which ultimately determines the effective APY for users."
+  },
+  {
+    "terms": [
+      "Gas Fee"
+    ],
+    "definition": "# Gas Fee\n\nGas fees are transaction costs paid to blockchain network validators/miners for processing operations on the network. In the Blend Protocol context, gas fees represent the computational and storage costs incurred when users interact with the protocol's smart contracts.\n\nEach operation (like creating lending pools, performing auctions, or claiming emissions via the `gulp_emissions` function) requires different amounts of computational resources. The protocol implements optimization techniques, such as using optimized WASM binaries for deployment, to minimize these fees for users.\n\nGas fees typically consist of:\n- A base fee determined by network congestion\n- An optional priority fee (tip) to incentivize faster processing\n- Multiplied by the gas limit (maximum computational units) of the operation\n\nUnderstanding gas fees is essential for users of decentralized protocols like Blend, as they directly impact the cost-effectiveness of interactions with the system, especially during high network congestion periods."
+  },
+  {
+    "terms": [
+      "Smart Contract"
+    ],
+    "definition": "# Smart Contract\n\nA smart contract is a self-executing program deployed on a blockchain that automatically enforces predefined rules and agreements without requiring trusted intermediaries. In the Blend Protocol codebase, smart contracts are WebAssembly (WASM) modules deployed to the Stellar blockchain using the Soroban platform. \n\nThese contracts contain the core business logic of the protocol, handling everything from lending pool creation and management to token transfers and liquidations. For example, in `backstop/src/contract.rs`, the `BackstopContract` handles the initialization of protocol components:\n\n```rust\npub fn __constructor(\n    e: Env,\n    backstop_token: Address,\n    emitter: Address,\n    blnd_token: Address,\n    usdc_token: Address,\n    pool_factory: Address,\n    drop_list: Vec<(Address, i128)>,\n) {\n    storage::set_backstop_token(&e, &backstop_token);\n    // More initialization code...\n}\n```\n\nSmart contracts interact with each other through defined interfaces, maintain their own state, and execute operations deterministically. Once deployed, they're immutable, providing transparency and security as all participants can verify the exact rules being enforced. They form the foundation of trustless decentralized finance systems by automating complex financial operations without relying on centralized authorities."
+  },
+  {
+    "terms": [
+      "DeFi"
+    ],
+    "definition": "# DeFi\n\nDecentralized Finance (DeFi) refers to blockchain-based financial protocols that enable permissionless, non-custodial financial services without relying on traditional intermediaries. In the Blend Protocol codebase, DeFi manifests as smart contracts that facilitate lending pools, collateralized borrowing, and automated risk management through:\n\n1. **Lending pools** where users can supply assets, earn yield, or borrow against collateral based on algorithmically determined interest rates\n2. **Liquidation mechanisms** that maintain protocol solvency by auctioning undercollateralized positions and handling bad debt\n3. **Backstop insurance systems** that protect against protocol insolvency and distribute losses collectively\n4. **Non-custodial architecture** ensuring users maintain control of their assets until specific contract conditions trigger actions\n5. **Programmable financial logic** including interest accrual, health factor calculations, and debt management\n\nThe code shows how DeFi operations are executed entirely on-chain through transparent, auditable smart contracts that enable financial innovation through composability with other blockchain protocols and applications."
+  },
+  {
+    "terms": [
+      "CeFi"
+    ],
+    "definition": "# CeFi\n\nCentralized Finance (CeFi) refers to traditional financial intermediaries and platforms that offer cryptocurrency-related services while maintaining centralized control over user funds and operations. In the context of the Blend Protocol, CeFi represents the traditional financial infrastructure that Blend interfaces with while offering DeFi (Decentralized Finance) capabilities.\n\nThe Blend codebase demonstrates awareness of CeFi concepts through implementation of financial mechanisms familiar to traditional finance, such as bad debt management, backstop functionality, and liquidation auctions. These mechanisms are reimagined with blockchain technology to create transparent, programmable alternatives to centralized processes, while still maintaining compatibility with traditional financial risk models.\n\nUnlike Blend's DeFi approach where smart contracts autonomously manage lending pools, CeFi platforms typically rely on centralized authorities for custody, lending decisions, and risk management. The Blend Protocol creates a bridge between these worlds, allowing institutions from traditional finance to participate in decentralized lending markets with familiar risk controls and financial mechanisms."
+  },
+  {
+    "terms": [
+      "DAO"
+    ],
+    "definition": "# DAO (Decentralized Autonomous Organization)\n\nA Decentralized Autonomous Organization is a blockchain-based governance structure where decision-making power is distributed among token holders rather than concentrated in a traditional hierarchy. In the Blend Protocol, the DAO functionality is primarily manifested through the backstop mechanism, which serves as a community-managed safety net for handling bad debt and maintaining protocol solvency.\n\nKey components of the DAO implementation include:\n- Community governance through token holders who can participate in decision-making\n- A backstop system that programmatically absorbs bad debt from defaulted loans\n- Auction mechanisms that allow for community-based resolution of bad debt\n- Event emissions that provide transparency for all protocol actions\n\nWhen users default on loans, the protocol's smart contracts automatically transfer the debt to the backstop, which can then liquidate assets, initiate bad debt auctions, or as a last resort, default the debt entirely. This creates a self-sustaining system where financial risk is managed collectively by the community rather than centralized authorities."
+  },
+  {
+    "terms": [
+      "Liquidity Mining"
+    ],
+    "definition": "# Liquidity Mining\n\nLiquidity mining in the Blend Protocol is an incentive mechanism where users who provide liquidity to the protocol's lending pools earn BLND token rewards. Unlike traditional liquidity mining implementations, Blend's system automatically converts claimed rewards into LP tokens and reinvests them back into the backstop pools, creating a compounding effect.\n\nThe system uses an index-based tracking mechanism to calculate rewards across multiple pools based on each user's proportional share and time elapsed since the last update. When users claim rewards, the protocol:\n\n1. Calculates total accrued emissions across all specified pools\n2. Converts these BLND tokens to LP tokens via the Comet LP pool\n3. Proportionally distributes the resulting LP tokens back to the user's positions\n\nThis auto-reinvestment mechanism not only rewards liquidity providers but also strengthens the protocol's backstop reserves, enhancing overall stability and creating a virtuous cycle where participation in liquidity mining directly improves protocol security."
+  },
+  {
+    "terms": [
+      "Protocol Fee"
+    ],
+    "definition": "# Protocol Fee\n\nIn the Blend Protocol, the protocol fee is represented by the `bstop_rate` (backstop take rate) parameter. This is a configurable percentage (stored as a fraction less than 1) of interest or transaction revenue collected at the pool level. When interest accrues in a lending pool, a portion determined by this rate is diverted to the protocol's backstop address.\n\nThe protocol fee serves multiple purposes:\n- Generates revenue for protocol development and maintenance\n- Provides an insurance mechanism against potential defaults\n- Creates a governance-controlled treasury\n\nThe fee is set during pool initialization, can be updated by authorized administrators, and is validated to always be less than 100% (specifically, less than SCALAR_7, which is 10^7). When the backstop rate changes, all reserves in the pool are updated to reflect the new rate, ensuring accurate fee collection across all pool assets."
+  },
+  {
+    "terms": [
+      "ERC20"
+    ],
+    "definition": "# ERC20\n\nERC20 is a standard interface for fungible tokens initially developed for the Ethereum blockchain. It defines a common set of functions and events that token contracts must implement to ensure interoperability within the blockchain ecosystem. \n\nThe standard includes six core functions:\n- `totalSupply()`: Returns the total tokens in circulation\n- `balanceOf(address)`: Returns an account's token balance\n- `transfer(address, amount)`: Moves tokens from sender to recipient\n- `transferFrom(address, address, amount)`: Allows approved spenders to move tokens between accounts\n- `approve(address, amount)`: Authorizes an address to spend tokens on behalf of the owner\n- `allowance(address, address)`: Shows how many tokens a spender is allowed to use\n\nIn the Blend Protocol codebase, we can see these patterns in action:\n\n```rust\n// Approving tokens to be spent\nbackstop_token_client.approve(\n    &samwise,\n    &backstop_address,\n    &100_0000000,\n    &e.ledger().sequence(),\n);\n\n// Checking allowances\nassert_eq!(\n    blnd_token_client.allowance(&backstop, &pool_1),\n    154_555_0000000\n);\n\n// Transferring tokens\ntoken.transfer(&e.current_contract_address(), to, &amount);\ntoken.transfer_from(\n    &e.current_contract_address(),\n    spender,\n    &e.current_contract_address(),\n    &amount.abs(),\n);\n```\n\nERC20's standardization enables seamless integration between different applications, wallets, and exchanges, making it the foundation for most token-based interactions in decentralized finance (DeFi) systems."
+  },
+  {
+    "terms": [
+      "ERC1155"
+    ],
+    "definition": "# ERC1155\n\nA token standard on the Ethereum blockchain that allows a single smart contract to represent multiple token types (both fungible and non-fungible). ERC1155 enables batch operations for transferring different tokens in a single transaction, significantly reducing gas costs compared to using separate ERC20 or ERC721 contracts for each token type. This \"multi-token standard\" is particularly valuable for applications like games and marketplaces where users interact with various asset types simultaneously. Its efficiency comes from storing minimal data on-chain while using events to communicate changes, making it a scalable solution for complex token ecosystems."
+  },
+  {
+    "terms": [
+      "ERC6909"
+    ],
+    "definition": "# ERC6909\n\nERC6909 is a gas-efficient Ethereum token standard for managing multiple fungible tokens within a single smart contract. It provides a more streamlined approach than deploying separate ERC20 contracts for each token type.\n\nKey features include:\n- Multiple token IDs tracked within one contract\n- Optional operator approval system that grants permission across all token types\n- No required callbacks in transfer functions, reducing gas costs\n- Support for both regular transfers and batch operations\n\nERC6909 is particularly useful for DeFi platforms where managing multiple related tokens is common, such as lending markets with multiple reserve assets or multi-token liquidity pools. The standard enables simplified accounting and reduced complexity when tracking and transferring different token types."
+  },
+  {
+    "terms": [
+      "X96"
+    ],
+    "definition": "# X96\n\nA fixed-point number representation format used in decentralized finance protocols, where floating-point values are multiplied by 2^96 (2 raised to the power of 96) and stored as integers. This approach provides high numerical precision while allowing smart contracts to perform efficient mathematical operations using only integer arithmetic.\n\nThe X96 format is particularly important in automated market makers like Uniswap V3, where it's used to represent the square root of price ratios between two tokens in a liquidity pool. By using this representation, protocols can calculate swap amounts, manage concentrated liquidity positions, and represent prices across extremely wide ranges with minimal precision loss.\n\nWhile the snippets from the Blend Protocol show decimal fixed-point representations (using powers of 10 with notation like `0_7500000` for 0.75), the X96 concept reflects the same underlying principle: using scaled integers to represent decimal values precisely in blockchain environments where floating-point math isn't directly supported."
+  },
+  {
+    "terms": [
+      "Concentrated Liquidity"
+    ],
+    "definition": "# Concentrated Liquidity\n\nIn the Blend Protocol, concentrated liquidity adapts the AMM (Automated Market Maker) design pattern to lending pools by allowing capital to be strategically deployed where it's most needed rather than spread evenly across all potential scenarios. Unlike traditional AMMs where liquidity is distributed across the entire price range, Blend focuses its protocol resources (collateral, backstop funds, interest auctions) on specific risk vectors and asset positions.\n\nThis capital-efficient approach is visible in Blend's auction mechanisms (particularly in backstop_interest_auction.rs) and pool configurations where backstop tokens and collateral are selectively allocated to address liquidation events, interest collection, and bad debt management. When the market price remains within a targeted range or when specific assets require liquidity support, the concentrated capital is activated and generates greater efficiency, similar to Uniswap V3's tick-based liquidity deployment but adapted for lending rather than trading.\n\nBy implementing concentrated liquidity principles in a lending context, Blend achieves higher capital efficiency, better risk management, and can offer improved terms for both borrowers and lenders in the protocol."
+  },
+  {
+    "terms": [
+      "Constant Product Formula"
+    ],
+    "definition": "# Constant Product Formula\n\nThe Constant Product Formula (x × y = k) is a foundational mathematical principle used in automated market making within the Blend Protocol. While traditional AMMs use this formula to maintain a constant product between two token reserves, Blend adapts and extends this concept for its permissionless lending pools.\n\nIn the codebase, this formula appears as the basis for several key mechanisms:\n\n1. **Liquidity Provision** - When calculating conversion between tokens and shares in the `PoolBalance` implementation, ensuring proportional ownership as funds move in and out.\n\n2. **Backstop Insurance** - The function `is_pool_above_threshold` uses a variation of the constant product formula to determine if pool reserves meet safety thresholds: `(bal_blnd^4 * bal_usdc) / PC^5 such that PC is 100k`.\n\n3. **Price Discovery** - Exchange rates between assets are maintained through variants of the constant product formula, with Blend extending this to support multiple reserve assets with different collateral factors.\n\nThe constant product formula ensures that as trades occur or as users deposit and withdraw from lending pools, the mathematical relationship between assets maintains predictable pricing and sufficient liquidity for all participants in the protocol."
+  },
+  {
+    "terms": [
+      "Invariant"
+    ],
+    "definition": "# Invariant\n\nIn software engineering, an invariant is a condition or property that holds true throughout the execution of a program or system. It represents a logical assertion that must be maintained across state changes to ensure correctness. \n\nInvariants serve as guardrails that protect the integrity of your system by establishing constraints that must never be violated. They can exist at various levels:\n\n- **Data structure invariants**: Properties that must hold true for a data structure (e.g., a binary search tree must maintain its ordering property)\n- **Loop invariants**: Conditions that hold true before and after each iteration of a loop\n- **Class invariants**: Properties that must be satisfied by all instances of a class after construction and after any public method completes\n- **System invariants**: Higher-level properties that ensure overall system correctness\n\nIn the Blend Protocol codebase, for example, a critical invariant is that the pool must never lend out more funds than it has available (`supply > liabilities`), ensuring the protocol remains solvent.\n\nEffective use of invariants allows developers to reason about program correctness, document essential assumptions, detect bugs early, and establish clear boundaries for future modifications. They are fundamental to building robust software systems."
+  },
+  {
+    "terms": [
+      "Mid Price"
+    ],
+    "definition": "# Mid Price\n\nIn the context of decentralized finance protocols like Blend, the mid price represents the authoritative fair market value of an asset at a given moment. Unlike trading platforms where mid price is calculated as the average between bid and ask prices, in lending protocols like Blend, mid price is typically sourced from external price oracles.\n\nThe mid price serves as a critical reference point for core protocol operations including:\n\n- Determining collateral values\n- Calculating liquidation thresholds\n- Pricing assets in auctions\n- Managing risk parameters\n\nIn the Blend codebase, mid price is retrieved through the `load_price` function, which either returns a cached price or fetches a fresh one from the configured oracle:\n\n```rust\npub fn load_price(&mut self, e: &Env, asset: &Address) -> i128 {\n    // Check cache first\n    if let Some(price) = self.prices.get(asset.clone()) {\n        return price;\n    }\n    \n    // Otherwise fetch from oracle\n    let oracle_client = PriceFeedClient::new(e, &self.config.oracle);\n    let oracle_asset = Asset::Stellar(asset.clone());\n    let price_data = oracle_client.lastprice(&oracle_asset).unwrap_optimized();\n    \n    // Validate price freshness and positivity\n    if price_data.timestamp + 24 * 60 * 60 < e.ledger().timestamp() || price_data.price <= 0 {\n        panic_with_error!(e, PoolError::InvalidPrice);\n    }\n    \n    // Cache and return price\n    self.prices.set(asset.clone(), price_data.price);\n    price_data.price\n}\n```\n\nThe protocol enforces price integrity by validating that prices are both recent (not older than 24 hours) and positive, ensuring all operations based on these values remain secure and accurate."
+  },
+  {
+    "terms": [
+      "AMM Protocol",
+      "Automated Market Maker",
+      "AMM"
+    ],
+    "definition": "# AMM Protocol\n\nAn Automated Market Maker (AMM) protocol is a decentralized smart contract system that manages liquidity pools without relying on traditional order books. In this codebase, the AMM concept is applied to lending markets rather than token swaps.\n\nThe protocol enables:\n\n1. Creation and management of asset reserves (pools) with configurable parameters like collateral factors and interest rates\n2. Algorithmically determined interest rates based on pool utilization and other factors\n3. Permissionless participation where anyone can provide liquidity, borrow, and interact with pools\n4. Auction mechanisms for liquidations and interest distribution\n5. Backstop systems that provide protocol security\n\nKey features include automated pricing determined by mathematical formulas, continuous liquidity availability, and fully decentralized operation. The liquidity pools replace traditional financial intermediaries with smart contract logic that enforces lending parameters, collateralization requirements, and interest accrual.\n\nUnlike traditional AMMs focused on spot trading between token pairs, this protocol adapts the AMM model for lending markets, using pool ratios and formulas to determine borrowing/lending rates rather than token exchange prices."
+  },
+  {
+    "terms": [
+      "address(0)"
+    ],
+    "definition": "# address(0)\n\nThe zero address, represented as `0x0000000000000000000000000000000000000000` in Ethereum and other EVM-compatible blockchains. In smart contract development like the Blend Protocol, `address(0)` serves multiple critical functions:\n\n1. **Sentinel value**: Indicates an uninitialized or invalid address, functioning similar to `null` in other programming languages\n2. **Input validation**: Smart contracts often check that addresses aren't `address(0)` to prevent errors (as seen in `require_is_from_pool_factory` function)\n3. **Burn address**: Tokens sent to this address are effectively removed from circulation permanently\n4. **Default value**: In storage, unassigned address variables automatically default to `address(0)`\n5. **Edge case handling**: Many tests in the Blend Protocol codebase (e.g., `test_execute_withdrawal_zero_tokens`) verify the system correctly handles interactions with the zero address\n\nProper handling of the zero address is a security best practice in blockchain development, preventing issues like permanent token loss or unintended contract behavior."
+  },
+  {
+    "terms": [
+      "EIP-1153"
+    ],
+    "definition": "# EIP-1153\n\nEIP-1153 (Transient Storage Opcodes) is an Ethereum Improvement Proposal that introduces two new opcodes to the Ethereum Virtual Machine: `TSTORE` and `TLOAD`. These opcodes enable \"transient storage\" - a temporary key-value store that exists only for the duration of a transaction and is automatically cleared afterward. Unlike regular contract storage which persists on-chain permanently, transient storage provides a gas-efficient method for storing temporary values during contract execution.\n\nThe primary benefits of EIP-1153 include:\n\n1. **Gas efficiency** - Transient storage operations cost significantly less gas than permanent storage operations\n2. **Simplified reentrancy protection** - Provides a clean way to implement temporary locks\n3. **Reduced complexity** - Eliminates workarounds like contract memory packing or stack juggling\n4. **Enhanced composability** - Allows contracts to safely use temporary storage without state persistence concerns\n\nFor blockchain developers, EIP-1153 offers a fundamental primitive that makes smart contracts more efficient when handling temporary state, especially in complex DeFi operations that require multiple steps within a single transaction."
+  },
+  {
+    "terms": [
+      "DEX"
+    ],
+    "definition": "# DEX\n\nA Decentralized Exchange (DEX) is a peer-to-peer marketplace that enables trustless trading of cryptocurrencies and digital assets directly between users without intermediaries. Unlike centralized exchanges, DEXs allow traders to maintain custody of their funds while executing trades through smart contracts deployed on a blockchain.\n\nIn the context of the Blend Protocol, DEXs represent a crucial component of the DeFi ecosystem that would interact with the protocol's permissionless lending pools. The core features of DEXs include:\n\n1. Non-custodial trading (users control their private keys)\n2. On-chain settlement via smart contracts\n3. Automated Market Maker (AMM) mechanisms using liquidity pools\n4. Permissionless liquidity provision where users can earn fees\n\nWhile the Blend Protocol itself focuses on lending functionality rather than direct token swapping, its architecture is designed to be interoperable with DEXs, creating a complementary relationship between lending protocols and decentralized exchanges in the broader DeFi landscape."
+  },
+  {
+    "terms": [
+      "ERC721"
+    ],
+    "definition": "# ERC721\n\nERC721 is a token standard on the Ethereum blockchain that defines the interface for non-fungible tokens (NFTs). Unlike fungible tokens (ERC20) where each token is identical, ERC721 tokens are unique with distinct identifiers and cannot be interchanged on a 1:1 basis.\n\nThe standard includes several key functions:\n- `balanceOf`: Returns how many tokens an address owns\n- `ownerOf`: Returns the owner of a specific token\n- `transferFrom`/`safeTransferFrom`: Transfers ownership of tokens\n- `approve`: Grants permission for a specific token transfer\n- `setApprovalForAll`: Grants permission to transfer all tokens\n\nIn DeFi protocols like Blend, ERC721 tokens can represent unique positions in lending pools, LP positions, or other financial instruments where uniqueness matters. When used in auctions (as hinted in the codebase), each ERC721 might represent a distinct collateralized position with its own characteristics and value."
+  },
+  {
+    "terms": [
+      "EIP-712"
+    ],
+    "definition": "# EIP-712\n\nEIP-712 is an Ethereum Improvement Proposal that defines a standard method for hashing and signing typed structured data. Unlike traditional signing methods that use opaque byte strings, EIP-712 allows for human-readable data structures to be presented to users when signing, significantly improving security and transparency.\n\nIn DeFi protocols like Blend, EIP-712 enables secure off-chain order signing with clear, human-readable data structures. When a user approves a transaction (like in code snippets where tokens are being approved), EIP-712 ensures they can see exactly what they're authorizing - the specific token amounts, addresses, and other parameters.\n\nThe standard works by:\n1. Defining a structured data schema (types and properties)\n2. Including domain-specific data to prevent cross-protocol replay attacks\n3. Generating a typed data hash that securely represents the structured data\n4. Creating signatures that are verifiable on-chain\n\nThis approach is critical for permissionless DeFi protocols where users need assurance that what they're signing matches what will be executed on-chain. EIP-712's domain separation also ensures that signatures valid in one context (like a specific pool) cannot be maliciously reused elsewhere."
+  },
+  {
+    "terms": [
+      "Time-Weighted Average Market Maker (TWAMM)",
+      "TWAMM"
+    ],
+    "definition": "# Time-Weighted Average Market Maker (TWAMM)\n\nA Time-Weighted Average Market Maker (TWAMM) is a protocol mechanism that enables the execution of large orders over an extended period rather than all at once. In the Blend Protocol context, while not explicitly labeled as \"TWAMM,\" the backstop interest and liquidation auction systems function similarly by spreading trading across multiple blocks. These auctions distribute large value transfers over time, reducing market disruption and price impact.\n\nThe protocol's auction system creates a time-weighted effect by:\n1. Establishing auctions with configurable parameters (bid tokens, lot tokens, and percentages)\n2. Setting time-based expiration measured in blocks (e.g., 500 blocks for interest auctions)\n3. Allowing partial fills (as seen in the fill percentage parameters)\n4. Gradually releasing collateral or interest to prevent market flooding\n\nThis approach is particularly valuable during liquidations or interest redistribution events where large positions would otherwise cause significant market disruption. By extending execution over time, the protocol helps ensure smoother price discovery and fairer value distribution to participants."
+  },
+  {
+    "terms": [
+      "Variant Maps"
+    ],
+    "definition": "# Variant Maps\n\nA data structure pattern used in the Blend Protocol that creates associations between keys (typically asset identifiers) and their corresponding values (usually numeric amounts or rates). These maps are commonly implemented using the `map!` macro with syntax like `map![&e, (key1, value1), (key2, value2)]`, where `&e` represents an environment or execution context. Variant Maps are primarily used in auction and liquidation mechanisms to efficiently track and manage asset allocations, liquidation values, and other numerical associations between assets and their corresponding quantities or parameters."
+  },
+  {
+    "terms": [
+      "ECDSA"
+    ],
+    "definition": "# ECDSA\n\nECDSA (Elliptic Curve Digital Signature Algorithm) is a cryptographic algorithm used to create and verify digital signatures. It's based on elliptic curve mathematics and provides strong security with relatively small key sizes compared to other signature schemes like RSA.\n\nAt its core, ECDSA works through these fundamental components:\n\n1. **Key Pair**: A private key (a randomly generated number kept secret) and a corresponding public key (derived from the private key using elliptic curve operations).\n\n2. **Signature Generation**: Using a private key to create a unique signature for a specific message or data.\n\n3. **Signature Verification**: Using the signer's public key to mathematically verify that a signature was created by the holder of the corresponding private key.\n\nIn blockchain systems like Ethereum, ECDSA serves critical security functions:\n- Authenticating transactions (proving you authorized a transaction)\n- Validating message origins\n- Enabling recovery of public keys from signatures\n- Supporting non-custodial wallet implementations\n\nThe algorithm's security relies on the elliptic curve discrete logarithm problem, making it computationally infeasible to derive a private key from its corresponding public key or signature.\n\nModern implementations include protections against signature malleability attacks and support for various signature encoding formats (like Ethereum's compact EIP-2098 format), ensuring both security and interoperability across systems."
+  },
+  {
+    "terms": [
+      "ERC1271"
+    ],
+    "definition": "# ERC1271\n\nERC1271 is a standard interface that allows smart contracts to validate signatures. Unlike traditional Ethereum wallets (EOAs) that use private keys, smart contracts need a different mechanism to verify signatures. This standard solves that problem by defining an `isValidSignature` function that contract wallets implement.\n\n```solidity\ninterface IERC1271 {\n    function isValidSignature(bytes32 hash, bytes memory signature) \n        external view returns (bytes4 magicValue);\n}\n```\n\nWhen a signature is valid, the function returns a specific \"magic value\" (`0x1626ba7e`). This enables:\n\n- Smart contract wallets to participate in signature-based protocols\n- Custom signature validation logic (multi-sig, delegation, time-locks)\n- Advanced authentication schemes beyond simple ECDSA signatures\n\nERC1271 is essential for account abstraction, decentralized exchanges with off-chain orders, and implementations like Sign-In With Ethereum (SIWE) that need to support both EOAs and contract accounts."
+  },
+  {
+    "terms": [
+      "Application-Specific Sequencing (ASS)",
+      "Application-Specific Sequencing",
+      "(ASS)"
+    ],
+    "definition": "# Application-Specific Sequencing (ASS)\n\nApplication-Specific Sequencing is a method in blockchain technology that enables individual applications to define and control how their own transactions are ordered and processed, rather than relying on the default sequencing mechanisms of the underlying blockchain. This approach gives applications sovereignty over transaction ordering logic, which can lead to significant improvements in efficiency, user experience, and economic outcomes.\n\nBy implementing custom sequencing rules, applications can optimize for their specific needs - for example, a decentralized exchange (DEX) might implement fair ordering that prevents front-running, or a lending protocol might prioritize liquidation transactions during volatile market conditions. This customization helps mitigate Miner Extractable Value (MEV), where miners or validators extract value by manipulating transaction order at the expense of users.\n\nApplication-Specific Sequencing represents an evolution in blockchain architecture, moving certain control mechanisms from the consensus layer to the application layer while still benefiting from the underlying blockchain's security guarantees. This approach can be implemented through dedicated sequencers, specialized smart contracts, or layer 2 solutions that process transactions according to application-defined rules.\n\nThe primary benefits include reduced MEV impact, improved economic outcomes for users, greater application control, and enhanced protocol efficiency. However, implementing ASS requires careful consideration of complexity, potential centralization risks, and interoperability with the broader ecosystem."
+  },
+  {
+    "terms": [
+      "MEV (Maximal Extractable Value)",
+      "MEV",
+      "Maximal Extractable Value"
+    ],
+    "definition": "# MEV (Maximal Extractable Value)\n\nMaximal Extractable Value (MEV) refers to the maximum profit that can be extracted from blockchain networks by reordering, inserting, or censoring transactions within blocks. This value is captured by miners, validators, or specialized \"searchers\" who exploit their privileged position in transaction sequencing.\n\nIn blockchain protocols like Blend, MEV mitigation is implemented through several mechanisms:\n\n1. **Batch Processing**: Limit orders are cleared in batches at uniform prices, ensuring fair treatment of users and protecting them from common MEV attacks such as sandwich attacks.\n\n2. **Top of Block (ToB) Auction**: Competition to extract MEV from the underlying Automated Market Maker (AMM) is internalized through this auction mechanism, with proceeds redistributed to Liquidity Providers (LPs) rather than being captured by external arbitrageurs.\n\n3. **Auction Systems**: The codebase implements various auction types (bad debt auctions, interest auctions) that help redistribute value that would otherwise be extracted through MEV.\n\nMEV extraction represents a form of economic rent in blockchain systems that can increase costs for users, create unfair advantages, and potentially destabilize network incentives. Effective MEV mitigation strategies, like those in the Blend Protocol, aim to create more equitable and efficient decentralized exchange ecosystems by limiting value extraction or redistributing it back to protocol participants."
+  },
+  {
+    "terms": [
+      "Orderbook"
+    ],
+    "definition": "# Orderbook\n\nAn OrderBook is a core data structure in trading systems that maintains sorted lists of buy (bid) and sell (ask) orders for a specific asset or trading pair. It consists of a unique identifier (PoolId), separate collections for bid and ask orders, and optionally an Automated Market Maker (AMM) snapshot.\n\nThe OrderBook enables efficient price discovery and trade matching through price-time priority ordering. It supports various trading mechanisms including limit orders, auctions (such as interest and liquidation auctions), and partial fills. When orders are matched, the system executes trades and emits events to notify participants.\n\nIn the Blend Protocol, the OrderBook plays a crucial role in facilitating liquidity for lending pools, handling order scaling based on market conditions, and supporting liquidation mechanisms to maintain system solvency."
+  },
+  {
+    "terms": [
+      "Top-of-Block (ToB)",
+      "Top-of-Block",
+      "ToB"
+    ],
+    "definition": "# Top-of-Block (ToB)\n\nA transaction ordering mechanism that prioritizes specific orders to be executed at the very beginning of a newly created blockchain block. In decentralized exchanges and financial protocols, ToB orders receive execution preference before other transactions, providing traders with reduced latency and front-running protection. \n\nThe mechanism typically includes:\n\n- Block-specific validation ensuring orders are only executable within their target blocks\n- Precise asset quantity and price specifications\n- Gas limit parameters to control execution costs\n- Recipient information for settlement\n\nTop-of-Block ordering is particularly valuable in high-frequency trading scenarios, arbitrage opportunities, and liquidation processes where milliseconds matter. By positioning transactions at the \"top\" of the block's execution sequence, users gain a competitive advantage in capturing time-sensitive market inefficiencies with minimal slippage.\n\nIn the Blend Protocol implementation, ToB is integrated with auction systems for managing interest distribution, backstop operations, and debt handling, demonstrating its utility in maintaining economic stability within DeFi protocols."
+  }
+]

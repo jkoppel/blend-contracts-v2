@@ -1,0 +1,163 @@
+{
+  "title": "2.3: PoolFactory Storage & TTL Mechanics",
+  "id": "NIt6H4/82dNIzi1VZW6/Tuz/f+YwNGFBwfIBCQrUegY=",
+  "originalId": 2018,
+  "position": 4,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "This walkthrough shows how `pool-factory/src/storage.rs` keeps the factory’s state alive for months by bumping rent each time the contract is touched.",
+      "title": "",
+      "id": "23784"
+    },
+    {
+      "type": "highlight",
+      "description": "Line 5 defines one day as `17 280` ledgers (`≈5 s` each).  The contract then chooses two horizons:\n- lines 7-8: `30-day TTL (+1-day grace)` for **INSTANCE** data – this is configuration shared by every call.\n- lines 10-11: `100-day TTL (+20-day grace)` for **USER**-level records – infrequent look-ups should still survive.\nThe `_BUMP_` values are deliberately larger than the thresholds so every bump shifts expiry forward instead of merely resetting it.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 3,
+          "end": 11
+        }
+      ],
+      "title": "",
+      "id": "23785"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolFactoryDataKey` uses an enum variant that embeds an `Address`. Each deployed pool is stored under `Contracts(addr)`, giving a single logical table whose row key is the composite of variant-tag + address.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 13,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "23786"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolInitMeta` stores the factory's core configuration (pool WASM hash, backstop address, and BLND token id) - set once during construction and referenced for each pool deployment.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 19,
+          "end": 25
+        }
+      ],
+      "title": "",
+      "id": "23787"
+    },
+    {
+      "type": "highlight",
+      "description": "`extend_instance` (lines 28-32) bumps `INSTANCE` storage by the 30-day rule.  All mutating entry-points start by calling this helper so the factory’s core configuration never expires while in use.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 27,
+          "end": 32
+        }
+      ],
+      "title": "",
+      "id": "23788"
+    },
+    {
+      "type": "highlight",
+      "description": "`is_deployed` first looks up `Contracts(addr)` (line 61). On a cache hit it extends the record’s TTL to 100 + 20 days (line 65) before returning `true`; on a miss it returns `false` without changing storage.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 56,
+          "end": 66
+        }
+      ],
+      "title": "",
+      "id": "23789"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_deployed` writes `true` under the same composite key (line 80) and immediately bumps its TTL (line 83). Subsequent reads will prolong the record again, creating a sliding window of liveness with every access.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 76,
+          "end": 83
+        }
+      ],
+      "title": "",
+      "id": "23790"
+    },
+    {
+      "type": "highlight",
+      "description": "`get_pool_init_meta` fetches the singleton meta from `INSTANCE` storage (lines 36-39). Because callers always invoke `extend_instance` first, this read occurs against freshly-bumped storage.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 34,
+          "end": 40
+        }
+      ],
+      "title": "",
+      "id": "23791"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_pool_init_meta` is used only by the factory’s constructor to seed that metadata.",
+      "file": "pool-factory/src/storage.rs",
+      "highlight": [
+        {
+          "start": 46,
+          "end": 50
+        }
+      ],
+      "title": "",
+      "id": "23792"
+    },
+    {
+      "type": "highlight",
+      "description": "The constructor simply delegates to `set_pool_init_meta`. From this moment the struct enjoys the 30-day TTL and will be refreshed by every call that follows.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 54,
+          "end": 57
+        }
+      ],
+      "title": "",
+      "id": "23793"
+    },
+    {
+      "type": "highlight",
+      "description": "At the start of `deploy` the factory bumps its `INSTANCE` (line 72) and reads the `meta` (line 73) before creating the pool.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 71,
+          "end": 75
+        }
+      ],
+      "title": "",
+      "id": "23794"
+    },
+    {
+      "type": "highlight",
+      "description": "Once the pool contract is deployed, `set_deployed` records its address and grants it the 100-day TTL.",
+      "file": "pool-factory/src/pool_factory.rs",
+      "highlight": [
+        {
+          "start": 112,
+          "end": 113
+        }
+      ],
+      "title": "",
+      "id": "23795"
+    },
+    {
+      "type": "textOnly",
+      "description": "Every interaction refreshes either `INSTANCE` or per-pool records, so the factory’s state remains accessible without manual rent payments, yet expires safely after long inactivity.",
+      "title": "",
+      "id": "23796"
+    }
+  ]
+}

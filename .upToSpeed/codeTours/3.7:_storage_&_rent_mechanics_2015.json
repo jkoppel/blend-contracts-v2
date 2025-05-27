@@ -1,0 +1,189 @@
+{
+  "title": "3.7: Storage & Rent Mechanics",
+  "id": "c8uPxKz38B8B3bpFfOqQE629nZ2GjlvosslhhBY4ESc=",
+  "originalId": 2015,
+  "position": 13,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Follow this guided walk-through to understand how the **back-stop contract** keeps every piece of state alive while minimising rent. You will meet three **TTL buckets**, a **compact key-space**, **helper routines** that bump rent automatically, and the rule that every mutating entry point starts by renewing the **contract instance**.",
+      "title": "",
+      "id": "23893"
+    },
+    {
+      "type": "highlight",
+      "description": "Three pairs of constants define the lifetime \"buckets\":\n- `INSTANCE` ≈ 30 → 31 days keeps the contract record alive.\n- `SHARED` ≈ 45 → 46 days suits data used by many actors.\n- `USER` ≈ 100 → 120 days protects wallet-specific data.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 7,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "23894"
+    },
+    {
+      "type": "highlight",
+      "description": "`extend_instance()` bumps the contract’s own rent every time it is called, using the `INSTANCE` bucket.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 90,
+          "end": 94
+        }
+      ],
+      "title": "",
+      "id": "23895"
+    },
+    {
+      "type": "highlight",
+      "description": "`BackstopDataKey` is an `enum` whose variants embed pool and/or user addresses. The `serialised enum value` becomes the `on-chain key`, safely namespacing all tables under one **contract**.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 74,
+          "end": 83
+        }
+      ],
+      "title": "",
+      "id": "23896"
+    },
+    {
+      "type": "highlight",
+      "description": "`get_user_balance()` reads a `USER`-scoped record; if present it bumps its TTL by `LEDGER_BUMP_USER`.  Even a mere read refreshes the entry for another ~20 days on top of its 100-day threshold.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 213,
+          "end": 228
+        }
+      ],
+      "title": "",
+      "id": "23897"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_user_balance()` writes the same record and immediately extends its TTL with identical `USER` parameters, mirroring the read path.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 236,
+          "end": 247
+        }
+      ],
+      "title": "",
+      "id": "23898"
+    },
+    {
+      "type": "highlight",
+      "description": "`get_pool_balance()` shows the **SHARED bucket** in action for pool-wide data. The shorter lifetime keeps rent low while still granting each touch ~46 days of safety.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 255,
+          "end": 267
+        }
+      ],
+      "title": "",
+      "id": "23899"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_pool_balance()` writes the same key and bumps with the same `SHARED` constants.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 275,
+          "end": 283
+        }
+      ],
+      "title": "",
+      "id": "23900"
+    },
+    {
+      "type": "highlight",
+      "description": "The reward-zone vector is another shared item; `get_reward_zone()` refreshes its TTL automatically when read.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 313,
+          "end": 321
+        }
+      ],
+      "title": "",
+      "id": "23901"
+    },
+    {
+      "type": "highlight",
+      "description": "Per-pool reward-zone emissions (`get_rz_emis`) follow the same shared-bucket recipe.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 397,
+          "end": 408
+        }
+      ],
+      "title": "",
+      "id": "23902"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_backstop_emis_data()` illustrates the write path for another shared record – again using `LEDGER_BUMP_SHARED`.",
+      "file": "backstop/src/storage.rs",
+      "highlight": [
+        {
+          "start": 448,
+          "end": 456
+        }
+      ],
+      "title": "",
+      "id": "23903"
+    },
+    {
+      "type": "highlight",
+      "description": "Every mutating entry point begins by calling `extend_instance`.  `Deposit` is a typical example.",
+      "file": "backstop/src/contract.rs",
+      "highlight": [
+        {
+          "start": 206,
+          "end": 210
+        }
+      ],
+      "title": "",
+      "id": "23904"
+    },
+    {
+      "type": "highlight",
+      "description": "The `distribute` function obeys the same rule.",
+      "file": "backstop/src/contract.rs",
+      "highlight": [
+        {
+          "start": 264,
+          "end": 266
+        }
+      ],
+      "title": "",
+      "id": "23905"
+    },
+    {
+      "type": "highlight",
+      "description": "Even pool-only calls like `draw` start by renewing the contract instance.",
+      "file": "backstop/src/contract.rs",
+      "highlight": [
+        {
+          "start": 315,
+          "end": 317
+        }
+      ],
+      "title": "",
+      "id": "23906"
+    },
+    {
+      "type": "textOnly",
+      "description": "These patterns combine to create a state-rent strategy: categorised **TTL** buckets, **enum**-based key namespacing, helper routines that bump rent on every access, and a mandatory instance bump at the gateway. As long as users interact within a month, the contract and all its data remain safely alive.",
+      "title": "",
+      "id": "23907"
+    }
+  ]
+}

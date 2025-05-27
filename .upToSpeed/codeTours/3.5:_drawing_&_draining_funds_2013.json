@@ -1,0 +1,72 @@
+{
+  "title": "3.5: Drawing & Draining Funds",
+  "id": "eUJRjtDydu4wyqOHlh6cImU/rlsV/JjWoAOrXsVF840=",
+  "originalId": 2013,
+  "position": 11,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "Liquidity can travel both ways between a pool and its backstop.  Donations (`push`) were covered elsewhere; this tour focuses on the `pull` path – `draw` – and on the `checks` that keep the backstop solvent.",
+      "title": "",
+      "id": "23862"
+    },
+    {
+      "type": "highlight",
+      "description": "`execute_draw` performs three steps in strict order. Line 11 rejects negative amounts, line 15 debits the internal `PoolBalance` ledger before anything leaves the `contract`, and lines 18-19 finally send the tokens to the destination address chosen by the pool.",
+      "file": "backstop/src/backstop/fund_management.rs",
+      "highlight": [
+        {
+          "start": 9,
+          "end": 20
+        }
+      ],
+      "title": "",
+      "id": "23863"
+    },
+    {
+      "type": "highlight",
+      "description": "`PoolBalance.withdraw` enforces the `InsufficientFunds` guard. Line 189 aborts whenever the request would overdraw tokens, exceed issued shares, or touch shares still locked in the q4w queue, preventing the pool from dipping into reserved liquidity.",
+      "file": "backstop/src/backstop/pool.rs",
+      "highlight": [
+        {
+          "start": 186,
+          "end": 194
+        }
+      ],
+      "title": "",
+      "id": "23864"
+    },
+    {
+      "type": "highlight",
+      "description": "The public `draw` entry point is only available to the pool itself. Line 317 requires the pool address to sign, then the function immediately delegates to `execute_draw` and emits an event – ordinary users cannot invoke this path.",
+      "file": "backstop/src/contract.rs",
+      "highlight": [
+        {
+          "start": 315,
+          "end": 321
+        }
+      ],
+      "title": "",
+      "id": "23865"
+    },
+    {
+      "type": "highlight",
+      "description": "When depositors withdraw queued shares, the module first checks for outstanding liabilities (`BadDebtExists` at line 58). Withdrawals are paused until the backstop has no debt to the pool, ensuring liabilities are prioritised over exits.",
+      "file": "backstop/src/backstop/withdrawal.rs",
+      "highlight": [
+        {
+          "start": 52,
+          "end": 59
+        }
+      ],
+      "title": "",
+      "id": "23866"
+    },
+    {
+      "type": "textOnly",
+      "description": "Together these pieces ensure: 1) only the `pool` can pull funds; 2) `draws` cannot exceed `non-queued liquidity`; 3) any attempt to over-draw reverts with **InsufficientFunds**; 4) `user withdrawals` are suspended while debts exist.  An auditor can therefore trace every movement of backstop liquidity and see the safety rails in place.",
+      "title": "",
+      "id": "23867"
+    }
+  ]
+}

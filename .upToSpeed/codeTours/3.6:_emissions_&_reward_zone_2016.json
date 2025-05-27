@@ -1,0 +1,215 @@
+{
+  "title": "3.6: Emissions & Reward Zone",
+  "id": "Lhxvlkh+7OsL50GK5bimyPcDXfjGo+iGjC4OHjUAK0M=",
+  "originalId": 2016,
+  "position": 12,
+  "steps": [
+    {
+      "type": "textOnly",
+      "description": "We are going to follow one `BLND` token all the way from the global emitter, through the backstop reward-zone, into a pool, and finally into a user’s wallet. Each stop introduces a new data-structure or accounting rule; by the end you will know where every balance lives and when each index is bumped.",
+      "title": "",
+      "id": "23821"
+    },
+    {
+      "type": "highlight",
+      "description": "The entire emissions engine is re-exported here: `manager` (network-wide accounting), `distributor` (per-pool & per-user math), and `claim` (turns accrued BLND into LP).  Keep these three roles in mind as we descend.",
+      "file": "backstop/src/emissions/mod.rs",
+      "highlight": [
+        {
+          "start": 1,
+          "end": 9
+        }
+      ],
+      "title": "",
+      "id": "23822"
+    },
+    {
+      "type": "highlight",
+      "description": "Adding a pool to the reward-zone first proves two things: (1) the pool is not already listed and (2) its deposit beats the minimum via `is_pool_above_threshold`.  Failing either check reverts, so only healthy, unique pools earn rewards.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 18,
+          "end": 33
+        }
+      ],
+      "title": "",
+      "id": "23823"
+    },
+    {
+      "type": "highlight",
+      "description": "Capacity is capped by `MAX_RZ_SIZE` (30).  If there is room the newcomer is simply pushed; if full, the caller may swap it in by supplying a worse pool (`to_remove`).  The vector is then committed with `set_reward_zone`.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 38,
+          "end": 55
+        }
+      ],
+      "title": "",
+      "id": "23824"
+    },
+    {
+      "type": "highlight",
+      "description": "`remove_from_reward_zone` is the mirror: it verifies the pool has actually fallen below threshold, checks that `distribute` ran within the last hour, then excises the entry.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 57,
+          "end": 69
+        }
+      ],
+      "title": "",
+      "id": "23825"
+    },
+    {
+      "type": "highlight",
+      "description": "`distribute` is called every few blocks.\n\n- It queries the global emitter. If the emitter does not recognize this backstop yet, the function enters **backfill** mode (line 115) so past emissions can be caught up exactly once.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 96,
+          "end": 116
+        }
+      ],
+      "title": "",
+      "id": "23826"
+    },
+    {
+      "type": "highlight",
+      "description": "**BLND** is minted at one token per second (scaled ×10⁷).  During a backfill the new slice is confined to `MAX_BACKFILLED_EMISSIONS` (10 M) and the running total is persisted – a hard safety valve.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 151,
+          "end": 175
+        }
+      ],
+      "title": "",
+      "id": "23827"
+    },
+    {
+      "type": "highlight",
+      "description": "Now the fresh emissions are split among pools. Each pool’s weight is its *non-queued* backstop tokens; the prorated amount is added to `rz_emis.accrued`. Emissions are not yet spendable – they still need to be gulped.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 178,
+          "end": 201
+        }
+      ],
+      "title": "",
+      "id": "23828"
+    },
+    {
+      "type": "highlight",
+      "description": "When a pool later calls `gulp_emissions` its bucket is emptied and split 70 % backstop / 30 % pool.  The pool portion is granted by bumping the `BLND` allowance so the pool contract can pull immediately.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 221,
+          "end": 236
+        }
+      ],
+      "title": "",
+      "id": "23829"
+    },
+    {
+      "type": "highlight",
+      "description": "`set_backstop_emis_data` converts the 70% tranche into a new seven-day eps and merges any leftovers. The result is stored in `BackstopEmissionData` and will drive future per-user accrual.",
+      "file": "backstop/src/emissions/manager.rs",
+      "highlight": [
+        {
+          "start": 253,
+          "end": 290
+        }
+      ],
+      "title": "",
+      "id": "23830"
+    },
+    {
+      "type": "highlight",
+      "description": "Every deposit or withdrawal calls `update_emissions`. First it refreshes the *pool* index by delegating to `update_emission_data`.",
+      "file": "backstop/src/emissions/distributor.rs",
+      "highlight": [
+        {
+          "start": 16,
+          "end": 26
+        }
+      ],
+      "title": "",
+      "id": "23831"
+    },
+    {
+      "type": "highlight",
+      "description": "`update_emission_data` time-weights eps, divides by *unqueued* shares, and adds the delta to the stored index.  No supply ⇒ no division ⇒ index frozen.",
+      "file": "backstop/src/emissions/distributor.rs",
+      "highlight": [
+        {
+          "start": 52,
+          "end": 74
+        }
+      ],
+      "title": "",
+      "id": "23832"
+    },
+    {
+      "type": "highlight",
+      "description": "Next the user record is updated: `delta_index × userShares` is added to `accrued`.  If `to_claim` is true the function instead returns the amount and zeroes the ledger entry.",
+      "file": "backstop/src/emissions/distributor.rs",
+      "highlight": [
+        {
+          "start": 106,
+          "end": 125
+        }
+      ],
+      "title": "",
+      "id": "23833"
+    },
+    {
+      "type": "highlight",
+      "description": "**`execute_claim`** is the **public entry-point**. It loops over pools, pulls each user accrual, and rejects duplicates or an empty list.",
+      "file": "backstop/src/emissions/claim.rs",
+      "highlight": [
+        {
+          "start": 13,
+          "end": 40
+        }
+      ],
+      "title": "",
+      "id": "23834"
+    },
+    {
+      "type": "highlight",
+      "description": "All `BLND` is converted to `LP tokens` in one `Comet` call. Each pool receives its proportional cut, instantly re-deposited so both `PoolBalance` and `UserBalance` grow – compounding future rewards.",
+      "file": "backstop/src/emissions/claim.rs",
+      "highlight": [
+        {
+          "start": 60,
+          "end": 75
+        }
+      ],
+      "title": "",
+      "id": "23835"
+    },
+    {
+      "type": "highlight",
+      "description": "Two hard caps guard the system: the reward-zone cannot exceed 30 pools (`MAX_RZ_SIZE`) and total backfill can never surpass 10 M BLND (`MAX_BACKFILLED_EMISSIONS`).",
+      "file": "backstop/src/constants.rs",
+      "highlight": [
+        {
+          "start": 7,
+          "end": 18
+        }
+      ],
+      "title": "",
+      "id": "23836"
+    },
+    {
+      "type": "textOnly",
+      "description": "**End-to-end recap:**\n1 BLND/sec is minted by the global emitter → `distribute` splits it across up-to-30 pools → each pool’s `gulp_emissions` does a 70 / 30 backstop-to-pool split and installs a 7-day eps → every deposit/withdraw rolls eps into per-user `accrued` → `execute_claim` swaps accrued BLND for LP and reinvests it, closing the loop.",
+      "title": "",
+      "id": "23837"
+    }
+  ]
+}
